@@ -10,6 +10,11 @@ const router = express.Router();
 
 const createToken = (user) => jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '1h' });
 const createRefreshToken = (user) => jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { expiresIn: '7d' });
+const cookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+});
 
 router.post('/login', loginLimiter, [
   body('identifier').notEmpty().withMessage('Username or email is required'),
@@ -35,17 +40,13 @@ router.post('/login', loginLimiter, [
     await user.save();
 
     res.cookie('token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      ...cookieOptions(),
       maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
-      sameSite: 'lax',
     });
 
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      ...cookieOptions(),
       maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
-      sameSite: 'lax',
     });
 
     await ActivityLog.create({ user: user._id, action: 'Login', ipAddress: req.ip, browser: req.get('user-agent') });
@@ -73,8 +74,8 @@ router.post('/logout', async (req, res) => {
       // ignore
     }
   }
-  res.clearCookie('token');
-  res.clearCookie('refreshToken');
+  res.clearCookie('token', cookieOptions());
+  res.clearCookie('refreshToken', cookieOptions());
   return successResponse(res, 'Logout successful');
 });
 
