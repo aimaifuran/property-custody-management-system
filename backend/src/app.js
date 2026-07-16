@@ -24,29 +24,22 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_ORIGIN || '')
-  .split(',')
-  .map((origin) => origin.trim().replace(/\/$/, ''))
-  .filter(Boolean);
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    const normalizedOrigin = (origin || '').replace(/\/$/, '');
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(normalizedOrigin)) {
-      return callback(null, true);
-    }
-    return callback(new Error(`Not allowed by CORS: ${origin}`));
-  },
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(cors({
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 200,
-};
-
-app.use(helmet());
-app.use(morgan('dev'));
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+}));
+app.options('*', cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200,
+}));
 app.use(express.json());
 app.use(cookieParser());
 app.use(compression());
