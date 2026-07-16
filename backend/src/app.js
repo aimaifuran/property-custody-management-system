@@ -44,12 +44,12 @@ const corsOptions = {
 };
 
 app.use(helmet());
+app.use(morgan('dev'));
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 app.use(compression());
-app.use(morgan('dev'));
 
 const swaggerSpec = swaggerJsdoc({
   definition: {
