@@ -20,6 +20,7 @@ const returnRoutes = require('./routes/returns');
 const accountabilityRoutes = require('./routes/accountabilities');
 const userRoutes = require('./routes/users');
 const reportRoutes = require('./routes/reports');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -65,7 +66,19 @@ app.use('/api/accountabilities', accountabilityRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
 
-app.get('/health', (req, res) => res.json({ ok: true }));
+const getHealthPayload = () => ({
+  ok: true,
+  service: 'pcms-backend',
+  uptime: Math.round(process.uptime()),
+  database: {
+    connected: mongoose.connection.readyState === 1,
+    state: mongoose.connection.readyState,
+  },
+  timestamp: new Date().toISOString(),
+});
+
+app.get('/health', (req, res) => res.json(getHealthPayload()));
+app.get('/api/health', (req, res) => res.json(getHealthPayload()));
 
 app.use((err, req, res, next) => {
   if (err) {
