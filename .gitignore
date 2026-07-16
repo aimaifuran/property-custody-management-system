@@ -8,6 +8,7 @@ frontend/dist-ssr/
 
 # Environment files
 backend/.env
+frontend/.env
 *.local
 
 # Logs
