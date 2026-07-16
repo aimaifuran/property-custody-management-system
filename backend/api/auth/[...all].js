@@ -1,6 +1,6 @@
-const app = require('../../../src/app');
-const { connectDatabase } = require('../../../src/config/database');
-const { bootstrapSeed } = require('../../../src/utils/bootstrapSeed');
+const app = require('../../src/app');
+const { connectDatabase } = require('../../src/config/database');
+const { bootstrapSeed } = require('../../src/utils/bootstrapSeed');
 
 let connectPromise = null;
 let seedPromise = null;
