@@ -1,12 +1,16 @@
 require('dotenv').config();
 
-const { connectDatabase } = require('./src/config/database');
+const { connectDatabase, disconnectDatabase } = require('./src/config/database');
 const { bootstrapSeed } = require('./src/utils/bootstrapSeed');
 
 async function main() {
-  await connectDatabase();
-  const result = await bootstrapSeed();
-  console.log(result.seeded ? 'Seed data complete' : 'Seed skipped: already initialized');
+  try {
+    await connectDatabase();
+    const result = await bootstrapSeed();
+    console.log(result.seeded ? 'Seed data complete' : 'Seed skipped: already initialized');
+  } finally {
+    await disconnectDatabase();
+  }
 }
 
 main().catch((error) => {
