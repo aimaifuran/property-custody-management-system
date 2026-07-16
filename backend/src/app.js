@@ -26,19 +26,26 @@ const app = express();
 
 const allowedOrigins = (process.env.CLIENT_ORIGIN || '')
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 
-app.use(helmet());
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    const normalizedOrigin = (origin || '').replace(/\/$/, '');
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
-    return callback(new Error('Not allowed by CORS'));
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
   },
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200,
+};
+
+app.use(helmet());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 app.use(compression());
