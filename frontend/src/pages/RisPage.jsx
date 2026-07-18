@@ -3,7 +3,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { Download, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
+import { Download, Printer, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -585,6 +585,277 @@ export default function RisPage() {
     }
   };
 
+  const printRisForm = (data) => {
+    const items = (data.items || []).slice(0, 19);
+    const printWindow = window.open('', '_blank', 'width=1200,height=900');
+
+    if (!printWindow) {
+      toast.error('Popup blocked. Please allow popups to print the RIS form.');
+      return;
+    }
+
+    const rowsHtml = items.map((item) => `
+      <tr>
+        <td>${item.stockNumber || ''}</td>
+        <td>${item.unit || ''}</td>
+        <td>${item.description || ''}</td>
+        <td>${item.quantityRequested ?? ''}</td>
+        <td>${item.isAvailable === true ? '/' : ''}</td>
+        <td>${item.isAvailable === false ? '/' : ''}</td>
+        <td>${item.quantityIssued ?? ''}</td>
+        <td>${item.remarks || ''}</td>
+      </tr>
+    `).join('');
+
+    const emptyRowsHtml = Array.from({ length: Math.max(0, 19 - items.length) }, () => `
+      <tr>
+        <td>&nbsp;</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <title>${data.risNumber || 'RIS'}</title>
+          <style>
+            @page { size: legal portrait; margin: 0.4in; }
+            body {
+              font-family: "Times New Roman", serif;
+              color: #000;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+            }
+            .sheet {
+              width: 100%;
+              max-width: 13in;
+              margin: 0 auto;
+            }
+            .top-right {
+              text-align: right;
+              font-style: italic;
+              font-size: 14px;
+              margin-bottom: 8px;
+            }
+            .title {
+              text-align: center;
+              font-size: 24px;
+              font-weight: 700;
+              margin: 0 0 16px;
+            }
+            .meta-grid {
+              display: grid;
+              grid-template-columns: 1.3fr 1fr;
+              gap: 12px;
+              margin-bottom: 10px;
+            }
+            .meta-line {
+              display: flex;
+              gap: 8px;
+              align-items: center;
+              margin: 4px 0;
+              font-size: 16px;
+            }
+            .line {
+              flex: 1;
+              border-bottom: 1px solid #000;
+              min-height: 18px;
+            }
+            .section-bar {
+              display: grid;
+              grid-template-columns: 4fr 2fr 2fr;
+              border: 1px solid #000;
+              border-bottom: none;
+              font-style: italic;
+              font-weight: 700;
+              text-align: center;
+              font-size: 18px;
+            }
+            .section-bar div {
+              padding: 6px 8px;
+              border-right: 1px solid #000;
+            }
+            .section-bar div:last-child {
+              border-right: none;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+              font-size: 15px;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 6px 6px;
+              vertical-align: middle;
+              word-wrap: break-word;
+            }
+            th {
+              text-align: center;
+              font-weight: 700;
+            }
+            td {
+              height: 26px;
+            }
+            .footer-grid {
+              display: grid;
+              grid-template-columns: 1fr;
+              gap: 6px;
+              margin-top: 8px;
+              font-size: 16px;
+            }
+            .signature-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 8px;
+              margin-top: 18px;
+              font-size: 15px;
+            }
+            .signature-block {
+              border: 1px solid #000;
+              min-height: 110px;
+              padding: 8px;
+            }
+            .signature-title {
+              font-weight: 700;
+              margin-bottom: 22px;
+            }
+            .sig-line {
+              border-bottom: 1px solid #000;
+              margin-top: 36px;
+            }
+            .sig-label {
+              margin-top: 4px;
+            }
+            .purpose-row {
+              margin-top: 6px;
+              font-size: 16px;
+            }
+            .signature-fields {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-top: 12px;
+            }
+            .signature-fields .field {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 15px;
+              margin: 6px 0;
+            }
+            .signature-fields .fill {
+              flex: 1;
+              border-bottom: 1px solid #000;
+              min-height: 18px;
+            }
+            .print-note {
+              margin-top: 8px;
+              font-size: 12px;
+            }
+            @media print {
+              .no-print {
+                display: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="top-right">Appendix 63</div>
+            <div class="title">REQUISITION AND ISSUE SLIP</div>
+            <div class="meta-grid">
+              <div>
+                <div class="meta-line"><strong>Entity Name:</strong><span class="line">${data.entityName || ''}</span></div>
+                <div class="meta-line"><strong>Division:</strong><span class="line">${data.division || ''}</span></div>
+                <div class="meta-line"><strong>Office:</strong><span class="line">${data.office || ''}</span></div>
+              </div>
+              <div>
+                <div class="meta-line"><strong>Fund Cluster:</strong><span class="line">${data.fundCluster || ''}</span></div>
+                <div class="meta-line"><strong>Responsibility Center Code:</strong><span class="line">${data.responsibilityCenterCode || ''}</span></div>
+                <div class="meta-line"><strong>RIS No.:</strong><span class="line">${data.risNumber || ''}</span></div>
+              </div>
+            </div>
+            <div class="section-bar">
+              <div>Requisition</div>
+              <div>Stock Available?</div>
+              <div>Issue</div>
+            </div>
+            <table>
+              <colgroup>
+                <col style="width: 12%;">
+                <col style="width: 7%;">
+                <col style="width: 24%;">
+                <col style="width: 11%;">
+                <col style="width: 8%;">
+                <col style="width: 8%;">
+                <col style="width: 11%;">
+                <col style="width: 19%;">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Stock No.</th>
+                  <th>Unit</th>
+                  <th>Description</th>
+                  <th>Quantity</th>
+                  <th>Yes</th>
+                  <th>No</th>
+                  <th>Quantity</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+                ${emptyRowsHtml}
+              </tbody>
+            </table>
+            <div class="purpose-row"><strong>Purpose:</strong> ${data.purpose || ''}</div>
+            <div class="signature-fields">
+              <div>
+                <div class="field"><strong>Requested by:</strong><span class="fill">${data.requestedBy || ''}</span></div>
+                <div class="field"><strong>Signature:</strong><span class="fill">&nbsp;</span></div>
+                <div class="field"><strong>Printed Name:</strong><span class="fill">&nbsp;</span></div>
+                <div class="field"><strong>Designation:</strong><span class="fill">&nbsp;</span></div>
+                <div class="field"><strong>Date:</strong><span class="fill">&nbsp;</span></div>
+              </div>
+              <div>
+                <div class="field"><strong>Approved by:</strong><span class="fill">${data.approvedBy || ''}</span></div>
+                <div class="field"><strong>Issued by:</strong><span class="fill">${data.issuedBy || ''}</span></div>
+                <div class="field"><strong>Received by:</strong><span class="fill">${data.receivedBy || ''}</span></div>
+              </div>
+            </div>
+            <div class="print-note no-print">Printing will open your system print dialog.</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+
+    setTimeout(() => {
+      try {
+        printWindow.print();
+      } catch (error) {
+        toast.error('Unable to open the print dialog.');
+      }
+    }, 500);
+
+    printWindow.onafterprint = () => {
+      printWindow.close();
+    };
+  };
+
   const statusClasses = {
     PENDING_REVIEW: 'bg-amber-100 text-amber-700',
     PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
@@ -640,6 +911,14 @@ export default function RisPage() {
                 >
                   <Download size={16} />
                   Generate Form
+                </button>
+                <button
+                  type="button"
+                  onClick={() => printRisForm(item)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <Printer size={16} />
+                  Print
                 </button>
                 {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
                   <button
