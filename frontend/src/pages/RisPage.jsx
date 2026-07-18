@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import { Download, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -31,6 +33,326 @@ const initialForm = {
   date: new Date().toISOString().slice(0, 10),
   status: 'PENDING_APPROVAL',
   items: [createRow(), createRow(), createRow(), createRow(), createRow()],
+};
+
+const createRisWorkbook = (data) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('RIS', {
+    views: [{ showGridLines: true }],
+  });
+
+  const thin = { style: 'thin', color: { argb: 'FF000000' } };
+  const medium = { style: 'medium', color: { argb: 'FF000000' } };
+
+  worksheet.pageSetup = {
+    orientation: 'portrait',
+    paperSize: 9,
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 0.3,
+      right: 0.3,
+      top: 0.5,
+      bottom: 0.5,
+      header: 0.25,
+      footer: 0.25,
+    },
+  };
+
+  worksheet.columns = [
+    { width: 11.11 },
+    { width: 5.78 },
+    { width: 23.89 },
+    { width: 12.89 },
+    { width: 12.67 },
+    { width: 12.89 },
+    { width: 13.22 },
+    { width: 29.33 },
+  ];
+
+  const rowHeights = {
+    1: 9.60,
+    2: 24.60,
+    3: 13.20,
+    4: 25.80,
+    5: 13.80,
+    6: 22.20,
+    7: 4.20,
+    8: 22.20,
+    9: 18.60,
+    10: 25.80,
+    11: 25.80,
+    12: 25.80,
+    13: 25.80,
+    14: 25.80,
+    15: 25.80,
+    16: 25.80,
+    17: 25.80,
+    18: 25.80,
+    19: 25.80,
+    20: 25.80,
+    21: 25.80,
+    22: 25.80,
+    23: 25.80,
+    24: 25.80,
+    25: 25.80,
+    26: 25.80,
+    27: 25.80,
+    28: 25.80,
+    29: 25.80,
+    30: 25.80,
+    31: 0.60,
+    32: 25.80,
+    33: 25.80,
+    34: 25.80,
+    35: 28.80,
+    36: 22.20,
+    37: 22.20,
+    38: 22.20,
+    39: 22.80,
+    40: 15.00,
+  };
+
+  Object.entries(rowHeights).forEach(([rowNumber, height]) => {
+    worksheet.getRow(Number(rowNumber)).height = height;
+  });
+
+  worksheet.mergeCells('A4:H4');
+  worksheet.mergeCells('A10:D10');
+  worksheet.mergeCells('E10:F10');
+  worksheet.mergeCells('G10:H10');
+  worksheet.mergeCells('B32:H32');
+  worksheet.mergeCells('B33:H33');
+  worksheet.mergeCells('B34:H34');
+  worksheet.mergeCells('D35:E35');
+  worksheet.mergeCells('F35:G35');
+  worksheet.mergeCells('D36:E36');
+  worksheet.mergeCells('F36:G36');
+  worksheet.mergeCells('D37:E37');
+  worksheet.mergeCells('F37:G37');
+  worksheet.mergeCells('D38:E38');
+  worksheet.mergeCells('F38:G38');
+  worksheet.mergeCells('D39:E39');
+  worksheet.mergeCells('F39:G39');
+  // Bottom/Signature
+  worksheet.mergeCells('A35:B35');
+  worksheet.mergeCells('A36:B36');
+  worksheet.mergeCells('A37:B37');
+  worksheet.mergeCells('A38:B38');
+  worksheet.mergeCells('A39:B39');
+
+  const title = worksheet.getCell('A4');
+  title.value = 'REQUISITION AND ISSUE SLIP';
+  title.font = { name: 'Times New Roman', size: 16, bold: true };
+  title.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const appendix = worksheet.getCell('H2');
+  appendix.value = 'Appendix 63';
+  appendix.font = { name: 'Times New Roman', size: 12, italic: true };
+  appendix.alignment = { horizontal: 'right', vertical: 'middle' };
+
+  const labelFont = { name: 'Times New Roman', size: 11, bold: true };
+  const fieldFont = { name: 'Times New Roman', size: 11 };
+  const sectionFont = { name: 'Times New Roman', size: 12, bold: true, italic: true };
+
+  const setLabel = (address, value) => {
+    const cell = worksheet.getCell(address);
+    cell.value = value;
+    cell.font = labelFont;
+    cell.alignment = { horizontal: 'left', vertical: 'middle' };
+  };
+
+  const setField = (address, value) => {
+    const cell = worksheet.getCell(address);
+    cell.value = value ?? '';
+    cell.font = fieldFont;
+    cell.alignment = { horizontal: 'left', vertical: 'middle' };
+    cell.underline = true;
+  };
+
+  const setBorder = (address, border = thin) => {
+    const cell = worksheet.getCell(address);
+    cell.border = {
+      top: border,
+      left: border,
+      bottom: border,
+      right: border,
+    };
+  };
+
+  const columnToNumber = (column) => column.split('').reduce((total, char) => total * 26 + (char.charCodeAt(0) - 64), 0);
+  const numberToColumn = (number) => {
+    let n = number;
+    let column = '';
+
+    while (n > 0) {
+      const remainder = (n - 1) % 26;
+      column = String.fromCharCode(65 + remainder) + column;
+      n = Math.floor((n - 1) / 26);
+    }
+
+    return column;
+  };
+  const applyOuterBorder = (range, border = thin) => {
+    const [start, end] = range.split(':');
+    const startCol = start.match(/[A-Z]+/)[0];
+    const startRow = Number(start.match(/\d+/)[0]);
+    const endCol = end.match(/[A-Z]+/)[0];
+    const endRow = Number(end.match(/\d+/)[0]);
+    const startColNum = columnToNumber(startCol);
+    const endColNum = columnToNumber(endCol);
+
+    for (let row = startRow; row <= endRow; row += 1) {
+      for (let colNum = startColNum; colNum <= endColNum; colNum += 1) {
+        const cell = worksheet.getCell(`${numberToColumn(colNum)}${row}`);
+        cell.border = {
+          top: row === startRow ? border : cell.border?.top,
+          bottom: row === endRow ? border : cell.border?.bottom,
+          left: colNum === startColNum ? border : cell.border?.left,
+          right: colNum === endColNum ? border : cell.border?.right,
+        };
+      }
+    }
+  };
+
+  setLabel('A6', 'Entity Name:');
+  setField('C6', data.entityName);
+  setLabel('G6', 'Fund Cluster:');
+  setField('H6', data.fundCluster);
+
+  setLabel('A8', 'Division:');
+  setField('B8', data.division);
+  setLabel('F8', 'Responsibility Center Code:');
+  setField('H8', data.responsibilityCenterCode);
+
+  setLabel('A9', 'Office:');
+  setField('B9', data.office);
+  setLabel('F9', 'RIS No.:');
+  setField('G9', data.risNumber);
+
+  applyOuterBorder('A8:E9', thin);
+  applyOuterBorder('F8:H9', thin);
+  applyOuterBorder('A8:H39', thin);
+
+  const requisition = worksheet.getCell('A10');
+  requisition.value = 'Requisition';
+  requisition.font = sectionFont;
+  requisition.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const stockAvailable = worksheet.getCell('E10');
+  stockAvailable.value = 'Stock Available?';
+  stockAvailable.font = sectionFont;
+  stockAvailable.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  const issue = worksheet.getCell('G10');
+  issue.value = 'Issue';
+  issue.font = sectionFont;
+  issue.alignment = { horizontal: 'center', vertical: 'middle' };
+
+  [
+    ['A11', 'Stock No.'],
+    ['B11', 'Unit'],
+    ['C11', 'Description'],
+    ['D11', 'Quantity'],
+    ['E11', 'Yes'],
+    ['F11', 'No'],
+    ['G11', 'Quantity'],
+    ['H11', 'Remarks'],
+  ].forEach(([address, value]) => {
+    const cell = worksheet.getCell(address);
+    cell.value = value;
+    cell.font = labelFont;
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    setBorder(`${address}`, thin)
+  });
+
+  for (let row = 12; row <= 30; row += 1) {
+    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach((column) => {
+      const cell = worksheet.getCell(`${column}${row}`);
+      cell.value = '';
+      cell.font = fieldFont;
+      cell.alignment = {
+        horizontal: column === 'A' ? 'left' : 'center',
+        vertical: 'middle',
+        wrapText: true,
+      };
+      setBorder(`${column}${row}`, thin);
+    });
+  }
+
+  ['A32', 'B32', 'A40'].forEach((address) => {
+    setField(address, '');
+  });
+  setLabel('A32', 'Purpose:');
+  setField('B32', data.purpose || '');
+  worksheet.getCell('A40').value = 'AO 6/15/02';
+  worksheet.getCell('A40').font = { name: 'Times New Roman', size: 10 };
+
+
+  // Add outer borders for the main blocks.
+  ['A10', 'E10', 'G10', 'A35', 'C35', 'D35', 'F35', 'H35'].forEach((address) => {
+    if (worksheet.getCell(address).value !== undefined) {
+      worksheet.getCell(address).border = {
+        top: thin,
+        left: thin,
+        right: thin,
+      };
+    }
+  });
+
+  
+  const signatureLabels = [
+    ['C35', 'Requested by:'],
+    ['D35', 'Approved by:'],
+    ['F35', 'Issued by:'],
+    ['H35', 'Received by:'],
+  ];
+  signatureLabels.forEach(([address, value]) => setLabel(address, value));
+
+  const signatureFieldRowTitle= [
+    ['A36', 'Signature:'],
+    ['A37', 'Printed Name:'],
+    ['A38', 'Designation:'],
+    ['A39', 'Date:'],
+  ];
+  signatureFieldRowTitle.forEach(([address, value]) => {
+    const cell = worksheet.getCell(address);
+    cell.value = value;
+    cell.font = { name: 'Times New Roman'};
+  });
+
+  // Add bottom borders for the signature fields.
+  const signatureFieldRanges = [
+    'A36', 'C36', 'D36', 'F36', 'H36',
+    'A37', 'C37', 'D37', 'F37', 'H37',
+    'A38', 'C38', 'D38', 'F38', 'H38',
+    'A39', 'C39', 'D39', 'F39', 'H39',
+  ];
+  signatureFieldRanges.forEach((address) => {
+    const cell = worksheet.getCell(address);
+    cell.border = {
+        left: thin,
+        right: thin,
+        bottom: thin,
+      };
+    cell.font = { name: 'Times New Roman'};
+  });
+
+  const items = data.items || [];
+  items.slice(0, 19).forEach((item, index) => {
+    const row = 12 + index;
+    worksheet.getCell(`A${row}`).value = item.stockNumber || '';
+    worksheet.getCell(`B${row}`).value = item.unit || '';
+    worksheet.getCell(`C${row}`).value = item.description || '';
+    worksheet.getCell(`D${row}`).value = item.quantityRequested ?? '';
+    worksheet.getCell(`E${row}`).value = item.isAvailable === true ? '/' : '';
+    worksheet.getCell(`F${row}`).value = item.isAvailable === false ? '/' : '';
+    worksheet.getCell(`G${row}`).value = item.quantityIssued ?? '';
+    worksheet.getCell(`H${row}`).value = item.remarks || '';
+  });
+
+  return workbook;
 };
 
 export default function RisPage() {
@@ -249,6 +571,20 @@ export default function RisPage() {
     }
   };
 
+  const downloadRisForm = async (data) => {
+    try {
+      const workbook = createRisWorkbook(data);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      saveAs(blob, `${(data.risNumber || 'RIS').replace(/[^a-z0-9-_]+/gi, '_')}_form.xlsx`);
+    } catch (error) {
+      toast.error(error?.message || 'Unable to generate RIS form');
+    }
+  };
+
   const statusClasses = {
     PENDING_REVIEW: 'bg-amber-100 text-amber-700',
     PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
@@ -296,11 +632,19 @@ export default function RisPage() {
                 {item.rejectionReason ? <div className="md:col-span-2 text-rose-600">Rejection reason: {item.rejectionReason}</div> : null}
               </div>
               {canManage ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
-                    <button
-                      type="button"
-                      onClick={() => openReview(item)}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadRisForm(item)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <Download size={16} />
+                  Generate Form
+                </button>
+                {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
+                  <button
+                    type="button"
+                    onClick={() => openReview(item)}
                       className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
                     >
                       <CheckCircle2 size={16} />
