@@ -5,6 +5,9 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
+import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 
 const emptyItem = () => ({
@@ -140,6 +143,63 @@ export default function IarPage() {
       saveAs(blob, "IAR.xlsx");
     }
 
+    async function generateDoc(data) {
+      const response = await fetch("/forms/templates/iar-template.docx");
+      const content = await response.arrayBuffer();
+
+      const zip = new PizZip(content);
+
+      const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+      });
+
+      doc.render({
+          entityName: data.entityName,
+          fundCluster: data.fundCluster,
+          supplierName: data.supplierName,
+          poNumber: data.poNumber,
+          reqOffice: data.requisitioningOffice,
+          rcc: data.responsibilityCenterCode,
+          iarNumber: data.iarNumber,
+          iarDate: formatDate(data.iarDate),
+          invoiceNumber: data.invoiceNumber,
+          invoiceDate: formatDate(data.invoiceDate),
+      });
+
+      const blob = doc.getZip().generate({
+          type: "blob",
+          mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      saveAs(blob, "IAR.docx");
+    }
+
+    async function generatePdf(data) {
+      const existingPdfBytes = await fetch("/forms/templates/iar-template.docx").then(res =>
+          res.arrayBuffer()
+      );
+
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+
+      const form = pdfDoc.getForm();
+
+      form.getTextField("fullName").setText(data.fullName);
+      form.getTextField("address").setText(data.address);
+      form.getTextField("date").setText(data.date);
+
+      // Optional: prevent further editing
+      form.flatten();
+
+      const pdfBytes = await pdfDoc.save();
+
+      saveAs(
+          new Blob([pdfBytes], { type: "application/pdf" }),
+          "IAR.pdf"
+      );
+    }
+
     return (
       <>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -155,7 +215,8 @@ export default function IarPage() {
               <div className="flex gap-2">
                 <button type="button" onClick={() => window.open(`/property-cards/${item._id}`, '_blank')} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
                 <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                <button type="button" onClick={() => window.open(`/property-cards/${item._id}`, '_blank')} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
               </div>
             </div>
           )}
