@@ -20,6 +20,8 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
   custodian: { type: String, trim: true },
   propertyCards: [{ type: mongoose.Schema.Types.ObjectId, ref: 'PropertyCard' }],
   requisition: { type: mongoose.Schema.Types.ObjectId, ref: 'RequisitionIssueSlip' },
+  inventoryCustodianSlip: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryCustodianSlip' },
+  propertyAcknowledgementReceipt: { type: mongoose.Schema.Types.ObjectId, ref: 'PropertyAcknowledgementReceipt' },
   // Legacy names are retained so existing reports and inventory records remain readable.
   purchaseDate: { type: Date },
   receivedBy: { type: String, trim: true },

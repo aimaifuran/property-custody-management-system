@@ -6,6 +6,8 @@ const Item = require('../models/Item');
 const LedgerTransaction = require('../models/LedgerTransaction');
 const PropertyCard = require('../models/PropertyCard');
 const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
+const InventoryCustodianSlip = require('../models/InventoryCustodianSlip');
+const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgementReceipt');
 const Supplier = require('../models/Supplier');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
@@ -14,6 +16,26 @@ const router = express.Router();
 router.get('/', authenticate, authorize('canViewIAR'), async (req, res) => {
   const iar = await InspectionAcceptanceReport.find({ deleted: false }).populate('supplier').sort({ createdAt: -1 });
   return successResponse(res, 'IAR retrieved', iar);
+});
+
+router.put('/:id', authenticate, authorize('canManageIAR'), async (req, res) => {
+  const payload = { ...req.body };
+  if (payload.items) {
+    payload.items = payload.items.map((entry) => ({
+      ...entry,
+      stockNumber: entry.stockNumber || entry.stockPropertyNumber,
+      stockPropertyNumber: entry.stockPropertyNumber || entry.stockNumber,
+      item: entry.item || entry.description,
+      totalCost: Number(entry.quantity || 0) * Number(entry.unitCost || 0),
+    }));
+  }
+  const report = await InspectionAcceptanceReport.findOneAndUpdate(
+    { _id: req.params.id, deleted: false },
+    payload,
+    { new: true, runValidators: true },
+  );
+  if (!report) return errorResponse(res, 'IAR not found', [], 404);
+  return successResponse(res, 'IAR updated', report);
 });
 
 router.post('/', authenticate, authorize('canManageIAR'), [
@@ -132,6 +154,62 @@ router.post('/', authenticate, authorize('canManageIAR'), [
   });
   report.propertyCards = [propertyCard._id];
   report.requisition = ris._id;
+
+  // A single consolidated ICS or PAR record is created per IAR, chosen by the
+  // combined total cost of all items: below the PAR threshold goes to ICS,
+  // at/above it goes to PAR.
+  const combinedTotalCost = report.items.reduce((sum, entry) => sum + Number(entry.totalCost || 0), 0);
+  const itemsForAccountability = report.items.map((entry) => ({
+    quantity: entry.quantity ?? null,
+    unit: entry.unit || null,
+    unitCost: entry.unitCost ?? null,
+    totalCost: entry.totalCost ?? null,
+    description: entry.description || entry.item || null,
+    propertyNumber: entry.stockPropertyNumber || entry.stockNumber || null,
+    dateAcquired: report.purchaseDate || report.acceptanceDate || null,
+  }));
+
+  if (combinedTotalCost < 50000) {
+    const ics = await InventoryCustodianSlip.create({
+      iar: report._id,
+      entityName: report.entityName || null,
+      fundCluster: report.fundCluster || null,
+      icsNumber: undefined,
+      items: itemsForAccountability.map((entry) => ({
+        quantity: entry.quantity,
+        unit: entry.unit,
+        unitCost: entry.unitCost,
+        totalCost: entry.totalCost,
+        description: entry.description,
+        inventoryItemNo: entry.propertyNumber,
+        estimatedUsefulLife: null,
+      })),
+      remarks: null,
+      receivedFrom: { name: report.supplierName || null, position: null, date: report.acceptanceDate || null },
+      receivedBy: { name: report.custodian || null, position: null, date: report.acceptanceDate || null },
+    });
+    report.inventoryCustodianSlip = ics._id;
+  } else {
+    const par = await PropertyAcknowledgementReceipt.create({
+      iar: report._id,
+      entityName: report.entityName || null,
+      fundCluster: report.fundCluster || null,
+      parNumber: undefined,
+      items: itemsForAccountability.map((entry) => ({
+        quantity: entry.quantity,
+        unit: entry.unit,
+        description: entry.description,
+        propertyNumber: entry.propertyNumber,
+        dateAcquired: entry.dateAcquired,
+        amount: entry.totalCost,
+      })),
+      remarks: null,
+      receivedBy: { name: report.custodian || null, position: null, date: report.acceptanceDate || null },
+      issuedBy: { name: null, position: null, date: null },
+    });
+    report.propertyAcknowledgementReceipt = par._id;
+  }
+
   report.status = 'LOGGED_TO_STOCKS';
   await report.save();
   return successResponse(res, 'IAR created', report, 201);

@@ -19,6 +19,8 @@ const iarRoutes = require('./routes/iar');
 const transferRoutes = require('./routes/transfers');
 const returnRoutes = require('./routes/returns');
 const accountabilityRoutes = require('./routes/accountabilities');
+const icsRoutes = require('./routes/ics');
+const parRoutes = require('./routes/par');
 const userRoutes = require('./routes/users');
 const reportRoutes = require('./routes/reports');
 const mongoose = require('mongoose');
@@ -64,6 +66,8 @@ app.use('/api/iar', iarRoutes);
 app.use('/api/ptr', transferRoutes);
 app.use('/api/prs', returnRoutes);
 app.use('/api/accountabilities', accountabilityRoutes);
+app.use('/api/ics', icsRoutes);
+app.use('/api/par', parRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
 

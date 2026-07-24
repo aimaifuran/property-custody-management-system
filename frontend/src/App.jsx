@@ -12,7 +12,8 @@ import PtrPage from './pages/PtrPage';
 import PrsPage from './pages/PrsPage';
 import UsersPage from './pages/UsersPage';
 import WorkflowPlaceholderPage from './pages/WorkflowPlaceholderPage';
-import AccountabilitiesPage from './pages/AccountabilitiesPage';
+import IcsPage from './pages/IcsPage';
+import ParPage from './pages/ParPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading, authReady } = useAuth();
@@ -32,8 +33,8 @@ function AppRoutes() {
           <Route path="/ris" element={<RisPage />} />
           <Route path="/iar" element={<IarPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/inventory-custodian" element={<AccountabilitiesPage title="Inventory Custodian" description="Track ICS documents generated from low-value issued assets." formType="ICS" />} />
-          <Route path="/par" element={<AccountabilitiesPage title="Property Acknowledgement Receipts" description="Track PAR documents generated from higher-value assets." formType="PAR" />} />
+          <Route path="/inventory-custodian" element={<IcsPage />} />
+          <Route path="/par" element={<ParPage />} />
           <Route path="/transfers" element={<PtrPage />} />
           <Route path="/returns" element={<PrsPage />} />
           <Route path="/returned-supply" element={<WorkflowPlaceholderPage title="Returned Supply" description="Record returned supply transactions and supporting details." />} />

@@ -38,9 +38,44 @@ const initial = {
     items: [emptyItem()]
 };
 
+const toDateInputValue = (date) => {
+    if (!date) return '';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().slice(0, 10);
+};
+
+const toForm = (record) => ({
+    entityName: record.entityName || '',
+    fundCluster: record.fundCluster || '',
+    supplierName: record.supplierName || record.supplier?.name || '',
+    poNumber: record.poNumber || '',
+    poDate: toDateInputValue(record.poDate || record.purchaseDate),
+    responsibilityCenterCode: record.responsibilityCenterCode || '',
+    iarNumber: record.iarNumber || '',
+    iarDate: toDateInputValue(record.iarDate),
+    invoiceNumber: record.invoiceNumber || '',
+    invoiceDate: toDateInputValue(record.invoiceDate),
+    inspectionDate: toDateInputValue(record.inspectionDate),
+    inspectedBy: record.inspectedBy || '',
+    acceptanceDate: toDateInputValue(record.acceptanceDate),
+    acceptanceStatus: record.acceptanceStatus || 'Complete',
+    acceptanceQuantity: record.acceptanceQuantity ?? '',
+    custodian: record.custodian || record.receivedBy || record.acceptedBy || '',
+    items: record.items && record.items.length ? record.items.map((item) => ({
+        stockPropertyNumber: item.stockPropertyNumber || item.stockNumber || '',
+        description: item.description || item.item || '',
+        unit: item.unit || '',
+        quantity: item.quantity ?? '',
+        unitCost: item.unitCost ?? '',
+        totalCost: item.totalCost ?? 0
+    })) : [emptyItem()]
+});
+
 export default function IarPage() {
     const [iar, setIar] = useState([]);
     const [form, setForm] = useState(initial);
+    const [editingId, setEditingId] = useState(null);
     const update = (key, value) => setForm((prev) => ({
         ...prev,
         [key]: value
@@ -65,18 +100,36 @@ export default function IarPage() {
     useEffect(() => {
         load();
     }, []);
+    const startEdit = (item) => {
+        setEditingId(item._id);
+        setForm(toForm(item));
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    };
+
+    const cancelEdit = () => {
+        setEditingId(null);
+        setForm(initial);
+    };
+
     const save = async (event) => {
         event.preventDefault();
+        const payload = {
+            ...form,
+            items: form.items.filter((item) => item.stockPropertyNumber || item.description).map((item) => ({
+                ...item,
+                quantity: Number(item.quantity || 0),
+                unitCost: Number(item.unitCost || 0)
+            }))
+        };
         try {
-            await axios.post('/iar', {
-                ...form,
-                items: form.items.filter((item) => item.stockPropertyNumber || item.description).map((item) => ({
-                    ...item,
-                    quantity: Number(item.quantity || 0),
-                    unitCost: Number(item.unitCost || 0)
-                }))
-            });
-            toast.success('IAR saved. Property Card and RIS draft created.');
+            if (editingId) {
+                await axios.put(`/iar/${editingId}`, payload);
+                toast.success('IAR updated');
+            } else {
+                await axios.post('/iar', payload);
+                toast.success('IAR saved. Property Card, RIS draft, and ICS/PAR record created.');
+            }
+            setEditingId(null);
             setForm(initial);
             load();
         } catch (error) {
@@ -176,8 +229,8 @@ export default function IarPage() {
       saveAs(blob, "IAR.docx");
     }
 
-    async function generatePdf(data) {
-      const existingPdfBytes = await fetch("/forms/templates/iar-template.docx").then(res =>
+    async function generatePdf(data, print = false) {
+      const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
           res.arrayBuffer()
       );
 
@@ -185,19 +238,50 @@ export default function IarPage() {
 
       const form = pdfDoc.getForm();
 
-      form.getTextField("fullName").setText(data.fullName);
-      form.getTextField("address").setText(data.address);
-      form.getTextField("date").setText(data.date);
+      form.getTextField("entityName").setText(data.entityName);
+      form.getTextField("fundCluster").setText(data.fundCluster);
+      form.getTextField("supplierName").setText(data.supplierName);
+      form.getTextField("poNumber").setText(data.poNumber);
+      form.getTextField("reqOffice").setText(data.requisitioningOffice);
+      form.getTextField("rcc").setText(data.responsibilityCenterCode);
+      form.getTextField("iarNumber").setText(data.iarNumber);
+      form.getTextField("iarDate").setText(formatDate(data.iarDate));
+      form.getTextField("invoiceNumber").setText(data.invoiceNumber);
+      form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+
+      // Table data insertion
+      const startRowNumber = 1; // Starting row for table data
+      data.items.forEach((item, index) => {
+        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
+        form.getTextField(`description${index + 1}`).setText(item.description);
+        form.getTextField(`unit${index + 1}`).setText(item.unit);
+        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+      });
+
+      
+      form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
+      form.getTextField("inspectedBy").setText(data.inspectedBy);
+      form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
+      form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
+      form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
+      form.getTextField("acceptedBy").setText(data.acceptedBy);
 
       // Optional: prevent further editing
       form.flatten();
 
       const pdfBytes = await pdfDoc.save();
 
-      saveAs(
+      if (print) {
+        const blob = new Blob([pdfBytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, "_blank");
+        printWindow.print();
+      } else {
+        saveAs(
           new Blob([pdfBytes], { type: "application/pdf" }),
           "IAR.pdf"
-      );
+        );
+      }
     }
 
     return (
@@ -213,19 +297,23 @@ export default function IarPage() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => window.open(`/property-cards/${item._id}`, '_blank')} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
                 <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
                 <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
                 <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
               </div>
             </div>
           )}
         </div>
         <hr className="border-slate-300 border-2 my-8" />
         <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-semibold">Inspection &amp; Acceptance Report</h1>
-            <p className="text-sm text-slate-500">Saving an IAR automatically creates its linked Property Card and RIS draft.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold">{editingId ? 'Update Inspection & Acceptance Report' : 'Inspection & Acceptance Report'}</h1>
+              <p className="text-sm text-slate-500">{editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR automatically creates its linked Property Card, RIS draft, and an Inventory Custodian (below ₱50,000) or Property Acknowledgement Receipt (₱50,000 and up) record.'}</p>
+            </div>
+            {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}
           </div>
           <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="grid gap-3 md:grid-cols-3">
@@ -292,7 +380,7 @@ export default function IarPage() {
               {field('Partial Quantity (if applicable)', 'acceptanceQuantity', 'number')}
               {field('Supply/Property Custodian', 'custodian')}
             </div>
-            <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end">Save IAR</button>
+            <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end">{editingId ? 'Update IAR' : 'Save IAR'}</button>
           </form>
         </div>
       </>
