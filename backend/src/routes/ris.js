@@ -77,6 +77,14 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
   return successResponse(res, 'RIS created', ris, 201);
 });
 
+router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), async (req, res) => {
+  const updates = { ...req.body };
+  if (updates.items) updates.items = updates.items.map((entry) => ({ ...entry, totalCost: entry.totalCost ?? null }));
+  const ris = await RequisitionIssueSlip.findOneAndUpdate({ _id: req.params.id, deleted: false }, updates, { new: true, runValidators: true });
+  if (!ris) return errorResponse(res, 'RIS not found', [], 404);
+  return successResponse(res, 'RIS updated', ris);
+});
+
 router.post('/:id/review', authenticate, async (req, res) => {
   if (!canReviewRis(req.user)) return errorResponse(res, 'Forbidden', [], 403);
   const ris = await RequisitionIssueSlip.findById(req.params.id);

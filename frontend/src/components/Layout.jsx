@@ -1,19 +1,23 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Package2, FileText, ClipboardList, FileCheck2, Send, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+
+const issueItems = [
+  { to: '/iar', label: 'Inspection & Acceptance Report', icon: FileCheck2, permissions: ['canViewIAR'] },
+  { to: '/inventory', label: 'Property Card', icon: ClipboardList, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'] },
+  { to: '/ris', label: 'Requisition', icon: FileText, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'] },
+  { to: '/inventory-custodian', label: 'Inventory Custodian', icon: Archive, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'] },
+  { to: '/par', label: 'Property Acknowledgement Receipts', icon: FileText, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'] },
+];
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['canViewDashboard'] },
-  { to: '/suppliers', label: 'Suppliers', icon: Package2, permissions: ['canViewSuppliers'] },
-  { to: '/ris', label: 'Requisition & Issue', icon: FileText, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'] },
-  { to: '/iar', label: 'Inspection & Acceptance Report', icon: FileCheck2, permissions: ['canViewIAR'] },
-  { to: '/inventory', label: 'Property Card', icon: ClipboardList, permissions: ['canViewDashboard'] },
-  { to: '/inventory-custodian', label: 'Inventory Custodian', icon: Archive, permissions: ['canViewDashboard'] },
-  { to: '/par', label: 'Property Acknowledgement Receipts', icon: FileText, permissions: ['canViewDashboard'] },
+  { to: '__issue__', label: 'Issue', icon: FileText, permissions: [] },
   { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewDashboard'] },
   { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewDashboard'] },
-  { to: '/returned-supply', label: 'Returned Supply', icon: Send, permissions: ['canViewDashboard'] },
+  { to: '/returned-supply', label: 'Returned Supply', icon: ClipboardList, permissions: ['canViewDashboard'] },
   { to: '/users', label: 'User Management', icon: Users, permissions: ['canManageUsers'] },
 ];
 
@@ -23,6 +27,7 @@ const canAccessNavItem = (user, item) => (
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const [issueOpen, setIssueOpen] = useState(true);
 
   return (
     <div className="min-h-screen flex bg-slate-100 text-slate-900">
@@ -33,6 +38,53 @@ export default function Layout() {
         </div>
         <nav className="space-y-2">
           {navItems.filter((item) => canAccessNavItem(user, item)).map((item) => {
+            if (item.to === '__issue__') {
+              return (
+                <div key={item.to} className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIssueOpen((value) => !value)}
+                    className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+                  >
+                    <span className="flex items-center gap-3">
+                      <FileText size={18} />
+                      Issue
+                    </span>
+                    {issueOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {issueOpen ? (
+                      <motion.div
+                        key="issue-submenu"
+                        initial={{ opacity: 0, height: 0, y: -6 }}
+                        animate={{ opacity: 1, height: 'auto', y: 0 }}
+                        exit={{ opacity: 0, height: 0, y: -6 }}
+                        transition={{ duration: 0.22, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 space-y-1 pl-4">
+                          {issueItems.filter((childItem) => canAccessNavItem(user, childItem)).map((childItem) => {
+                            const Icon = childItem.icon;
+                            return (
+                              <NavLink
+                                key={childItem.to}
+                                to={childItem.to}
+                                className={({ isActive }) => `flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition ${isActive ? 'bg-teal-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+                              >
+                                <Icon size={16} />
+                                {childItem.label}
+                              </NavLink>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              );
+            }
+
             const Icon = item.icon;
             return (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${isActive ? 'bg-teal-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>

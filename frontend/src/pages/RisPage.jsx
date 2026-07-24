@@ -16,6 +16,7 @@ const createRow = () => ({
   stockAvailable: '',
   quantityIssued: '',
   remarks: '',
+  totalCost: null,
 });
 
 const initialForm = {
@@ -35,330 +36,331 @@ const initialForm = {
   items: [createRow(), createRow(), createRow(), createRow(), createRow()],
 };
 
-const createRisWorkbook = (data) => {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('RIS', {
-    views: [{ showGridLines: true }],
-  });
+// const createRisWorkbook = (data) => {
+//   const workbook = new ExcelJS.Workbook();
+//   const worksheet = workbook.addWorksheet('RIS', {
+//     views: [{ showGridLines: true }],
+//   });
 
-  const thin = { style: 'thin', color: { argb: 'FF000000' } };
-  const medium = { style: 'medium', color: { argb: 'FF000000' } };
+//   const thin = { style: 'thin', color: { argb: 'FF000000' } };
+//   const medium = { style: 'medium', color: { argb: 'FF000000' } };
 
-  worksheet.pageSetup = {
-    orientation: 'portrait',
-    paperSize: 9,
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
-    margins: {
-      left: 0.3,
-      right: 0.3,
-      top: 0.5,
-      bottom: 0.5,
-      header: 0.25,
-      footer: 0.25,
-    },
-  };
+//   worksheet.pageSetup = {
+//     orientation: 'portrait',
+//     paperSize: 9,
+//     fitToPage: true,
+//     fitToWidth: 1,
+//     fitToHeight: 0,
+//     margins: {
+//       left: 0.3,
+//       right: 0.3,
+//       top: 0.5,
+//       bottom: 0.5,
+//       header: 0.25,
+//       footer: 0.25,
+//     },
+//   };
 
-  worksheet.columns = [
-    { width: 11.11 },
-    { width: 5.78 },
-    { width: 23.89 },
-    { width: 12.89 },
-    { width: 12.67 },
-    { width: 12.89 },
-    { width: 13.22 },
-    { width: 29.33 },
-  ];
+//   worksheet.columns = [
+//     { width: 11.11 },
+//     { width: 5.78 },
+//     { width: 23.89 },
+//     { width: 12.89 },
+//     { width: 12.67 },
+//     { width: 12.89 },
+//     { width: 13.22 },
+//     { width: 29.33 },
+//   ];
 
-  const rowHeights = {
-    1: 9.60,
-    2: 24.60,
-    3: 13.20,
-    4: 25.80,
-    5: 13.80,
-    6: 22.20,
-    7: 4.20,
-    8: 22.20,
-    9: 18.60,
-    10: 25.80,
-    11: 25.80,
-    12: 25.80,
-    13: 25.80,
-    14: 25.80,
-    15: 25.80,
-    16: 25.80,
-    17: 25.80,
-    18: 25.80,
-    19: 25.80,
-    20: 25.80,
-    21: 25.80,
-    22: 25.80,
-    23: 25.80,
-    24: 25.80,
-    25: 25.80,
-    26: 25.80,
-    27: 25.80,
-    28: 25.80,
-    29: 25.80,
-    30: 25.80,
-    31: 0.60,
-    32: 25.80,
-    33: 25.80,
-    34: 25.80,
-    35: 28.80,
-    36: 22.20,
-    37: 22.20,
-    38: 22.20,
-    39: 22.80,
-    40: 15.00,
-  };
+//   const rowHeights = {
+//     1: 9.60,
+//     2: 24.60,
+//     3: 13.20,
+//     4: 25.80,
+//     5: 13.80,
+//     6: 22.20,
+//     7: 4.20,
+//     8: 22.20,
+//     9: 18.60,
+//     10: 25.80,
+//     11: 25.80,
+//     12: 25.80,
+//     13: 25.80,
+//     14: 25.80,
+//     15: 25.80,
+//     16: 25.80,
+//     17: 25.80,
+//     18: 25.80,
+//     19: 25.80,
+//     20: 25.80,
+//     21: 25.80,
+//     22: 25.80,
+//     23: 25.80,
+//     24: 25.80,
+//     25: 25.80,
+//     26: 25.80,
+//     27: 25.80,
+//     28: 25.80,
+//     29: 25.80,
+//     30: 25.80,
+//     31: 0.60,
+//     32: 25.80,
+//     33: 25.80,
+//     34: 25.80,
+//     35: 28.80,
+//     36: 22.20,
+//     37: 22.20,
+//     38: 22.20,
+//     39: 22.80,
+//     40: 15.00,
+//   };
 
-  Object.entries(rowHeights).forEach(([rowNumber, height]) => {
-    worksheet.getRow(Number(rowNumber)).height = height;
-  });
+//   Object.entries(rowHeights).forEach(([rowNumber, height]) => {
+//     worksheet.getRow(Number(rowNumber)).height = height;
+//   });
 
-  worksheet.mergeCells('A4:H4');
-  worksheet.mergeCells('A10:D10');
-  worksheet.mergeCells('E10:F10');
-  worksheet.mergeCells('G10:H10');
-  worksheet.mergeCells('B32:H32');
-  worksheet.mergeCells('B33:H33');
-  worksheet.mergeCells('B34:H34');
-  worksheet.mergeCells('D35:E35');
-  worksheet.mergeCells('F35:G35');
-  worksheet.mergeCells('D36:E36');
-  worksheet.mergeCells('F36:G36');
-  worksheet.mergeCells('D37:E37');
-  worksheet.mergeCells('F37:G37');
-  worksheet.mergeCells('D38:E38');
-  worksheet.mergeCells('F38:G38');
-  worksheet.mergeCells('D39:E39');
-  worksheet.mergeCells('F39:G39');
-  // Bottom/Signature
-  worksheet.mergeCells('A35:B35');
-  worksheet.mergeCells('A36:B36');
-  worksheet.mergeCells('A37:B37');
-  worksheet.mergeCells('A38:B38');
-  worksheet.mergeCells('A39:B39');
+//   worksheet.mergeCells('A4:H4');
+//   worksheet.mergeCells('A10:D10');
+//   worksheet.mergeCells('E10:F10');
+//   worksheet.mergeCells('G10:H10');
+//   worksheet.mergeCells('B32:H32');
+//   worksheet.mergeCells('B33:H33');
+//   worksheet.mergeCells('B34:H34');
+//   worksheet.mergeCells('D35:E35');
+//   worksheet.mergeCells('F35:G35');
+//   worksheet.mergeCells('D36:E36');
+//   worksheet.mergeCells('F36:G36');
+//   worksheet.mergeCells('D37:E37');
+//   worksheet.mergeCells('F37:G37');
+//   worksheet.mergeCells('D38:E38');
+//   worksheet.mergeCells('F38:G38');
+//   worksheet.mergeCells('D39:E39');
+//   worksheet.mergeCells('F39:G39');
+//   // Bottom/Signature
+//   worksheet.mergeCells('A35:B35');
+//   worksheet.mergeCells('A36:B36');
+//   worksheet.mergeCells('A37:B37');
+//   worksheet.mergeCells('A38:B38');
+//   worksheet.mergeCells('A39:B39');
 
-  const title = worksheet.getCell('A4');
-  title.value = 'REQUISITION AND ISSUE SLIP';
-  title.font = { name: 'Times New Roman', size: 16, bold: true };
-  title.alignment = { horizontal: 'center', vertical: 'middle' };
+//   const title = worksheet.getCell('A4');
+//   title.value = 'REQUISITION AND ISSUE SLIP';
+//   title.font = { name: 'Times New Roman', size: 16, bold: true };
+//   title.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  const appendix = worksheet.getCell('H2');
-  appendix.value = 'Appendix 63';
-  appendix.font = { name: 'Times New Roman', size: 12, italic: true };
-  appendix.alignment = { horizontal: 'right', vertical: 'middle' };
+//   const appendix = worksheet.getCell('H2');
+//   appendix.value = 'Appendix 63';
+//   appendix.font = { name: 'Times New Roman', size: 12, italic: true };
+//   appendix.alignment = { horizontal: 'right', vertical: 'middle' };
 
-  const labelFont = { name: 'Times New Roman', size: 11, bold: true };
-  const fieldFont = { name: 'Times New Roman', size: 11 };
-  const sectionFont = { name: 'Times New Roman', size: 12, bold: true, italic: true };
+//   const labelFont = { name: 'Times New Roman', size: 11, bold: true };
+//   const fieldFont = { name: 'Times New Roman', size: 11 };
+//   const sectionFont = { name: 'Times New Roman', size: 12, bold: true, italic: true };
 
-  const setLabel = (address, value) => {
-    const cell = worksheet.getCell(address);
-    cell.value = value;
-    cell.font = labelFont;
-    cell.alignment = { horizontal: 'left', vertical: 'middle' };
-  };
+//   const setLabel = (address, value) => {
+//     const cell = worksheet.getCell(address);
+//     cell.value = value;
+//     cell.font = labelFont;
+//     cell.alignment = { horizontal: 'left', vertical: 'middle' };
+//   };
 
-  const setField = (address, value) => {
-    const cell = worksheet.getCell(address);
-    cell.value = value ?? '';
-    cell.font = fieldFont;
-    cell.alignment = { horizontal: 'left', vertical: 'middle' };
-    cell.underline = true;
-  };
+//   const setField = (address, value) => {
+//     const cell = worksheet.getCell(address);
+//     cell.value = value ?? '';
+//     cell.font = fieldFont;
+//     cell.alignment = { horizontal: 'left', vertical: 'middle' };
+//     cell.underline = true;
+//   };
 
-  const setBorder = (address, border = thin) => {
-    const cell = worksheet.getCell(address);
-    cell.border = {
-      top: border,
-      left: border,
-      bottom: border,
-      right: border,
-    };
-  };
+//   const setBorder = (address, border = thin) => {
+//     const cell = worksheet.getCell(address);
+//     cell.border = {
+//       top: border,
+//       left: border,
+//       bottom: border,
+//       right: border,
+//     };
+//   };
 
-  const columnToNumber = (column) => column.split('').reduce((total, char) => total * 26 + (char.charCodeAt(0) - 64), 0);
-  const numberToColumn = (number) => {
-    let n = number;
-    let column = '';
+//   const columnToNumber = (column) => column.split('').reduce((total, char) => total * 26 + (char.charCodeAt(0) - 64), 0);
+//   const numberToColumn = (number) => {
+//     let n = number;
+//     let column = '';
 
-    while (n > 0) {
-      const remainder = (n - 1) % 26;
-      column = String.fromCharCode(65 + remainder) + column;
-      n = Math.floor((n - 1) / 26);
-    }
+//     while (n > 0) {
+//       const remainder = (n - 1) % 26;
+//       column = String.fromCharCode(65 + remainder) + column;
+//       n = Math.floor((n - 1) / 26);
+//     }
 
-    return column;
-  };
-  const applyOuterBorder = (range, border = thin) => {
-    const [start, end] = range.split(':');
-    const startCol = start.match(/[A-Z]+/)[0];
-    const startRow = Number(start.match(/\d+/)[0]);
-    const endCol = end.match(/[A-Z]+/)[0];
-    const endRow = Number(end.match(/\d+/)[0]);
-    const startColNum = columnToNumber(startCol);
-    const endColNum = columnToNumber(endCol);
+//     return column;
+//   };
+//   const applyOuterBorder = (range, border = thin) => {
+//     const [start, end] = range.split(':');
+//     const startCol = start.match(/[A-Z]+/)[0];
+//     const startRow = Number(start.match(/\d+/)[0]);
+//     const endCol = end.match(/[A-Z]+/)[0];
+//     const endRow = Number(end.match(/\d+/)[0]);
+//     const startColNum = columnToNumber(startCol);
+//     const endColNum = columnToNumber(endCol);
 
-    for (let row = startRow; row <= endRow; row += 1) {
-      for (let colNum = startColNum; colNum <= endColNum; colNum += 1) {
-        const cell = worksheet.getCell(`${numberToColumn(colNum)}${row}`);
-        cell.border = {
-          top: row === startRow ? border : cell.border?.top,
-          bottom: row === endRow ? border : cell.border?.bottom,
-          left: colNum === startColNum ? border : cell.border?.left,
-          right: colNum === endColNum ? border : cell.border?.right,
-        };
-      }
-    }
-  };
+//     for (let row = startRow; row <= endRow; row += 1) {
+//       for (let colNum = startColNum; colNum <= endColNum; colNum += 1) {
+//         const cell = worksheet.getCell(`${numberToColumn(colNum)}${row}`);
+//         cell.border = {
+//           top: row === startRow ? border : cell.border?.top,
+//           bottom: row === endRow ? border : cell.border?.bottom,
+//           left: colNum === startColNum ? border : cell.border?.left,
+//           right: colNum === endColNum ? border : cell.border?.right,
+//         };
+//       }
+//     }
+//   };
 
-  setLabel('A6', 'Entity Name:');
-  setField('C6', data.entityName);
-  setLabel('G6', 'Fund Cluster:');
-  setField('H6', data.fundCluster);
+//   setLabel('A6', 'Entity Name:');
+//   setField('C6', data.entityName);
+//   setLabel('G6', 'Fund Cluster:');
+//   setField('H6', data.fundCluster);
 
-  setLabel('A8', 'Division:');
-  setField('B8', data.division);
-  setLabel('F8', 'Responsibility Center Code:');
-  setField('H8', data.responsibilityCenterCode);
+//   setLabel('A8', 'Division:');
+//   setField('B8', data.division);
+//   setLabel('F8', 'Responsibility Center Code:');
+//   setField('H8', data.responsibilityCenterCode);
 
-  setLabel('A9', 'Office:');
-  setField('B9', data.office);
-  setLabel('F9', 'RIS No.:');
-  setField('G9', data.risNumber);
+//   setLabel('A9', 'Office:');
+//   setField('B9', data.office);
+//   setLabel('F9', 'RIS No.:');
+//   setField('G9', data.risNumber);
 
-  applyOuterBorder('A8:E9', thin);
-  applyOuterBorder('F8:H9', thin);
-  applyOuterBorder('A8:H39', thin);
+//   applyOuterBorder('A8:E9', thin);
+//   applyOuterBorder('F8:H9', thin);
+//   applyOuterBorder('A8:H39', thin);
 
-  const requisition = worksheet.getCell('A10');
-  requisition.value = 'Requisition';
-  requisition.font = sectionFont;
-  requisition.alignment = { horizontal: 'center', vertical: 'middle' };
+//   const requisition = worksheet.getCell('A10');
+//   requisition.value = 'Requisition';
+//   requisition.font = sectionFont;
+//   requisition.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  const stockAvailable = worksheet.getCell('E10');
-  stockAvailable.value = 'Stock Available?';
-  stockAvailable.font = sectionFont;
-  stockAvailable.alignment = { horizontal: 'center', vertical: 'middle' };
+//   const stockAvailable = worksheet.getCell('E10');
+//   stockAvailable.value = 'Stock Available?';
+//   stockAvailable.font = sectionFont;
+//   stockAvailable.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  const issue = worksheet.getCell('G10');
-  issue.value = 'Issue';
-  issue.font = sectionFont;
-  issue.alignment = { horizontal: 'center', vertical: 'middle' };
+//   const issue = worksheet.getCell('G10');
+//   issue.value = 'Issue';
+//   issue.font = sectionFont;
+//   issue.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  [
-    ['A11', 'Stock No.'],
-    ['B11', 'Unit'],
-    ['C11', 'Description'],
-    ['D11', 'Quantity'],
-    ['E11', 'Yes'],
-    ['F11', 'No'],
-    ['G11', 'Quantity'],
-    ['H11', 'Remarks'],
-  ].forEach(([address, value]) => {
-    const cell = worksheet.getCell(address);
-    cell.value = value;
-    cell.font = labelFont;
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    setBorder(`${address}`, thin)
-  });
+//   [
+//     ['A11', 'Stock No.'],
+//     ['B11', 'Unit'],
+//     ['C11', 'Description'],
+//     ['D11', 'Quantity'],
+//     ['E11', 'Yes'],
+//     ['F11', 'No'],
+//     ['G11', 'Quantity'],
+//     ['H11', 'Remarks'],
+//   ].forEach(([address, value]) => {
+//     const cell = worksheet.getCell(address);
+//     cell.value = value;
+//     cell.font = labelFont;
+//     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+//     setBorder(`${address}`, thin)
+//   });
 
-  for (let row = 12; row <= 30; row += 1) {
-    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach((column) => {
-      const cell = worksheet.getCell(`${column}${row}`);
-      cell.value = '';
-      cell.font = fieldFont;
-      cell.alignment = {
-        horizontal: column === 'A' ? 'left' : 'center',
-        vertical: 'middle',
-        wrapText: true,
-      };
-      setBorder(`${column}${row}`, thin);
-    });
-  }
+//   for (let row = 12; row <= 30; row += 1) {
+//     ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach((column) => {
+//       const cell = worksheet.getCell(`${column}${row}`);
+//       cell.value = '';
+//       cell.font = fieldFont;
+//       cell.alignment = {
+//         horizontal: column === 'A' ? 'left' : 'center',
+//         vertical: 'middle',
+//         wrapText: true,
+//       };
+//       setBorder(`${column}${row}`, thin);
+//     });
+//   }
 
-  ['A32', 'B32', 'A40'].forEach((address) => {
-    setField(address, '');
-  });
-  setLabel('A32', 'Purpose:');
-  setField('B32', data.purpose || '');
-  worksheet.getCell('A40').value = 'AO 6/15/02';
-  worksheet.getCell('A40').font = { name: 'Times New Roman', size: 10 };
+//   ['A32', 'B32', 'A40'].forEach((address) => {
+//     setField(address, '');
+//   });
+//   setLabel('A32', 'Purpose:');
+//   setField('B32', data.purpose || '');
+//   worksheet.getCell('A40').value = 'AO 6/15/02';
+//   worksheet.getCell('A40').font = { name: 'Times New Roman', size: 10 };
 
 
-  // Add outer borders for the main blocks.
-  ['A10', 'E10', 'G10', 'A35', 'C35', 'D35', 'F35', 'H35'].forEach((address) => {
-    if (worksheet.getCell(address).value !== undefined) {
-      worksheet.getCell(address).border = {
-        top: thin,
-        left: thin,
-        right: thin,
-      };
-    }
-  });
+//   // Add outer borders for the main blocks.
+//   ['A10', 'E10', 'G10', 'A35', 'C35', 'D35', 'F35', 'H35'].forEach((address) => {
+//     if (worksheet.getCell(address).value !== undefined) {
+//       worksheet.getCell(address).border = {
+//         top: thin,
+//         left: thin,
+//         right: thin,
+//       };
+//     }
+//   });
 
   
-  const signatureLabels = [
-    ['C35', 'Requested by:'],
-    ['D35', 'Approved by:'],
-    ['F35', 'Issued by:'],
-    ['H35', 'Received by:'],
-  ];
-  signatureLabels.forEach(([address, value]) => setLabel(address, value));
+//   const signatureLabels = [
+//     ['C35', 'Requested by:'],
+//     ['D35', 'Approved by:'],
+//     ['F35', 'Issued by:'],
+//     ['H35', 'Received by:'],
+//   ];
+//   signatureLabels.forEach(([address, value]) => setLabel(address, value));
 
-  const signatureFieldRowTitle= [
-    ['A36', 'Signature:'],
-    ['A37', 'Printed Name:'],
-    ['A38', 'Designation:'],
-    ['A39', 'Date:'],
-  ];
-  signatureFieldRowTitle.forEach(([address, value]) => {
-    const cell = worksheet.getCell(address);
-    cell.value = value;
-    cell.font = { name: 'Times New Roman'};
-  });
+//   const signatureFieldRowTitle= [
+//     ['A36', 'Signature:'],
+//     ['A37', 'Printed Name:'],
+//     ['A38', 'Designation:'],
+//     ['A39', 'Date:'],
+//   ];
+//   signatureFieldRowTitle.forEach(([address, value]) => {
+//     const cell = worksheet.getCell(address);
+//     cell.value = value;
+//     cell.font = { name: 'Times New Roman'};
+//   });
 
-  // Add bottom borders for the signature fields.
-  const signatureFieldRanges = [
-    'A36', 'C36', 'D36', 'F36', 'H36',
-    'A37', 'C37', 'D37', 'F37', 'H37',
-    'A38', 'C38', 'D38', 'F38', 'H38',
-    'A39', 'C39', 'D39', 'F39', 'H39',
-  ];
-  signatureFieldRanges.forEach((address) => {
-    const cell = worksheet.getCell(address);
-    cell.border = {
-        left: thin,
-        right: thin,
-        bottom: thin,
-      };
-    cell.font = { name: 'Times New Roman'};
-  });
+//   // Add bottom borders for the signature fields.
+//   const signatureFieldRanges = [
+//     'A36', 'C36', 'D36', 'F36', 'H36',
+//     'A37', 'C37', 'D37', 'F37', 'H37',
+//     'A38', 'C38', 'D38', 'F38', 'H38',
+//     'A39', 'C39', 'D39', 'F39', 'H39',
+//   ];
+//   signatureFieldRanges.forEach((address) => {
+//     const cell = worksheet.getCell(address);
+//     cell.border = {
+//         left: thin,
+//         right: thin,
+//         bottom: thin,
+//       };
+//     cell.font = { name: 'Times New Roman'};
+//   });
 
-  const items = data.items || [];
-  items.slice(0, 19).forEach((item, index) => {
-    const row = 12 + index;
-    worksheet.getCell(`A${row}`).value = item.stockNumber || '';
-    worksheet.getCell(`B${row}`).value = item.unit || '';
-    worksheet.getCell(`C${row}`).value = item.description || '';
-    worksheet.getCell(`D${row}`).value = item.quantityRequested ?? '';
-    worksheet.getCell(`E${row}`).value = item.isAvailable === true ? '/' : '';
-    worksheet.getCell(`F${row}`).value = item.isAvailable === false ? '/' : '';
-    worksheet.getCell(`G${row}`).value = item.quantityIssued ?? '';
-    worksheet.getCell(`H${row}`).value = item.remarks || '';
-  });
+//   const items = data.items || [];
+//   items.slice(0, 19).forEach((item, index) => {
+//     const row = 12 + index;
+//     worksheet.getCell(`A${row}`).value = item.stockNumber || '';
+//     worksheet.getCell(`B${row}`).value = item.unit || '';
+//     worksheet.getCell(`C${row}`).value = item.description || '';
+//     worksheet.getCell(`D${row}`).value = item.quantityRequested ?? '';
+//     worksheet.getCell(`E${row}`).value = item.isAvailable === true ? '/' : '';
+//     worksheet.getCell(`F${row}`).value = item.isAvailable === false ? '/' : '';
+//     worksheet.getCell(`G${row}`).value = item.quantityIssued ?? '';
+//     worksheet.getCell(`H${row}`).value = item.remarks || '';
+//   });
 
-  return workbook;
-};
+//   return workbook;
+// };
 
 export default function RisPage() {
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(initialForm);
+  const [editingRis, setEditingRis] = useState(null);
   const [issueErrors, setIssueErrors] = useState({});
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewDraft, setReviewDraft] = useState(null);
@@ -443,13 +445,15 @@ export default function RisPage() {
 
   const resetForm = () => {
     setForm(initialForm);
+    setEditingRis(null);
   };
 
   const save = async (e) => {
     e.preventDefault();
 
+    const { _id, createdAt, updatedAt, __v, ...formData } = form;
     const payload = {
-      ...form,
+      ...formData,
       items: form.items
         .filter((item) => item.stockNumber || item.unit || item.description || item.quantityRequested || item.quantityIssued || item.remarks)
         .map((item) => ({
@@ -462,8 +466,9 @@ export default function RisPage() {
     };
 
     try {
-      await axios.post('/ris', payload);
-      toast.success('RIS saved');
+      if (!editingRis) return;
+      await axios.put(`/ris/${editingRis._id}`, payload);
+      toast.success('RIS updated');
       await load();
       resetForm();
     } catch (error) {
@@ -571,22 +576,106 @@ export default function RisPage() {
     }
   };
 
-  const downloadRisForm = async (data) => {
-    try {
-      const workbook = createRisWorkbook(data);
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
+  const formatDate = (date) => {
+      if (!date) return '';
+      const parsed = new Date(date);
+      if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
+      return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
+    };
 
-      saveAs(blob, `${(data.risNumber || 'RIS').replace(/[^a-z0-9-_]+/gi, '_')}_form.xlsx`);
-    } catch (error) {
-      toast.error(error?.message || 'Unable to generate RIS form');
-    }
+  async function generateExcel(data) {
+    console.log('Generating Excel for RIS:', data);
+
+    // Load the template
+    const response = await fetch("/forms/templates/ris-template.xlsx");
+    const arrayBuffer = await response.arrayBuffer();
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
+
+    // Select the worksheet
+    const worksheet = workbook.getWorksheet("RIS");
+
+    // Insert data into specific cells
+    worksheet.getCell("C6").value = data.entityName;
+    worksheet.getCell("H6").value = data.fundCluster;
+    worksheet.getCell("C8").value = data.division;
+    worksheet.getCell("C9").value = data.office;
+    worksheet.getCell("H8").value = data.responsibilityCenterCode;
+    worksheet.getCell("G9").value = data.risNumber;
+
+    // Table data insertion
+    const startRow = 12; // Starting row for table data
+    data.items.forEach((item, index) => {
+      worksheet.getCell(`A${startRow + index}`).value = item.stockNumber;
+      worksheet.getCell(`B${startRow + index}`).value = item.unit;
+      worksheet.getCell(`C${startRow + index}`).value = item.description;
+      worksheet.getCell(`D${startRow + index}`).value = item.quantityRequested;
+      worksheet.getCell(`E${startRow + index}`).value = item.isAvailable === true ? '/' : '';
+      worksheet.getCell(`F${startRow + index}`).value = item.isAvailable === false ? '/' : '';
+      worksheet.getCell(`G${startRow + index}`).value = item.quantityIssued;
+      worksheet.getCell(`H${startRow + index}`).value = item.remarks;
+    });
+
+    // Requested by:
+    worksheet.getCell("C36").value = null;
+    worksheet.getCell("C37").value = data.requestedBy;
+    worksheet.getCell("C38").value = null;
+    worksheet.getCell("C39").value = null;
+    // Approved by:
+    worksheet.getCell("D36").value = null;
+    worksheet.getCell("D37").value = data.inspectedBy;
+    worksheet.getCell("D38").value = null;
+    worksheet.getCell("D39").value = null;
+    // Issued by:
+    worksheet.getCell("F36").value = null;
+    worksheet.getCell("F37").value = data.issuedBy;
+    worksheet.getCell("F38").value = null;
+    worksheet.getCell("F39").value = null;
+    // Received by:
+    worksheet.getCell("H36").value = null;
+    worksheet.getCell("H37").value = data.receivedBy;
+    worksheet.getCell("H38").value = null;
+    worksheet.getCell("H39").value = null;
+    
+
+    // Generate the modified Excel file
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    // Download
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    saveAs(blob, "RIS.xlsx");
+  }
+
+  const editDraft = async (record) => {
+    const inputDate = record.date ? new Date(record.date).toISOString().slice(0, 10) : '';
+    setEditingRis(record);
+    setForm({
+      ...initialForm,
+      ...record,
+      date: inputDate,
+      items: (record.items || []).map((item) => ({ ...createRow(), ...item, quantityRequested: item.quantityRequested ?? '' })),
+    });
   };
 
   const printRisForm = (data) => {
-    const items = (data.items || []).slice(0, 19);
+    const escapeHtml = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    const value = (field) => escapeHtml(data[field]);
+    const formatDate = (date) => {
+      if (!date) return '';
+      const parsed = new Date(date);
+      if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
+      return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
+    };
+    const items = (data.items || []).slice(0, 20);
     const printWindow = window.open('', '_blank', 'width=1200,height=900');
 
     if (!printWindow) {
@@ -594,31 +683,19 @@ export default function RisPage() {
       return;
     }
 
-    const rowsHtml = items.map((item) => `
-      <tr>
-        <td>${item.stockNumber || ''}</td>
-        <td>${item.unit || ''}</td>
-        <td>${item.description || ''}</td>
-        <td>${item.quantityRequested ?? ''}</td>
+    const rowsHtml = Array.from({ length: 20 }, (_, index) => {
+      const item = items[index] || {};
+      return `<tr>
+        <td>${escapeHtml(item.stockNumber)}</td>
+        <td>${escapeHtml(item.unit)}</td>
+        <td class="text-left">${escapeHtml(item.description)}</td>
+        <td>${escapeHtml(item.quantityRequested)}</td>
         <td>${item.isAvailable === true ? '/' : ''}</td>
         <td>${item.isAvailable === false ? '/' : ''}</td>
-        <td>${item.quantityIssued ?? ''}</td>
-        <td>${item.remarks || ''}</td>
-      </tr>
-    `).join('');
-
-    const emptyRowsHtml = Array.from({ length: Math.max(0, 19 - items.length) }, () => `
-      <tr>
-        <td>&nbsp;</td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-      </tr>
-    `).join('');
+        <td>${escapeHtml(item.quantityIssued)}</td>
+        <td class="text-left">${escapeHtml(item.remarks)}</td>
+      </tr>`;
+    }).join('');
 
     const html = `
       <!doctype html>
@@ -626,214 +703,43 @@ export default function RisPage() {
         <head>
           <title>${data.risNumber || 'RIS'}</title>
           <style>
-            @page { size: legal portrait; margin: 0.4in; }
-            body {
-              font-family: "Times New Roman", serif;
-              color: #000;
-              margin: 0;
-              padding: 0;
-              background: #fff;
-            }
-            .sheet {
-              width: 100%;
-              max-width: 13in;
-              margin: 0 auto;
-            }
-            .top-right {
-              text-align: right;
-              font-style: italic;
-              font-size: 14px;
-              margin-bottom: 8px;
-            }
-            .title {
-              text-align: center;
-              font-size: 24px;
-              font-weight: 700;
-              margin: 0 0 16px;
-            }
-            .meta-grid {
-              display: grid;
-              grid-template-columns: 1.3fr 1fr;
-              gap: 12px;
-              margin-bottom: 10px;
-            }
-            .meta-line {
-              display: flex;
-              gap: 8px;
-              align-items: center;
-              margin: 4px 0;
-              font-size: 16px;
-            }
-            .line {
-              flex: 1;
-              border-bottom: 1px solid #000;
-              min-height: 18px;
-            }
-            .section-bar {
-              display: grid;
-              grid-template-columns: 4fr 2fr 2fr;
-              border: 1px solid #000;
-              border-bottom: none;
-              font-style: italic;
-              font-weight: 700;
-              text-align: center;
-              font-size: 18px;
-            }
-            .section-bar div {
-              padding: 6px 8px;
-              border-right: 1px solid #000;
-            }
-            .section-bar div:last-child {
-              border-right: none;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              table-layout: fixed;
-              font-size: 15px;
-            }
-            th, td {
-              border: 1px solid #000;
-              padding: 6px 6px;
-              vertical-align: middle;
-              word-wrap: break-word;
-            }
-            th {
-              text-align: center;
-              font-weight: 700;
-            }
-            td {
-              height: 26px;
-            }
-            .footer-grid {
-              display: grid;
-              grid-template-columns: 1fr;
-              gap: 6px;
-              margin-top: 8px;
-              font-size: 16px;
-            }
-            .signature-grid {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 8px;
-              margin-top: 18px;
-              font-size: 15px;
-            }
-            .signature-block {
-              border: 1px solid #000;
-              min-height: 110px;
-              padding: 8px;
-            }
-            .signature-title {
-              font-weight: 700;
-              margin-bottom: 22px;
-            }
-            .sig-line {
-              border-bottom: 1px solid #000;
-              margin-top: 36px;
-            }
-            .sig-label {
-              margin-top: 4px;
-            }
-            .purpose-row {
-              margin-top: 6px;
-              font-size: 16px;
-            }
-            .signature-fields {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 20px;
-              margin-top: 12px;
-            }
-            .signature-fields .field {
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              font-size: 15px;
-              margin: 6px 0;
-            }
-            .signature-fields .fill {
-              flex: 1;
-              border-bottom: 1px solid #000;
-              min-height: 18px;
-            }
-            .print-note {
-              margin-top: 8px;
-              font-size: 12px;
-            }
-            @media print {
-              .no-print {
-                display: none;
-              }
-            }
+          * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; }
+          @page { size: letter portrait; margin: 0.35in; }
+          body {
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+            color: #000;
+            background: #fff;
+          }
+          h1 { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; }
+          .header-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: baseline; gap: 24px; }
+          .header-left, .header-right { display: flex; align-items: center; flex: 1; }
+          .header-label { font-weight: bold; margin-right: 6px; white-space: nowrap; }
+          .input-line { border-bottom: 1px solid #000; flex: 1; min-width: 80px; padding: 0 4px; min-height: 17px; }
+          table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+          th, td { border: 1px solid #333; padding: 6px 4px; text-align: center; vertical-align: middle; height: 27px; }
+          th { font-weight: bold; text-transform: capitalize; }
+          .text-left { text-align: left; }
+          .small-cell { width: 8%; }
+          .desc-cell { width: 32%; }
+          .purpose-section { margin: 15px 0; }
+          .signatures-table { margin-top: 20px; }
+          .signatures-table td { border: 1px solid #333; padding: 6px; height: 28px; }
+          .sign-label { font-weight: bold; width: 20%; }
+          @media print { body { padding: 0; } }
           </style>
         </head>
         <body>
-          <div class="sheet">
-            <div class="top-right">Appendix 63</div>
-            <div class="title">REQUISITION AND ISSUE SLIP</div>
-            <div class="meta-grid">
-              <div>
-                <div class="meta-line"><strong>Entity Name:</strong><span class="line">${data.entityName || ''}</span></div>
-                <div class="meta-line"><strong>Division:</strong><span class="line">${data.division || ''}</span></div>
-                <div class="meta-line"><strong>Office:</strong><span class="line">${data.office || ''}</span></div>
-              </div>
-              <div>
-                <div class="meta-line"><strong>Fund Cluster:</strong><span class="line">${data.fundCluster || ''}</span></div>
-                <div class="meta-line"><strong>Responsibility Center Code:</strong><span class="line">${data.responsibilityCenterCode || ''}</span></div>
-                <div class="meta-line"><strong>RIS No.:</strong><span class="line">${data.risNumber || ''}</span></div>
-              </div>
-            </div>
-            <div class="section-bar">
-              <div>Requisition</div>
-              <div>Stock Available?</div>
-              <div>Issue</div>
-            </div>
+          <h1>Requisition and Issue Slip</h1>
+          <div class="header-row"><div class="header-left"><span class="header-label">Entity Name:</span><span class="input-line">${value('entityName')}</span></div><div class="header-right"><span class="header-label">Fund Cluster:</span><span class="input-line">${value('fundCluster')}</span></div></div>
+          <div class="header-row"><div class="header-left" style="flex-direction:column;align-items:flex-start"><div style="display:flex;align-items:baseline;margin-bottom:4px"><span class="header-label">Division:</span><span class="input-line">${value('division')}</span></div><div style="display:flex;align-items:baseline"><span class="header-label">Office:</span><span class="input-line">${value('office')}</span></div></div><div class="header-right" style="flex-direction:column;align-items:flex-start"><div style="display:flex;align-items:baseline;margin-bottom:4px"><span class="header-label">Responsibility Center Code:</span><span class="input-line">${value('responsibilityCenterCode')}</span></div><div style="display:flex;align-items:baseline"><span class="header-label">RIS No.:</span><span class="input-line">${value('risNumber')}</span></div></div></div>
             <table>
-              <colgroup>
-                <col style="width: 12%;">
-                <col style="width: 7%;">
-                <col style="width: 24%;">
-                <col style="width: 11%;">
-                <col style="width: 8%;">
-                <col style="width: 8%;">
-                <col style="width: 11%;">
-                <col style="width: 19%;">
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Stock No.</th>
-                  <th>Unit</th>
-                  <th>Description</th>
-                  <th>Quantity</th>
-                  <th>Yes</th>
-                  <th>No</th>
-                  <th>Quantity</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rowsHtml}
-                ${emptyRowsHtml}
-              </tbody>
+              <thead><tr><th rowspan="2" class="small-cell">Stock No.</th><th rowspan="2" class="small-cell">Unit</th><th rowspan="2" class="desc-cell">Description</th><th rowspan="2" class="small-cell">Quantity</th><th colspan="3">Stock Available?</th><th rowspan="2" class="small-cell">Remarks</th></tr><tr><th style="width:6%">Yes</th><th style="width:6%">No</th><th class="small-cell">Quantity</th></tr></thead>
+              <tbody>${rowsHtml}</tbody>
             </table>
-            <div class="purpose-row"><strong>Purpose:</strong> ${data.purpose || ''}</div>
-            <div class="signature-fields">
-              <div>
-                <div class="field"><strong>Requested by:</strong><span class="fill">${data.requestedBy || ''}</span></div>
-                <div class="field"><strong>Signature:</strong><span class="fill">&nbsp;</span></div>
-                <div class="field"><strong>Printed Name:</strong><span class="fill">&nbsp;</span></div>
-                <div class="field"><strong>Designation:</strong><span class="fill">&nbsp;</span></div>
-                <div class="field"><strong>Date:</strong><span class="fill">&nbsp;</span></div>
-              </div>
-              <div>
-                <div class="field"><strong>Approved by:</strong><span class="fill">${data.approvedBy || ''}</span></div>
-                <div class="field"><strong>Issued by:</strong><span class="fill">${data.issuedBy || ''}</span></div>
-                <div class="field"><strong>Received by:</strong><span class="fill">${data.receivedBy || ''}</span></div>
-              </div>
-            </div>
-            <div class="print-note no-print">Printing will open your system print dialog.</div>
-          </div>
+          <div class="purpose-section"><div style="display:flex;align-items:baseline"><span class="header-label">Purpose:</span><span class="input-line">${value('purpose')}</span></div></div>
+          <table class="signatures-table"><tr><td class="sign-label"></td><td class="sign-label">Requested by:</td><td class="sign-label">Approved by:</td><td class="sign-label">Issued by:</td><td class="sign-label">Received by:</td></tr><tr><td class="sign-label">Signature:</td><td></td><td></td><td></td><td></td></tr><tr><td class="sign-label">Printed Name:</td><td>${value('requestedBy')}</td><td>${value('approvedBy')}</td><td>${value('issuedBy')}</td><td>${value('receivedBy')}</td></tr><tr><td class="sign-label">Designation:</td><td></td><td></td><td></td><td></td></tr><tr><td class="sign-label">Date:</td><td>${formatDate(data.date)}</td><td>${formatDate(data.date)}</td><td>${formatDate(data.date)}</td><td>${formatDate(data.date)}</td></tr></table>
         </body>
       </html>
     `;
@@ -904,13 +810,24 @@ export default function RisPage() {
               </div>
               {canManage ? (
               <div className="mt-4 flex flex-wrap gap-2">
+                {item.status === 'DRAFT' ? (
+                  <button type="button" onClick={() => editDraft(item)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Edit Draft</button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => downloadRisForm(item)}
+                  onClick={() => generateExcel(item)}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <Download size={16} />
-                  Generate Form
+                  Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => printRisForm(item)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <Printer size={16} />
+                  PDF
                 </button>
                 <button
                   type="button"
@@ -1073,12 +990,13 @@ export default function RisPage() {
         </div>
       ) : null}
 
+      {editingRis ? (<>
       <hr className="border-slate-300 border-2" />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-500">Create, approve, reject, and issue RIS records from the same workflow screen.</p>
-          <p className="text-xs text-slate-400">Select stock numbers from the Property Card inventory to avoid issuance errors.</p>
+          <p className="text-sm text-slate-500">Edit the selected RIS draft and save the updated record.</p>
+          <p className="text-xs text-slate-400">RIS items and total cost remain linked to the originating IAR.</p>
         </div>
         <button
           type="button"
@@ -1086,7 +1004,7 @@ export default function RisPage() {
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
         >
           <RotateCcw size={16} />
-          Reset
+                Close Editor
         </button>
       </div>
       
@@ -1311,12 +1229,13 @@ export default function RisPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 <Save size={16} />
-                Submit RIS
+                Update RIS
               </button>
             </div>
           </div>
         </div>
-      </motion.form>
+        </motion.form>
+      </>) : null}
     </div>
   );
 }
