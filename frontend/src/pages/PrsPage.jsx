@@ -292,7 +292,7 @@ export default function PrsPage() {
     };
 
     async function generatePdf(data, print = false) {
-        const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+        const existingPdfBytes = await fetch("/forms/templates/prs-template.pdf").then(res =>
             res.arrayBuffer()
         );
 
@@ -300,33 +300,41 @@ export default function PrsPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(data.entityName);
-        form.getTextField("fundCluster").setText(data.fundCluster);
-        form.getTextField("supplierName").setText(data.supplierName);
-        form.getTextField("poNumber").setText(data.poNumber);
-        form.getTextField("reqOffice").setText(data.requisitioningOffice);
-        form.getTextField("rcc").setText(data.responsibilityCenterCode);
-        form.getTextField("iarNumber").setText(data.iarNumber);
-        form.getTextField("iarDate").setText(formatDate(data.iarDate));
-        form.getTextField("invoiceNumber").setText(data.invoiceNumber);
-        form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+        form.getTextField("lguName").setText(String(data.lguName));
+        form.getTextField("disposal").setText(String(data.purpose === "Disposal" ? "/":""));
+        form.getTextField("repair").setText(String(data.purpose === "Repair" ? "/":""));
+        form.getTextField("returnedToStock").setText(String(data.purpose === "Returned To Stock" ? "/":""));
+        form.getTextField("other").setText(String(data.purpose && !["Disposal","Repair","Returned To Stock"].includes(data.purpose) ? "/":""));
+        form.getTextField("purpose").setText(String(data.purpose && !["Disposal","Repair","Returned To Stock"].includes(data.purpose) ? data.purpose:""));
 
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
+        let totalAmount = 0;
         data.items.forEach((item, index) => {
-        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
-        form.getTextField(`description${index + 1}`).setText(item.description);
-        form.getTextField(`unit${index + 1}`).setText(item.unit);
-        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
+            form.getTextField(`description${index + 1}`).setText(String(item.description));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
+            form.getTextField(`mrNumber${index + 1}`).setText(String(item.mrNumber));
+            form.getTextField(`endUser${index + 1}`).setText(String(data.returnedBy));
+            form.getTextField(`unitValue${index + 1}`).setText(String(formatAmount(item.unitValue)));
+            form.getTextField(`totalValue${index + 1}`).setText(String(formatAmount(item.totalValue)));
+            totalAmount += item.totalValue;
         });
-
         
-        form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
-        form.getTextField("inspectedBy").setText(data.inspectedBy);
-        form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
-        form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
-        form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
-        form.getTextField("acceptedBy").setText(data.acceptedBy);
+        form.getTextField("totalAmount").setText(String(formatAmount(totalAmount)));
+        form.getTextField("note").setText(String(data.note));
+
+        // Returned to
+        form.getTextField("returnedToDate").setText(String(formatLegalDateString(data.returnedTo.date)));
+        form.getTextField("returnedToName1").setText(String(data.returnedTo.name));
+        form.getTextField("returnedToDesignation1").setText(String(data.returnedTo.designation));
+        form.getTextField("returnedToName2").setText(String(data.returnedTo.name));
+        form.getTextField("returnedToDesignation2").setText(String(data.returnedTo.designation));
+        
+        // Returned by
+        form.getTextField("returnedByDate").setText(String(formatLegalDateString(data.returnedBy.date)));
+        form.getTextField("returnedByName").setText(String(data.returnedBy.name));
 
         // Optional: prevent further editing
         form.flatten();
@@ -334,14 +342,14 @@ export default function PrsPage() {
         const pdfBytes = await pdfDoc.save();
 
         if (print) {
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, "_blank");
-        printWindow.print();
+            const blob = new Blob([pdfBytes], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            const printWindow = window.open(url, "_blank");
+            printWindow.print();
         } else {
         saveAs(
             new Blob([pdfBytes], { type: "application/pdf" }),
-            "IAR.pdf"
+            "PRS.pdf"
         );
         }
     };
