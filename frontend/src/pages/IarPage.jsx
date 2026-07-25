@@ -144,6 +144,13 @@ export default function IarPage() {
       if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
       return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
     };
+
+    const formatAmount = (amount) => {
+        return amount.toLocaleString('en-US', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+        });
+    };
     
     async function generateExcel(data) {
       console.log('Generating Excel for IAR:', data);
@@ -194,7 +201,7 @@ export default function IarPage() {
       });
 
       saveAs(blob, "IAR.xlsx");
-    }
+    };
 
     async function generateDoc(data) {
       const response = await fetch("/forms/templates/iar-template.docx");
@@ -227,7 +234,7 @@ export default function IarPage() {
       });
 
       saveAs(blob, "IAR.docx");
-    }
+    };
 
     async function generatePdf(data, print = false) {
       const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
@@ -282,7 +289,7 @@ export default function IarPage() {
           "IAR.pdf"
         );
       }
-    }
+    };
 
     return (
       <>

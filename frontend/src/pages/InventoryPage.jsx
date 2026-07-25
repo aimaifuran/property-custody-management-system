@@ -5,6 +5,9 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
+import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 
 const emptyItem = () => ({
@@ -124,6 +127,13 @@ export default function InventoryPage() {
       return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear().toString().slice(-2)}`;
     };
 
+    const formatAmount = (amount) => {
+      return amount.toLocaleString('en-US', { 
+          minimumFractionDigits: 2, 
+          maximumFractionDigits: 2 
+      });
+    };
+
     async function generateExcel(data) {
       console.log('Generating Excel for Property Card:', data);
 
@@ -166,7 +176,95 @@ export default function InventoryPage() {
       });
 
       saveAs(blob, "Property Card.xlsx");
-    }
+    };
+
+    async function generateDoc(data) {
+      const response = await fetch("/forms/templates/iar-template.docx");
+      const content = await response.arrayBuffer();
+
+      const zip = new PizZip(content);
+
+      const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+      });
+
+      doc.render({
+          entityName: data.entityName,
+          fundCluster: data.fundCluster,
+          supplierName: data.supplierName,
+          poNumber: data.poNumber,
+          reqOffice: data.requisitioningOffice,
+          rcc: data.responsibilityCenterCode,
+          iarNumber: data.iarNumber,
+          iarDate: formatDate(data.iarDate),
+          invoiceNumber: data.invoiceNumber,
+          invoiceDate: formatDate(data.invoiceDate),
+      });
+
+      const blob = doc.getZip().generate({
+          type: "blob",
+          mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      saveAs(blob, "IAR.docx");
+    };
+
+    async function generatePdf(data, print = false) {
+      const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+          res.arrayBuffer()
+      );
+
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+
+      const form = pdfDoc.getForm();
+
+      form.getTextField("entityName").setText(data.entityName);
+      form.getTextField("fundCluster").setText(data.fundCluster);
+      form.getTextField("supplierName").setText(data.supplierName);
+      form.getTextField("poNumber").setText(data.poNumber);
+      form.getTextField("reqOffice").setText(data.requisitioningOffice);
+      form.getTextField("rcc").setText(data.responsibilityCenterCode);
+      form.getTextField("iarNumber").setText(data.iarNumber);
+      form.getTextField("iarDate").setText(formatDate(data.iarDate));
+      form.getTextField("invoiceNumber").setText(data.invoiceNumber);
+      form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+
+      // Table data insertion
+      const startRowNumber = 1; // Starting row for table data
+      data.items.forEach((item, index) => {
+        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
+        form.getTextField(`description${index + 1}`).setText(item.description);
+        form.getTextField(`unit${index + 1}`).setText(item.unit);
+        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+      });
+
+      
+      form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
+      form.getTextField("inspectedBy").setText(data.inspectedBy);
+      form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
+      form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
+      form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
+      form.getTextField("acceptedBy").setText(data.acceptedBy);
+
+      // Optional: prevent further editing
+      form.flatten();
+
+      const pdfBytes = await pdfDoc.save();
+
+      if (print) {
+        const blob = new Blob([pdfBytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, "_blank");
+        printWindow.print();
+      } else {
+        saveAs(
+          new Blob([pdfBytes], { type: "application/pdf" }),
+          "IAR.pdf"
+        );
+      }
+    };
 
     return (
       <>
@@ -185,17 +283,12 @@ export default function InventoryPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => edit(card)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-                        Update
-                      </button>
-                      <button type="button" onClick={() => generateExcel(card)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-                        Excel
-                      </button>
-                      <button type="button" onClick={() => edit(card)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-                        PDF
-                      </button>
+                      <button type="button" onClick={() => edit(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                      <button type="button" onClick={() => generateExcel(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                      <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                      <button type="button" onClick={() => generatePdf(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                      <button type="button" onClick={() => generatePdf(card, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                     </div>
-                    
                   </div>
                 </div>
               ))}

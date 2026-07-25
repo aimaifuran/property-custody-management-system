@@ -9,6 +9,7 @@ const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
 const InventoryCustodianSlip = require('../models/InventoryCustodianSlip');
 const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgementReceipt');
 const Supplier = require('../models/Supplier');
+const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 const router = express.Router();
@@ -35,6 +36,15 @@ router.put('/:id', authenticate, authorize('canManageIAR'), async (req, res) => 
     { new: true, runValidators: true },
   );
   if (!report) return errorResponse(res, 'IAR not found', [], 404);
+
+  await ActivityLog.create({
+    user: req.user._id,
+    action: 'IAR updated',
+    details: `IAR ${report.iarNumber} updated`,
+    ipAddress: req.ip,
+    browser: req.get('user-agent'),
+  });
+
   return successResponse(res, 'IAR updated', report);
 });
 
@@ -212,6 +222,15 @@ router.post('/', authenticate, authorize('canManageIAR'), [
 
   report.status = 'LOGGED_TO_STOCKS';
   await report.save();
+
+  await ActivityLog.create({
+    user: req.user._id,
+    action: 'IAR created',
+    details: `IAR ${report.iarNumber} created; Property Card, RIS draft, and ${report.inventoryCustodianSlip ? 'ICS' : 'PAR'} record generated`,
+    ipAddress: req.ip,
+    browser: req.get('user-agent'),
+  });
+
   return successResponse(res, 'IAR created', report, 201);
 });
 

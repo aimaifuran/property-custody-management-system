@@ -1,19 +1,16 @@
 const mongoose = require('mongoose');
 
-const propertyReturnSlipSchema = new mongoose.Schema({
+const returnedSupplySchema = new mongoose.Schema({
+  prs: { type: mongoose.Schema.Types.ObjectId, ref: 'PropertyReturnSlip', index: true },
   lguName: { type: String, trim: true },
-  // Holds the chosen purpose; when the "Other" option is picked on the form,
-  // this stores the free-text value the user specified instead.
   purpose: { type: String, trim: true },
-  items: [{
-    quantity: Number,
-    unit: String,
-    description: String,
-    propertyNumber: String,
-    mrNumber: String,
-    unitValue: Number,
-    totalValue: Number,
-  }],
+  quantity: { type: Number },
+  unit: { type: String },
+  description: { type: String },
+  propertyNumber: { type: String },
+  mrNumber: { type: String },
+  unitValue: { type: Number },
+  totalValue: { type: Number },
   note: { type: String },
   returnedBy: {
     date: { type: Date },
@@ -28,4 +25,4 @@ const propertyReturnSlipSchema = new mongoose.Schema({
   deleted: { type: Boolean, default: false },
 }, { timestamps: true });
 
-module.exports = mongoose.model('PropertyReturnSlip', propertyReturnSlipSchema);
+module.exports = mongoose.model('ReturnedSupply', returnedSupplySchema);

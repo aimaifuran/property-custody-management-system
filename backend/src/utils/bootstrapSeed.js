@@ -38,7 +38,7 @@ async function bootstrapSeed() {
     office: 'Planning Office',
     division: 'Planning',
     role: 'user',
-    permissions: ['canViewRIS', 'canCreateRIS'],
+    permissions: ['canViewDashboard', 'canViewRIS', 'canCreateRIS'],
   });
 
   const [nationalSupply, metroOffice] = await Supplier.create([

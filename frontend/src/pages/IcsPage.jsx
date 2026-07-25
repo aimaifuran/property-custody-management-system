@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import ExcelJS from "exceljs";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
+import { PDFDocument } from "pdf-lib";
+import { saveAs } from "file-saver";
 
 const emptyItem = () => ({
     quantity: '',
@@ -132,6 +137,163 @@ export default function IcsPage() {
         </div>
     );
 
+    const formatDate = (date) => {
+        if (!date) return '';
+        const parsed = new Date(date);
+        if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
+        return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
+    };
+
+    const formatAmount = (amount) => {
+        return amount.toLocaleString('en-US', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+        });
+    };
+    
+    async function generateExcel(data) {
+        console.log('Generating Excel for ICS:', data);
+
+        // Load the template
+        const response = await fetch("/forms/templates/ics-template.xlsx");
+        const arrayBuffer = await response.arrayBuffer();
+
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
+
+        // Select the worksheet
+        const worksheet = workbook.getWorksheet("ICS");
+
+        // Insert data into specific cells
+        worksheet.getCell("C6").value = data.entityName;
+        worksheet.getCell("C7").value = data.fundCluster;
+        worksheet.getCell("I7").value = data.icsNumber;
+
+        // Table data insertion
+        const startRow = 12; // Starting row for table data
+        data.items.forEach((item, index) => {
+            worksheet.getCell(`A${startRow + index}`).value = item.quantity;
+            worksheet.getCell(`B${startRow + index}`).value = item.unit;
+            worksheet.getCell(`C${startRow + index}`).value = formatAmount(item.unitCost);
+            worksheet.getCell(`D${startRow + index}`).value = formatAmount(item.totalCost);
+            worksheet.getCell(`E${startRow + index}`).value = item.description;
+            worksheet.getCell(`H${startRow + index}`).value = item.inventoryItemNo;
+            worksheet.getCell(`I${startRow + index}`).value = item.estimatedUsefulLife;
+        });
+
+        worksheet.getCell("C41").value = formatAmount(data.totalAmount);
+        worksheet.getCell("B42").value = data.remarks;
+
+        // Received from
+        worksheet.getCell("B47").value = data.receivedFrom.name;
+        worksheet.getCell("B49").value = data.receivedFrom.position;
+        worksheet.getCell("B51").value = formatDate(data.receivedFrom.date);
+
+        // Received by
+        worksheet.getCell("G47").value = data.receivedBy.name;
+        worksheet.getCell("G49").value = data.receivedBy.position;
+        worksheet.getCell("G51").value = formatDate(data.receivedBy.date);
+        
+
+        // Generate the modified Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        // Download
+        const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+
+        saveAs(blob, "ICS.xlsx");
+    };
+
+    async function generateDoc(data) {
+        const response = await fetch("/forms/templates/iar-template.docx");
+        const content = await response.arrayBuffer();
+
+        const zip = new PizZip(content);
+
+        const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+        });
+
+        doc.render({
+            entityName: data.entityName,
+            fundCluster: data.fundCluster,
+            supplierName: data.supplierName,
+            poNumber: data.poNumber,
+            reqOffice: data.requisitioningOffice,
+            rcc: data.responsibilityCenterCode,
+            iarNumber: data.iarNumber,
+            iarDate: formatDate(data.iarDate),
+            invoiceNumber: data.invoiceNumber,
+            invoiceDate: formatDate(data.invoiceDate),
+        });
+
+        const blob = doc.getZip().generate({
+            type: "blob",
+            mimeType:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        saveAs(blob, "IAR.docx");
+    };
+
+    async function generatePdf(data, print = false) {
+        const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+            res.arrayBuffer()
+        );
+
+        const pdfDoc = await PDFDocument.load(existingPdfBytes);
+
+        const form = pdfDoc.getForm();
+
+        form.getTextField("entityName").setText(data.entityName);
+        form.getTextField("fundCluster").setText(data.fundCluster);
+        form.getTextField("supplierName").setText(data.supplierName);
+        form.getTextField("poNumber").setText(data.poNumber);
+        form.getTextField("reqOffice").setText(data.requisitioningOffice);
+        form.getTextField("rcc").setText(data.responsibilityCenterCode);
+        form.getTextField("iarNumber").setText(data.iarNumber);
+        form.getTextField("iarDate").setText(formatDate(data.iarDate));
+        form.getTextField("invoiceNumber").setText(data.invoiceNumber);
+        form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+
+        // Table data insertion
+        const startRowNumber = 1; // Starting row for table data
+        data.items.forEach((item, index) => {
+            form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
+            form.getTextField(`description${index + 1}`).setText(item.description);
+            form.getTextField(`unit${index + 1}`).setText(item.unit);
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+        });
+
+        
+        form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
+        form.getTextField("inspectedBy").setText(data.inspectedBy);
+        form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
+        form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
+        form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
+        form.getTextField("acceptedBy").setText(data.acceptedBy);
+
+        // Optional: prevent further editing
+        form.flatten();
+
+        const pdfBytes = await pdfDoc.save();
+
+        if (print) {
+        const blob = new Blob([pdfBytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, "_blank");
+        printWindow.print();
+        } else {
+        saveAs(
+            new Blob([pdfBytes], { type: "application/pdf" }),
+            "IAR.pdf"
+        );
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div>
@@ -150,7 +312,13 @@ export default function IcsPage() {
                                 {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </div>
                         </div>
-                        <button type="button" onClick={() => startEdit(record)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                            <button type="button" onClick={() => generateExcel(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                            <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                            <button type="button" onClick={() => generatePdf(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                            <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                        </div>
                     </div>
                 ))}
             </div>

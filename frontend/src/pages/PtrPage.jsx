@@ -1,135 +1,478 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuth } from '../contexts/AuthContext';
+import ExcelJS from "exceljs";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
+import { PDFDocument } from "pdf-lib";
+import { saveAs } from "file-saver";
+
+const FIXED_TRANSFER_TYPES = ['Donation', 'Reassignment', 'Relocation'];
+
+const emptyItem = () => ({
+    dateAcquired: '',
+    propertyNumber: '',
+    description: '',
+    amount: '',
+    condition: ''
+});
+
+const emptySignatory = () => ({ name: '', designation: '', date: '' });
+
+const initial = {
+    entityName: '',
+    fundCluster: '',
+    fromAccountableOfficer: '',
+    toAccountableOfficer: '',
+    ptrNumber: '',
+    date: '',
+    transferTypeChoice: null,
+    transferTypeOther: '',
+    items: [emptyItem()],
+    remarks: '',
+    reasonForTransfer: '',
+    approvedBy: emptySignatory(),
+    issuedBy: emptySignatory(),
+    receivedBy: emptySignatory()
+};
+
+const toDateInputValue = (date) => {
+    if (!date) return '';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().slice(0, 10);
+};
+
+const toFormSignatory = (signatory = {}) => ({
+    name: signatory.name || '',
+    designation: signatory.designation || '',
+    date: toDateInputValue(signatory.date)
+});
+
+const toForm = (record) => ({
+    entityName: record.entityName || '',
+    fundCluster: record.fundCluster || '',
+    fromAccountableOfficer: record.fromAccountableOfficer || '',
+    toAccountableOfficer: record.toAccountableOfficer || '',
+    ptrNumber: record.ptrNumber || '',
+    date: toDateInputValue(record.date),
+    transferTypeChoice: FIXED_TRANSFER_TYPES.includes(record.transferType) ? record.transferType : 'Other',
+    transferTypeOther: FIXED_TRANSFER_TYPES.includes(record.transferType) ? '' : (record.transferType || ''),
+    items: record.items && record.items.length ? record.items.map((item) => ({
+        dateAcquired: toDateInputValue(item.dateAcquired),
+        propertyNumber: item.propertyNumber || '',
+        description: item.description || '',
+        amount: item.amount ?? '',
+        condition: item.condition || ''
+    })) : [emptyItem()],
+    remarks: record.remarks || '',
+    reasonForTransfer: record.reasonForTransfer || '',
+    approvedBy: toFormSignatory(record.approvedBy),
+    issuedBy: toFormSignatory(record.issuedBy),
+    receivedBy: toFormSignatory(record.receivedBy)
+});
 
 export default function PtrPage() {
-  const { user } = useAuth();
-  const canManage = user?.role === 'admin' || user?.permissions?.includes('canManageInventory');
-  const [reports, setReports] = useState([]);
-  const [inventories, setInventories] = useState([]);
-  const [form, setForm] = useState({
-    ptrNumber: '',
-    inventory: '',
-    oldAccountableOfficer: '',
-    newAccountableOfficer: '',
-    transferDate: new Date().toISOString().slice(0, 10),
-    reason: '',
-  });
+    const [reports, setReports] = useState([]);
+    const [form, setForm] = useState(initial);
+    const [editingId, setEditingId] = useState(null);
 
-  const load = async () => {
-    const [ptrRes, invRes] = await Promise.all([axios.get('/ptr'), axios.get('/inventory')]);
-    setReports(ptrRes.data.data || []);
-    setInventories(invRes.data.data || []);
-  };
+    const load = async () => {
+        const { data } = await axios.get('/ptr');
+        setReports(data.data || []);
+    };
 
-  useEffect(() => {
-    load();
-  }, []);
+    useEffect(() => {
+        load();
+    }, []);
 
-  const availableInventories = useMemo(() => inventories.filter((entry) => !entry.deleted), [inventories]);
+    const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const save = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post('/ptr', form);
-      toast.success('PTR created');
-      setForm({
-        ptrNumber: '',
-        inventory: '',
-        oldAccountableOfficer: '',
-        newAccountableOfficer: '',
-        transferDate: new Date().toISOString().slice(0, 10),
-        reason: '',
-      });
-      load();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Unable to create PTR');
-    }
-  };
+    const updateSignatory = (section, key, value) => setForm((prev) => ({
+        ...prev,
+        [section]: { ...prev[section], [key]: value }
+    }));
 
-  const approve = async (id) => {
-    try {
-      await axios.post(`/ptr/${id}/approve`);
-      toast.success('PTR approved');
-      load();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Unable to approve PTR');
-    }
-  };
+    const updateItem = (index, key, value) => setForm((prev) => ({
+        ...prev,
+        items: prev.items.map((item, i) => i === index ? { ...item, [key]: value } : item)
+    }));
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold">Property Transfer Report</h1>
-        <p className="text-sm text-slate-500">Transfer an accountable asset to another custodian.</p>
-      </div>
+    const addItem = () => update('items', [...form.items, emptyItem()]);
 
-      <motion.form initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-sm font-semibold text-slate-700">PTR Number</span>
-            <input value={form.ptrNumber} onChange={(e) => setForm({ ...form, ptrNumber: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="PTR-001" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-semibold text-slate-700">Transfer Date</span>
-            <input type="date" value={form.transferDate} onChange={(e) => setForm({ ...form, transferDate: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-          </label>
-          <label className="block md:col-span-2">
-            <span className="mb-1 block text-sm font-semibold text-slate-700">Inventory</span>
-            <select value={form.inventory} onChange={(e) => setForm({ ...form, inventory: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2">
-              <option value="">Select inventory</option>
-              {availableInventories.map((entry) => (
-                <option key={entry._id} value={entry._id}>
-                  {entry.item?.stockNumber} - {entry.item?.description} - {entry.status}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-semibold text-slate-700">Old Accountable Officer</span>
-            <input value={form.oldAccountableOfficer} onChange={(e) => setForm({ ...form, oldAccountableOfficer: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Current custodian" />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-semibold text-slate-700">New Accountable Officer</span>
-            <input value={form.newAccountableOfficer} onChange={(e) => setForm({ ...form, newAccountableOfficer: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="New custodian" />
-          </label>
-          <label className="block md:col-span-2">
-            <span className="mb-1 block text-sm font-semibold text-slate-700">Reason</span>
-            <input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Transfer reason" />
-          </label>
-        </div>
-        <button type="submit" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
-          <Send size={16} />
-          Create PTR
-        </button>
-      </motion.form>
+    const startEdit = (record) => {
+        setEditingId(record._id);
+        setForm(toForm(record));
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    };
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">PTR Queue</h2>
-        <div className="mt-4 space-y-3">
-          {reports.map((item) => (
-            <div key={item._id} className="rounded-xl border border-slate-200 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold">{item.ptrNumber}</div>
-                  <div className="text-sm text-slate-500">{item.oldAccountableOfficer} {'->'} {item.newAccountableOfficer}</div>
-                  <div className="text-sm text-slate-500">{item.reason}</div>
-                </div>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{item.status}</div>
-              </div>
-              {canManage && item.status === 'PENDING_TRANSFER' ? (
-                <button type="button" onClick={() => approve(item._id)} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">
-                  <CheckCircle2 size={16} />
-                  Approve Transfer
-                </button>
-              ) : null}
+    const cancelEdit = () => {
+        setEditingId(null);
+        setForm(initial);
+    };
+
+    const save = async (event) => {
+        event.preventDefault();
+        const transferType = form.transferTypeChoice === 'Other' ? form.transferTypeOther : form.transferTypeChoice;
+        const payload = {
+            entityName: form.entityName,
+            fundCluster: form.fundCluster,
+            fromAccountableOfficer: form.fromAccountableOfficer,
+            toAccountableOfficer: form.toAccountableOfficer,
+            ptrNumber: form.ptrNumber,
+            date: form.date,
+            transferType,
+            items: form.items.filter((item) => item.propertyNumber || item.description).map((item) => ({
+                ...item,
+                amount: Number(item.amount || 0)
+            })),
+            remarks: form.remarks,
+            reasonForTransfer: form.reasonForTransfer,
+            approvedBy: form.approvedBy,
+            issuedBy: form.issuedBy,
+            receivedBy: form.receivedBy
+        };
+        try {
+            if (editingId) {
+                await axios.put(`/ptr/${editingId}`, payload);
+                toast.success('PTR updated');
+            } else {
+                await axios.post('/ptr', payload);
+                toast.success('PTR created');
+            }
+            setEditingId(null);
+            setForm(initial);
+            load();
+        } catch (error) {
+            toast.error(error?.response?.data?.message || 'Unable to save PTR');
+        }
+    };
+
+    const field = (label, key, type = 'text') => (
+        <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+            <input type={type} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+        </label>
+    );
+
+    const signatoryFields = (label, section) => (
+        <div className="rounded-xl border border-slate-200 p-4">
+            <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
+            <div className="grid gap-3 md:grid-cols-3">
+                <label className="block">
+                    <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
+                    <input value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                </label>
+                <label className="block">
+                    <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
+                    <input value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                </label>
+                <label className="block">
+                    <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
+                    <input type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                </label>
             </div>
-          ))}
         </div>
-      </div>
-    </div>
-  );
+    );
+
+    const formatDate = (date) => {
+        if (!date) return '';
+        const parsed = new Date(date);
+        if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
+        return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
+    };
+
+    const formatAmount = (amount) => {
+        return amount.toLocaleString('en-US', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+        });
+    };
+        
+    async function generateExcel(data) {
+        console.log('Generating Excel for PTR:', data);
+
+        // Load the template
+        const response = await fetch("/forms/templates/ptr-template.xlsx");
+        const arrayBuffer = await response.arrayBuffer();
+
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
+
+        // Select the worksheet
+        const worksheet = workbook.getWorksheet("PTR");
+
+        // Insert data into specific cells
+        worksheet.getCell("B6").value = data.entityName;
+        worksheet.getCell("J6").value = data.fundCluster;
+        worksheet.getCell("F8").value = data.fromAccountableOfficer;
+        worksheet.getCell("F9").value = data.toAccountableOfficer;
+        worksheet.getCell("J8").value = data.ptrNumber;
+        worksheet.getCell("J9").value = formatDate(data.date);
+        worksheet.getCell("B13").value = data.transferType === "Donation" ? "/":"";
+        worksheet.getCell("B14").value = data.transferType === "Reassignment" ? "/":"";
+        worksheet.getCell("E13").value = data.transferType === "Relocate" ? "/":"";
+        worksheet.getCell("E14").value = data.transferType && !["Donation","Reassignment","Relocate"].includes(data.transferType) ? "/":"";
+        worksheet.getCell("G14").value = data.transferType && !["Donation","Reassignment","Relocate"].includes(data.transferType) ? data.transferType:"";
+
+        // Table data insertion
+        const startRow = 18; // Starting row for table data
+        data.items.forEach((item, index) => {
+            worksheet.getCell(`A${startRow + index}`).value = item.dateAcquired;
+            worksheet.getCell(`B${startRow + index}`).value = item.propertyNumber;
+            worksheet.getCell(`D${startRow + index}`).value = item.description;
+            worksheet.getCell(`I${startRow + index}`).value = formatAmount(item.amount);
+            worksheet.getCell(`J${startRow + index}`).value = item.condition;
+        });
+        
+        worksheet.getCell("B43").value = data.remarks;
+        worksheet.getCell("C44").value = data.reasonForTransfer;
+
+        // Approved by
+        worksheet.getCell("B50").value = data.approvedBy.name;
+        worksheet.getCell("B51").value = data.approvedBy.designation;
+        worksheet.getCell("B52").value = formatDate(data.approvedBy.date);
+
+        // Issued by
+        worksheet.getCell("F50").value = data.issuedBy.name;
+        worksheet.getCell("F51").value = data.issuedBy.designation;
+        worksheet.getCell("F52").value = formatDate(data.issuedBy.date);
+
+        // Received by
+        worksheet.getCell("I50").value = data.receivedBy.name;
+        worksheet.getCell("I51").value = data.receivedBy.designation;
+        worksheet.getCell("I52").value = formatDate(data.receivedBy.date);
+        
+
+        // Generate the modified Excel file
+        const buffer = await workbook.xlsx.writeBuffer();
+
+        // Download
+        const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+
+        saveAs(blob, "PTR.xlsx");
+    };
+
+    async function generateDoc(data) {
+        const response = await fetch("/forms/templates/iar-template.docx");
+        const content = await response.arrayBuffer();
+
+        const zip = new PizZip(content);
+
+        const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+        });
+
+        doc.render({
+            entityName: data.entityName,
+            fundCluster: data.fundCluster,
+            supplierName: data.supplierName,
+            poNumber: data.poNumber,
+            reqOffice: data.requisitioningOffice,
+            rcc: data.responsibilityCenterCode,
+            iarNumber: data.iarNumber,
+            iarDate: formatDate(data.iarDate),
+            invoiceNumber: data.invoiceNumber,
+            invoiceDate: formatDate(data.invoiceDate),
+        });
+
+        const blob = doc.getZip().generate({
+            type: "blob",
+            mimeType:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        saveAs(blob, "IAR.docx");
+    };
+
+    async function generatePdf(data, print = false) {
+        const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+            res.arrayBuffer()
+        );
+
+        const pdfDoc = await PDFDocument.load(existingPdfBytes);
+
+        const form = pdfDoc.getForm();
+
+        form.getTextField("entityName").setText(data.entityName);
+        form.getTextField("fundCluster").setText(data.fundCluster);
+        form.getTextField("supplierName").setText(data.supplierName);
+        form.getTextField("poNumber").setText(data.poNumber);
+        form.getTextField("reqOffice").setText(data.requisitioningOffice);
+        form.getTextField("rcc").setText(data.responsibilityCenterCode);
+        form.getTextField("iarNumber").setText(data.iarNumber);
+        form.getTextField("iarDate").setText(formatDate(data.iarDate));
+        form.getTextField("invoiceNumber").setText(data.invoiceNumber);
+        form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+
+        // Table data insertion
+        const startRowNumber = 1; // Starting row for table data
+        data.items.forEach((item, index) => {
+        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
+        form.getTextField(`description${index + 1}`).setText(item.description);
+        form.getTextField(`unit${index + 1}`).setText(item.unit);
+        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+        });
+
+        
+        form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
+        form.getTextField("inspectedBy").setText(data.inspectedBy);
+        form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
+        form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
+        form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
+        form.getTextField("acceptedBy").setText(data.acceptedBy);
+
+        // Optional: prevent further editing
+        form.flatten();
+
+        const pdfBytes = await pdfDoc.save();
+
+        if (print) {
+        const blob = new Blob([pdfBytes], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, "_blank");
+        printWindow.print();
+        } else {
+        saveAs(
+            new Blob([pdfBytes], { type: "application/pdf" }),
+            "IAR.pdf"
+        );
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Saved Reports</h2>
+                {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
+                {reports.map((item) => (
+                    <div key={item._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
+                        <div>
+                            <b>{item.ptrNumber}</b>
+                            <div className="text-sm text-slate-500">
+                                {item.fromAccountableOfficer || 'N/A'} {'->'} {item.toAccountableOfficer || 'N/A'} · {item.transferType || 'N/A'}
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                            <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                            <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                            <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                            <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <hr className="border-slate-300 border-2" />
+
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-semibold">{editingId ? 'Update Property Transfer Report' : 'Property Transfer Report'}</h1>
+                    <p className="text-sm text-slate-500">Transfer an accountable asset to another custodian.</p>
+                </div>
+                {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}
+            </div>
+
+            <motion.form initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="grid gap-3 md:grid-cols-3">
+                    {field('Entity Name', 'entityName')}
+                    {field('Fund Cluster', 'fundCluster')}
+                    {field('PTR No.', 'ptrNumber')}
+                    {field('From Accountable Officer', 'fromAccountableOfficer')}
+                    {field('To Accountable Officer', 'toAccountableOfficer')}
+                    {field('Date', 'date', 'date')}
+                </div>
+
+                <div className="mt-6">
+                    <span className="mb-2 block text-sm font-semibold text-slate-700">Transfer Type</span>
+                    <div className="flex flex-wrap gap-4">
+                        {[...FIXED_TRANSFER_TYPES, 'Other'].map((option) => (
+                            <label key={option} className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="radio"
+                                    name="transferType"
+                                    value={option}
+                                    checked={form.transferTypeChoice === option}
+                                    onChange={() => update('transferTypeChoice', option)}
+                                />
+                                {option}
+                            </label>
+                        ))}
+                    </div>
+                    {form.transferTypeChoice === 'Other' && (
+                        <input
+                            value={form.transferTypeOther}
+                            onChange={(e) => update('transferTypeOther', e.target.value)}
+                            placeholder="Specify transfer type"
+                            className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 md:w-1/2"
+                        />
+                    )}
+                </div>
+
+                <div className="mt-6 overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead>
+                            <tr className="bg-slate-50 text-left">
+                                <th className="p-2">Date Acquired</th>
+                                <th className="p-2">Property No.</th>
+                                <th className="p-2">Description</th>
+                                <th className="p-2">Amount</th>
+                                <th className="p-2">Condition of PPE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {form.items.map((item, index) => (
+                                <tr key={index}>
+                                    <td className="p-2">
+                                        <input aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                    </td>
+                                    <td className="p-2">
+                                        <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                    </td>
+                                    <td className="p-2">
+                                        <input aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                    </td>
+                                    <td className="p-2">
+                                        <input aria-label="Amount" type="number" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                    </td>
+                                    <td className="p-2">
+                                        <input aria-label="Condition of PPE" value={item.condition} onChange={(e) => updateItem(index, 'condition', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                    <label className="block">
+                        <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks</span>
+                        <textarea value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
+                    </label>
+                    <label className="block">
+                        <span className="mb-1 block text-sm font-semibold text-slate-700">Reason for Transfer</span>
+                        <textarea value={form.reasonForTransfer} onChange={(e) => update('reasonForTransfer', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
+                    </label>
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    {signatoryFields('Approved By', 'approvedBy')}
+                    {signatoryFields('Issued By', 'issuedBy')}
+                    {signatoryFields('Received By', 'receivedBy')}
+                </div>
+
+                <button type="submit" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
+                    <Send size={16} />
+                    {editingId ? 'Update PTR' : 'Create PTR'}
+                </button>
+            </motion.form>
+        </div>
+    );
 }

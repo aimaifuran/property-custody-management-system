@@ -577,11 +577,18 @@ export default function RisPage() {
   };
 
   const formatDate = (date) => {
-      if (!date) return '';
-      const parsed = new Date(date);
-      if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
-      return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
-    };
+    if (!date) return '';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
+    return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
+  };
+
+  const formatAmount = (amount) => {
+    return amount.toLocaleString('en-US', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+    });
+  }
 
   async function generateExcel(data) {
     console.log('Generating Excel for RIS:', data);
