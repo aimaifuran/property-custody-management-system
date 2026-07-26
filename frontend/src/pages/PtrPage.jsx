@@ -291,7 +291,7 @@ export default function PtrPage() {
     };
 
     async function generatePdf(data, print = false) {
-        const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+        const existingPdfBytes = await fetch("/forms/templates/ptr-template.pdf").then(res =>
             res.arrayBuffer()
         );
 
@@ -299,33 +299,45 @@ export default function PtrPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(data.entityName);
-        form.getTextField("fundCluster").setText(data.fundCluster);
-        form.getTextField("supplierName").setText(data.supplierName);
-        form.getTextField("poNumber").setText(data.poNumber);
-        form.getTextField("reqOffice").setText(data.requisitioningOffice);
-        form.getTextField("rcc").setText(data.responsibilityCenterCode);
-        form.getTextField("iarNumber").setText(data.iarNumber);
-        form.getTextField("iarDate").setText(formatDate(data.iarDate));
-        form.getTextField("invoiceNumber").setText(data.invoiceNumber);
-        form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+        form.getTextField("entityName").setText(String(data.entityName));
+        form.getTextField("fundCluster").setText(String(data.fundCluster));
+        form.getTextField("fromAccountableOfficer").setText(String(data.fromAccountableOfficer));
+        form.getTextField("toAccountableOfficer").setText(String(data.toAccountableOfficer));
+        form.getTextField("ptrNumber").setText(String(data.ptrNumber));
+        form.getTextField("date").setText(String(formatDate(data.date)));
+        form.getTextField("donation").setText(String(data.transferType === "Donation" ? "/" : ""));
+        form.getTextField("reassignment").setText(String(data.transferType === "Reassignment" ? "/" : ""));
+        form.getTextField("relocate").setText(String(data.transferType === "Relocate" ? "/" : ""));
+        form.getTextField("other").setText(String(data.transferType && !["Donation", "Reassignment", "Relocate"].includes(data.transferType) ? "/" : ""));
+        form.getTextField("transferType").setText(String(data.transferType && !["Donation", "Reassignment", "Relocate"].includes(data.transferType) ? data.transferType : ""));
 
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
-        form.getTextField(`description${index + 1}`).setText(item.description);
-        form.getTextField(`unit${index + 1}`).setText(item.unit);
-        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired)));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
+            form.getTextField(`description${index + 1}`).setText(String(item.description));
+            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
+            form.getTextField(`condition${index + 1}`).setText(String(item.condition));
         });
 
-        
-        form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
-        form.getTextField("inspectedBy").setText(data.inspectedBy);
-        form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
-        form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
-        form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
-        form.getTextField("acceptedBy").setText(data.acceptedBy);
+        form.getTextField("remarks").setText(String(data.remarks));
+        form.getTextField("reasonForTransfer").setText(String(data.reasonForTransfer));
+
+        // Approved by
+        form.getTextField("approvedByName").setText(String(data.approvedBy?.name || ''));
+        form.getTextField("approvedByDesignation").setText(String(data.approvedBy?.designation || ''));
+        form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date)));
+
+        // Issued by
+        form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
+        form.getTextField("issuedByDesignation").setText(String(data.issuedBy?.designation || ''));
+        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
+
+        // Received by
+        form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
+        form.getTextField("receivedByDesignation").setText(String(data.receivedBy?.designation || ''));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
 
         // Optional: prevent further editing
         form.flatten();
@@ -340,7 +352,7 @@ export default function PtrPage() {
         } else {
         saveAs(
             new Blob([pdfBytes], { type: "application/pdf" }),
-            "IAR.pdf"
+            "PTR.pdf"
         );
         }
     };
@@ -361,7 +373,7 @@ export default function PtrPage() {
                         <div className="flex gap-2">
                             <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
                             <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                            <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                            {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
                             <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                         </div>

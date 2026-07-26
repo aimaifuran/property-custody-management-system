@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
 import { Download, Printer, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ExcelJS from "exceljs";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
+import { PDFDocument } from "pdf-lib";
+import { saveAs } from "file-saver";
 import { useAuth } from '../contexts/AuthContext';
 
 const createRow = () => ({
@@ -19,6 +22,8 @@ const createRow = () => ({
   totalCost: null,
 });
 
+const emptySignatory = () => ({ name: '', designation: '', date: '' });
+
 const initialForm = {
   risNumber: '',
   entityName: '',
@@ -27,13 +32,33 @@ const initialForm = {
   office: '',
   responsibilityCenterCode: '',
   purpose: '',
-  requestedBy: '',
-  approvedBy: '',
-  issuedBy: '',
-  receivedBy: '',
+  requestedBy: emptySignatory(),
+  approvedBy: emptySignatory(),
+  issuedBy: emptySignatory(),
+  receivedBy: emptySignatory(),
   date: new Date().toISOString().slice(0, 10),
   status: 'PENDING_APPROVAL',
   items: [createRow(), createRow(), createRow(), createRow(), createRow()],
+};
+
+const toDateInputValue = (date) => {
+  if (!date) return '';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+};
+
+// Legacy records may still hold a plain string; fold that into `name` so old
+// data keeps displaying instead of blanking out.
+const toFormSignatory = (signatory) => {
+  if (signatory && typeof signatory === 'object') {
+    return {
+      name: signatory.name || '',
+      designation: signatory.designation || '',
+      date: toDateInputValue(signatory.date),
+    };
+  }
+  return { name: signatory || '', designation: '', date: '' };
 };
 
 // const createRisWorkbook = (data) => {
@@ -413,6 +438,11 @@ export default function RisPage() {
 
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
+  const updateSignatory = (section, key, value) => setForm((prev) => ({
+    ...prev,
+    [section]: { ...prev[section], [key]: value },
+  }));
+
   const updateItem = (index, key, value) => {
     setForm((prev) => {
       const nextItems = prev.items.map((item, itemIndex) => {
@@ -626,24 +656,24 @@ export default function RisPage() {
 
     // Requested by:
     worksheet.getCell("C36").value = null;
-    worksheet.getCell("C37").value = data.requestedBy;
-    worksheet.getCell("C38").value = null;
-    worksheet.getCell("C39").value = null;
+    worksheet.getCell("C37").value = data.requestedBy?.name;
+    worksheet.getCell("C38").value = data.requestedBy?.designation;
+    worksheet.getCell("C39").value = formatDate(data.requestedBy?.date);
     // Approved by:
     worksheet.getCell("D36").value = null;
-    worksheet.getCell("D37").value = data.inspectedBy;
-    worksheet.getCell("D38").value = null;
-    worksheet.getCell("D39").value = null;
+    worksheet.getCell("D37").value = data.approvedBy?.name;
+    worksheet.getCell("D38").value = data.approvedBy?.designation;
+    worksheet.getCell("D39").value = formatDate(data.approvedBy?.date);
     // Issued by:
     worksheet.getCell("F36").value = null;
-    worksheet.getCell("F37").value = data.issuedBy;
-    worksheet.getCell("F38").value = null;
-    worksheet.getCell("F39").value = null;
+    worksheet.getCell("F37").value = data.issuedBy?.name;
+    worksheet.getCell("F38").value = data.issuedBy?.designation;
+    worksheet.getCell("F39").value = formatDate(data.issuedBy?.date);
     // Received by:
     worksheet.getCell("H36").value = null;
-    worksheet.getCell("H37").value = data.receivedBy;
-    worksheet.getCell("H38").value = null;
-    worksheet.getCell("H39").value = null;
+    worksheet.getCell("H37").value = data.receivedBy?.name;
+    worksheet.getCell("H38").value = data.receivedBy?.designation;
+    worksheet.getCell("H39").value = formatDate(data.receivedBy?.date);
     
 
     // Generate the modified Excel file
@@ -657,116 +687,95 @@ export default function RisPage() {
     saveAs(blob, "RIS.xlsx");
   }
 
+  async function generatePdf(data, print = false) {
+    const existingPdfBytes = await fetch("/forms/templates/ris-template.pdf").then(res =>
+        res.arrayBuffer()
+    );
+
+    const pdfDoc = await PDFDocument.load(existingPdfBytes);
+
+    const form = pdfDoc.getForm();
+
+    form.getTextField("entityName").setText(String(data.entityName));
+    form.getTextField("fundCluster").setText(String(data.fundCluster));
+    form.getTextField("division").setText(String(data.division));
+    form.getTextField("office").setText(String(data.office));
+    form.getTextField("responsibilityCenterCode").setText(String(data.responsibilityCenterCode));
+    form.getTextField("risNumber").setText(String(data.risNumber));
+
+    // Table data insertion
+    const startRowNumber = 1; // Starting row for table data
+    data.items.forEach((item, index) => {
+      form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber));
+      form.getTextField(`unit${index + 1}`).setText(String(item.unit));
+      form.getTextField(`description${index + 1}`).setText(String(item.description));
+      form.getTextField(`quantityRequested${index + 1}`).setText(String(item.quantityRequested));
+      form.getTextField(`yes${index + 1}`).setText(String(item.isAvailable ? '/' : ''));
+      form.getTextField(`no${index + 1}`).setText(String(!item.isAvailable ? '/' : ''));
+      form.getTextField(`quantityIssued${index + 1}`).setText(String(item.quantityIssued <= 0 ? '' : item.quantityIssued));
+      form.getTextField(`remarks${index + 1}`).setText(String(item.remarks || ''));
+    });
+
+    
+    form.getTextField("purpose").setText(String(data.purpose));
+
+    // Requested by
+    form.getTextField("requestedByName").setText(String(data.requestedBy?.name || ''));
+    form.getTextField("requestedByDesignation").setText(String(data.requestedBy?.designation || ''));
+    form.getTextField("requestedByDate").setText(String(formatDate(data.requestedBy?.date)));
+
+    // Approved by
+    form.getTextField("approvedByName").setText(String(data.approvedBy?.name || ''));
+    form.getTextField("approvedByDesignation").setText(String(data.approvedBy?.designation || ''));
+    form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date)));
+
+    // Issued by
+    form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
+    form.getTextField("issuedByDesignation").setText(String(data.issuedBy?.designation || ''));
+    form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
+
+    // Received by
+    form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
+    form.getTextField("receivedByDesignation").setText(String(data.receivedBy?.designation || ''));
+    form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
+
+    // Optional: prevent further editing
+    form.flatten();
+
+    const pdfBytes = await pdfDoc.save();
+
+    if (print) {
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, "_blank");
+      printWindow.print();
+    } else {
+      saveAs(
+        new Blob([pdfBytes], { type: "application/pdf" }),
+        "RIS.pdf"
+      );
+    }
+  };
+
   const editDraft = async (record) => {
-    const inputDate = record.date ? new Date(record.date).toISOString().slice(0, 10) : '';
     setEditingRis(record);
     setForm({
       ...initialForm,
       ...record,
-      date: inputDate,
-      items: (record.items || []).map((item) => ({ ...createRow(), ...item, quantityRequested: item.quantityRequested ?? '' })),
+      date: toDateInputValue(record.date),
+      requestedBy: toFormSignatory(record.requestedBy),
+      approvedBy: toFormSignatory(record.approvedBy),
+      issuedBy: toFormSignatory(record.issuedBy),
+      receivedBy: toFormSignatory(record.receivedBy),
+      items: (record.items || []).map((item) => ({
+        ...createRow(),
+        ...item,
+        quantityRequested: item.quantityRequested ?? '',
+        stockAvailable: item.stockAvailable ?? '',
+        quantityIssued: item.quantityIssued ?? '',
+      })),
     });
-  };
-
-  const printRisForm = (data) => {
-    const escapeHtml = (value) => String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-    const value = (field) => escapeHtml(data[field]);
-    const formatDate = (date) => {
-      if (!date) return '';
-      const parsed = new Date(date);
-      if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
-      return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
-    };
-    const items = (data.items || []).slice(0, 20);
-    const printWindow = window.open('', '_blank', 'width=1200,height=900');
-
-    if (!printWindow) {
-      toast.error('Popup blocked. Please allow popups to print the RIS form.');
-      return;
-    }
-
-    const rowsHtml = Array.from({ length: 20 }, (_, index) => {
-      const item = items[index] || {};
-      return `<tr>
-        <td>${escapeHtml(item.stockNumber)}</td>
-        <td>${escapeHtml(item.unit)}</td>
-        <td class="text-left">${escapeHtml(item.description)}</td>
-        <td>${escapeHtml(item.quantityRequested)}</td>
-        <td>${item.isAvailable === true ? '/' : ''}</td>
-        <td>${item.isAvailable === false ? '/' : ''}</td>
-        <td>${escapeHtml(item.quantityIssued)}</td>
-        <td class="text-left">${escapeHtml(item.remarks)}</td>
-      </tr>`;
-    }).join('');
-
-    const html = `
-      <!doctype html>
-      <html>
-        <head>
-          <title>${data.risNumber || 'RIS'}</title>
-          <style>
-          * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; }
-          @page { size: letter portrait; margin: 0.35in; }
-          body {
-            padding: 20px;
-            max-width: 900px;
-            margin: 0 auto;
-            color: #000;
-            background: #fff;
-          }
-          h1 { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; }
-          .header-row { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: baseline; gap: 24px; }
-          .header-left, .header-right { display: flex; align-items: center; flex: 1; }
-          .header-label { font-weight: bold; margin-right: 6px; white-space: nowrap; }
-          .input-line { border-bottom: 1px solid #000; flex: 1; min-width: 80px; padding: 0 4px; min-height: 17px; }
-          table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-          th, td { border: 1px solid #333; padding: 6px 4px; text-align: center; vertical-align: middle; height: 27px; }
-          th { font-weight: bold; text-transform: capitalize; }
-          .text-left { text-align: left; }
-          .small-cell { width: 8%; }
-          .desc-cell { width: 32%; }
-          .purpose-section { margin: 15px 0; }
-          .signatures-table { margin-top: 20px; }
-          .signatures-table td { border: 1px solid #333; padding: 6px; height: 28px; }
-          .sign-label { font-weight: bold; width: 20%; }
-          @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>
-          <h1>Requisition and Issue Slip</h1>
-          <div class="header-row"><div class="header-left"><span class="header-label">Entity Name:</span><span class="input-line">${value('entityName')}</span></div><div class="header-right"><span class="header-label">Fund Cluster:</span><span class="input-line">${value('fundCluster')}</span></div></div>
-          <div class="header-row"><div class="header-left" style="flex-direction:column;align-items:flex-start"><div style="display:flex;align-items:baseline;margin-bottom:4px"><span class="header-label">Division:</span><span class="input-line">${value('division')}</span></div><div style="display:flex;align-items:baseline"><span class="header-label">Office:</span><span class="input-line">${value('office')}</span></div></div><div class="header-right" style="flex-direction:column;align-items:flex-start"><div style="display:flex;align-items:baseline;margin-bottom:4px"><span class="header-label">Responsibility Center Code:</span><span class="input-line">${value('responsibilityCenterCode')}</span></div><div style="display:flex;align-items:baseline"><span class="header-label">RIS No.:</span><span class="input-line">${value('risNumber')}</span></div></div></div>
-            <table>
-              <thead><tr><th rowspan="2" class="small-cell">Stock No.</th><th rowspan="2" class="small-cell">Unit</th><th rowspan="2" class="desc-cell">Description</th><th rowspan="2" class="small-cell">Quantity</th><th colspan="3">Stock Available?</th><th rowspan="2" class="small-cell">Remarks</th></tr><tr><th style="width:6%">Yes</th><th style="width:6%">No</th><th class="small-cell">Quantity</th></tr></thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-          <div class="purpose-section"><div style="display:flex;align-items:baseline"><span class="header-label">Purpose:</span><span class="input-line">${value('purpose')}</span></div></div>
-          <table class="signatures-table"><tr><td class="sign-label"></td><td class="sign-label">Requested by:</td><td class="sign-label">Approved by:</td><td class="sign-label">Issued by:</td><td class="sign-label">Received by:</td></tr><tr><td class="sign-label">Signature:</td><td></td><td></td><td></td><td></td></tr><tr><td class="sign-label">Printed Name:</td><td>${value('requestedBy')}</td><td>${value('approvedBy')}</td><td>${value('issuedBy')}</td><td>${value('receivedBy')}</td></tr><tr><td class="sign-label">Designation:</td><td></td><td></td><td></td><td></td></tr><tr><td class="sign-label">Date:</td><td>${formatDate(data.date)}</td><td>${formatDate(data.date)}</td><td>${formatDate(data.date)}</td><td>${formatDate(data.date)}</td></tr></table>
-        </body>
-      </html>
-    `;
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-
-    setTimeout(() => {
-      try {
-        printWindow.print();
-      } catch (error) {
-        toast.error('Unable to open the print dialog.');
-      }
-    }, 500);
-
-    printWindow.onafterprint = () => {
-      printWindow.close();
-    };
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
   const statusClasses = {
@@ -809,17 +818,15 @@ export default function RisPage() {
                 </div>
               </div>
               <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-                <div>Requested by: {item.requestedBy}</div>
-                <div>Approved by: {item.approvedBy || 'Pending'}</div>
-                <div>Issued by: {item.issuedBy || 'Pending'}</div>
-                <div>Received by: {item.receivedBy}</div>
+                <div>Requested by: {item.requestedBy?.name || 'N/A'}</div>
+                <div>Approved by: {item.approvedBy?.name || 'Pending'}</div>
+                <div>Issued by: {item.issuedBy?.name || 'Pending'}</div>
+                <div>Received by: {item.receivedBy?.name || 'N/A'}</div>
                 {item.rejectionReason ? <div className="md:col-span-2 text-rose-600">Rejection reason: {item.rejectionReason}</div> : null}
               </div>
               {canManage ? (
               <div className="mt-4 flex flex-wrap gap-2">
-                {item.status === 'DRAFT' ? (
-                  <button type="button" onClick={() => editDraft(item)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Edit Draft</button>
-                ) : null}
+                <button type="button" onClick={() => editDraft(item)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
                 <button
                   type="button"
                   onClick={() => generateExcel(item)}
@@ -830,7 +837,7 @@ export default function RisPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => printRisForm(item)}
+                  onClick={() => generatePdf(item)}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <Printer size={16} />
@@ -838,7 +845,7 @@ export default function RisPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => printRisForm(item)}
+                  onClick={() => generatePdf(item, true)}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <Printer size={16} />
@@ -1091,16 +1098,25 @@ export default function RisPage() {
           </div>
 
           <div className="mt-4 overflow-hidden border border-slate-700">
-            <div className="grid grid-cols-5 border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
+            <div className="grid grid-cols-9 border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
+              <div className="col-span-4 border-r border-slate-700 py-2 italic">Requisition</div>
+              <div className="col-span-4 border-r border-slate-700 py-2 italic">Stock Available?</div>
+              <div className="py-2" />
+            </div>
+            <div className="grid grid-cols-9 border-b border-slate-700 text-center text-sm font-semibold">
               <div className="border-r border-slate-700 px-2 py-2">Stock No.</div>
               <div className="border-r border-slate-700 px-2 py-2">Unit</div>
               <div className="border-r border-slate-700 px-2 py-2">Description</div>
-              <div className="border-r border-slate-700 px-2 py-2">Quantity</div>
+              <div className="border-r border-slate-700 px-2 py-2">Qty Req.</div>
+              <div className="border-r border-slate-700 px-2 py-2">Yes</div>
+              <div className="border-r border-slate-700 px-2 py-2">No</div>
+              <div className="border-r border-slate-700 px-2 py-2">Actual Qty</div>
+              <div className="border-r border-slate-700 px-2 py-2">Remarks</div>
               <div className="px-2 py-2" />
             </div>
 
             {form.items.map((item, index) => (
-              <div key={`ris-row-${index}`} className="grid grid-cols-5 border-b border-slate-300 last:border-b-0">
+              <div key={`ris-row-${index}`} className="grid grid-cols-9 border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-1">
                   <select
                     value={item.stockNumber}
@@ -1138,6 +1154,40 @@ export default function RisPage() {
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
                 </div>
+                <div className="border-r border-slate-300 p-1 flex items-center justify-center">
+                  <input
+                    type="radio"
+                    name={`ris-yes-${index}`}
+                    checked={item.isAvailable === true}
+                    onChange={() => updateItem(index, 'isAvailable', true)}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1 flex items-center justify-center">
+                  <input
+                    type="radio"
+                    name={`ris-no-${index}`}
+                    checked={item.isAvailable === false}
+                    onChange={() => updateItem(index, 'isAvailable', false)}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.quantityIssued}
+                    onChange={(e) => updateItem(index, 'quantityIssued', e.target.value)}
+                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input
+                    value={item.remarks}
+                    onChange={(e) => updateItem(index, 'remarks', e.target.value)}
+                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
                 <div className="flex items-center justify-center p-1">
                   <button
                     type="button"
@@ -1153,7 +1203,7 @@ export default function RisPage() {
             ))}
           </div>
 
-          <div className="mt-4 grid gap-4 border border-slate-700 p-4 lg:grid-cols-[1.5fr_1fr]">
+          <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-semibold">Purpose</span>
               <input
@@ -1172,42 +1222,46 @@ export default function RisPage() {
                 className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
               />
             </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Requested by</span>
-              <input
-                value={form.requestedBy}
-                onChange={(e) => updateForm({ requestedBy: e.target.value })}
-                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
-                placeholder="Name and signature"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Approved by</span>
-              <input
-                value={form.approvedBy}
-                onChange={(e) => updateForm({ approvedBy: e.target.value })}
-                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
-                placeholder="Name and signature"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Issued by</span>
-              <input
-                value={form.issuedBy}
-                onChange={(e) => updateForm({ issuedBy: e.target.value })}
-                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
-                placeholder="Name and signature"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Received by</span>
-              <input
-                value={form.receivedBy}
-                onChange={(e) => updateForm({ receivedBy: e.target.value })}
-                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
-                placeholder="Name and signature"
-              />
-            </label>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {[
+              ['Requested by', 'requestedBy'],
+              ['Approved by', 'approvedBy'],
+              ['Issued by', 'issuedBy'],
+              ['Received by', 'receivedBy'],
+            ].map(([label, section]) => (
+              <div key={section} className="rounded-xl border border-slate-700 p-4">
+                <h3 className="mb-3 text-sm font-semibold">{label}</h3>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>
+                    <input
+                      value={form[section].name}
+                      onChange={(e) => updateSignatory(section, 'name', e.target.value)}
+                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Designation</span>
+                    <input
+                      value={form[section].designation}
+                      onChange={(e) => updateSignatory(section, 'designation', e.target.value)}
+                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
+                    <input
+                      type="date"
+                      value={form[section].date}
+                      onChange={(e) => updateSignatory(section, 'date', e.target.value)}
+                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-300 pt-4">

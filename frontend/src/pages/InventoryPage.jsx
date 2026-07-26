@@ -148,6 +148,8 @@ export default function InventoryPage() {
       const worksheet = workbook.getWorksheet("PC");
 
       // Insert data into specific cells
+      worksheet.getCell("C3").value = formatDate(data.month);
+      worksheet.getCell("E3").value = data.poNumber;
       worksheet.getCell("D5").value = data.entityName;
       worksheet.getCell("J5").value = data.fundCluster;
       worksheet.getCell("E7").value = data.propertyPlantAndEquipment;
@@ -212,7 +214,7 @@ export default function InventoryPage() {
     };
 
     async function generatePdf(data, print = false) {
-      const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+      const existingPdfBytes = await fetch("/forms/templates/pc-template.pdf").then(res =>
           res.arrayBuffer()
       );
 
@@ -220,33 +222,27 @@ export default function InventoryPage() {
 
       const form = pdfDoc.getForm();
 
-      form.getTextField("entityName").setText(data.entityName);
-      form.getTextField("fundCluster").setText(data.fundCluster);
-      form.getTextField("supplierName").setText(data.supplierName);
-      form.getTextField("poNumber").setText(data.poNumber);
-      form.getTextField("reqOffice").setText(data.requisitioningOffice);
-      form.getTextField("rcc").setText(data.responsibilityCenterCode);
-      form.getTextField("iarNumber").setText(data.iarNumber);
-      form.getTextField("iarDate").setText(formatDate(data.iarDate));
-      form.getTextField("invoiceNumber").setText(data.invoiceNumber);
-      form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+      form.getTextField("month").setText(String(formatDate(data.month)));
+      form.getTextField("poNumber").setText(String(data.poNumber));
+      form.getTextField("entityName").setText(String(data.entityName));
+      form.getTextField("fundCluster").setText(String(data.fundCluster));
+      form.getTextField("propertyPlantAndEquipment").setText(String(data.propertyPlantAndEquipment));
+      form.getTextField("description").setText(String(data.description));
+      form.getTextField("propertyNumber").setText(String(data.propertyNumber));
+      form.getTextField("serialNumber").setText(String(data.serialNumber));
 
       // Table data insertion
       const startRowNumber = 1; // Starting row for table data
       data.items.forEach((item, index) => {
-        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
-        form.getTextField(`description${index + 1}`).setText(item.description);
-        form.getTextField(`unit${index + 1}`).setText(item.unit);
-        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+        form.getTextField(`date${index + 1}`).setText(String(formatDate(item.date)));
+        form.getTextField(`referenceParNo${index + 1}`).setText(String(item.referenceParNo ?? ''));
+        form.getTextField(`receiptQuantity${index + 1}`).setText(String(item.receiptQuantity ?? ''));
+        form.getTextField(`itdQuantity${index + 1}`).setText(String(item.itdQuantity ?? ''));
+        form.getTextField(`itdOfficeOfficer${index + 1}`).setText(String(item.itdOfficeOfficer ?? ''));
+        form.getTextField(`balanceQuantity${index + 1}`).setText(String(item.balanceQuantity ?? ''));
+        form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
+        form.getTextField(`remarks${index + 1}`).setText(String(item.remarks ?? ''));
       });
-
-      
-      form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
-      form.getTextField("inspectedBy").setText(data.inspectedBy);
-      form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
-      form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
-      form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
-      form.getTextField("acceptedBy").setText(data.acceptedBy);
 
       // Optional: prevent further editing
       form.flatten();
@@ -261,7 +257,7 @@ export default function InventoryPage() {
       } else {
         saveAs(
           new Blob([pdfBytes], { type: "application/pdf" }),
-          "IAR.pdf"
+          "PC.pdf"
         );
       }
     };
@@ -285,7 +281,7 @@ export default function InventoryPage() {
                     <div className="flex gap-2">
                       <button type="button" onClick={() => edit(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
                       <button type="button" onClick={() => generateExcel(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                      <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                      {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                       <button type="button" onClick={() => generatePdf(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
                       <button type="button" onClick={() => generatePdf(card, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                     </div>

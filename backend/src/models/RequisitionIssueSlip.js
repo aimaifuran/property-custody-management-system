@@ -9,10 +9,26 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
   office: { type: String },
   responsibilityCenterCode: { type: String },
   purpose: { type: String },
-  requestedBy: { type: String },
-  approvedBy: { type: String },
-  issuedBy: { type: String },
-  receivedBy: { type: String },
+  requestedBy: {
+    name: { type: String, trim: true },
+    designation: { type: String, trim: true },
+    date: { type: Date },
+  },
+  approvedBy: {
+    name: { type: String, trim: true },
+    designation: { type: String, trim: true },
+    date: { type: Date },
+  },
+  issuedBy: {
+    name: { type: String, trim: true },
+    designation: { type: String, trim: true },
+    date: { type: Date },
+  },
+  receivedBy: {
+    name: { type: String, trim: true },
+    designation: { type: String, trim: true },
+    date: { type: Date },
+  },
   date: { type: Date },
   status: {
     type: String,

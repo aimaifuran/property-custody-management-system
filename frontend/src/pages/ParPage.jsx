@@ -234,7 +234,7 @@ export default function ParPage() {
     };
 
     async function generatePdf(data, print = false) {
-        const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+        const existingPdfBytes = await fetch("/forms/templates/par-template.pdf").then(res =>
             res.arrayBuffer()
         );
 
@@ -242,33 +242,34 @@ export default function ParPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(data.entityName);
-        form.getTextField("fundCluster").setText(data.fundCluster);
-        form.getTextField("supplierName").setText(data.supplierName);
-        form.getTextField("poNumber").setText(data.poNumber);
-        form.getTextField("reqOffice").setText(data.requisitioningOffice);
-        form.getTextField("rcc").setText(data.responsibilityCenterCode);
-        form.getTextField("iarNumber").setText(data.iarNumber);
-        form.getTextField("iarDate").setText(formatDate(data.iarDate));
-        form.getTextField("invoiceNumber").setText(data.invoiceNumber);
-        form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+        form.getTextField("entityName").setText(String(data.entityName));
+        form.getTextField("fundCluster").setText(String(data.fundCluster));
+        form.getTextField("parNumber").setText(String(data.parNumber));
 
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
-        form.getTextField(`description${index + 1}`).setText(item.description);
-        form.getTextField(`unit${index + 1}`).setText(item.unit);
-        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
+            form.getTextField(`description${index + 1}`).setText(String(item.description));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
+            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired)));
+            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
         });
 
         
-        form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
-        form.getTextField("inspectedBy").setText(data.inspectedBy);
-        form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
-        form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
-        form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
-        form.getTextField("acceptedBy").setText(data.acceptedBy);
+        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
+        form.getTextField("remarks").setText(String(data.remarks));
+
+        // Received by
+        form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
+        form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
+        
+        // Issued by
+        form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
+        form.getTextField("issuedByPosition").setText(String(data.issuedBy?.position || ''));
+        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
 
         // Optional: prevent further editing
         form.flatten();
@@ -283,7 +284,7 @@ export default function ParPage() {
         } else {
         saveAs(
             new Blob([pdfBytes], { type: "application/pdf" }),
-            "IAR.pdf"
+            "PAR.pdf"
         );
         }
     };
@@ -309,7 +310,7 @@ export default function ParPage() {
                         <div className="flex gap-2">
                             <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
                             <button type="button" onClick={() => generateExcel(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                            <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                            {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <button type="button" onClick={() => generatePdf(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
                             <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                         </div>

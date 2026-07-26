@@ -147,7 +147,7 @@ router.post('/', authenticate, authorize('canManageIAR'), [
     requestedBy: null,
     approvedBy: null,
     issuedBy: null,
-    receivedBy: report.custodian || null,
+    receivedBy: report.custodian ? { name: report.custodian, designation: null, date: null } : null,
     date: report.acceptanceDate || null,
     status: 'DRAFT',
     items: report.items.map((entry) => ({

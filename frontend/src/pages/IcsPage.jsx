@@ -240,7 +240,7 @@ export default function IcsPage() {
     };
 
     async function generatePdf(data, print = false) {
-        const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
+        const existingPdfBytes = await fetch("/forms/templates/ics-template.pdf").then(res =>
             res.arrayBuffer()
         );
 
@@ -248,33 +248,34 @@ export default function IcsPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(data.entityName);
-        form.getTextField("fundCluster").setText(data.fundCluster);
-        form.getTextField("supplierName").setText(data.supplierName);
-        form.getTextField("poNumber").setText(data.poNumber);
-        form.getTextField("reqOffice").setText(data.requisitioningOffice);
-        form.getTextField("rcc").setText(data.responsibilityCenterCode);
-        form.getTextField("iarNumber").setText(data.iarNumber);
-        form.getTextField("iarDate").setText(formatDate(data.iarDate));
-        form.getTextField("invoiceNumber").setText(data.invoiceNumber);
-        form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+        form.getTextField("entityName").setText(String(data.entityName));
+        form.getTextField("fundCluster").setText(String(data.fundCluster));
+        form.getTextField("icsNumber").setText(String(data.icsNumber));
 
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-            form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
-            form.getTextField(`description${index + 1}`).setText(item.description);
-            form.getTextField(`unit${index + 1}`).setText(item.unit);
             form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
+            form.getTextField(`unitCost${index + 1}`).setText(String(formatAmount(item.unitCost)));
+            form.getTextField(`totalCost${index + 1}`).setText(String(formatAmount(item.totalCost)));
+            form.getTextField(`description${index + 1}`).setText(String(item.description));
+            form.getTextField(`inventoryItemNo${index + 1}`).setText(String(item.inventoryItemNo));
+            form.getTextField(`estimatedUsefulLife${index + 1}`).setText(String(item.estimatedUsefulLife));
         });
-
         
-        form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
-        form.getTextField("inspectedBy").setText(data.inspectedBy);
-        form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
-        form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
-        form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
-        form.getTextField("acceptedBy").setText(data.acceptedBy);
+        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
+        form.getTextField("remarks").setText(String(data.remarks));
+
+        // Received from
+        form.getTextField("receivedFromName").setText(String(data.receivedFrom?.name || ''));
+        form.getTextField("receivedFromPosition").setText(String(data.receivedFrom?.position || ''));
+        form.getTextField("receivedFromDate").setText(String(formatDate(data.receivedFrom?.date)));
+
+        // Received by
+        form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
+        form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
 
         // Optional: prevent further editing
         form.flatten();
@@ -289,7 +290,7 @@ export default function IcsPage() {
         } else {
         saveAs(
             new Blob([pdfBytes], { type: "application/pdf" }),
-            "IAR.pdf"
+            "ICS.pdf"
         );
         }
     };
@@ -315,7 +316,7 @@ export default function IcsPage() {
                         <div className="flex gap-2">
                             <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
                             <button type="button" onClick={() => generateExcel(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                            <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button>
+                            {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <button type="button" onClick={() => generatePdf(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
                             <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                         </div>

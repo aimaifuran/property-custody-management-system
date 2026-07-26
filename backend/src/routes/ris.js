@@ -139,9 +139,10 @@ router.post('/:id/approve', authenticate, async (req, res) => {
   if (!['REVIEWED', 'PENDING_APPROVAL'].includes(ris.status)) return errorResponse(res, 'RIS is not ready for approval', [], 400);
 
   const approver = getUserLabel(req.user);
+  const approvedAt = new Date();
   ris.status = 'APPROVED';
-  ris.approvedBy = approver;
-  ris.approvedAt = new Date();
+  ris.approvedBy = { name: approver, designation: req.user.office || '', date: approvedAt };
+  ris.approvedAt = approvedAt;
   ris.signatureHash = createSignatureHash({ risId: ris._id.toString(), action: 'APPROVED', userId: req.user._id.toString(), at: Date.now() });
   await ris.save();
 
@@ -242,7 +243,7 @@ router.post('/:id/issue', authenticate, async (req, res) => {
 
       const accountability = await PropertyAccountability.create({
         inventory: inventory._id,
-        employee: ris.receivedBy || ris.requestedBy,
+        employee: ris.receivedBy?.name || ris.requestedBy?.name || 'Unassigned',
         office: ris.office,
         serialNumber: inventory.serialNumber || entry.stockNumber,
         propertyNumber: inventory.propertyNumber || '',
@@ -284,7 +285,7 @@ router.post('/:id/issue', authenticate, async (req, res) => {
 
     ris.status = 'ACCOUNTABILITY_LOCKED';
     ris.issuedAt = issuedAt;
-    ris.issuedBy = issuedBy;
+    ris.issuedBy = { name: issuedBy, designation: req.user.office || '', date: issuedAt };
     ris.signatureHash = createSignatureHash({
       risId: ris._id.toString(),
       action: 'ISSUED',
