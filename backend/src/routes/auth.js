@@ -16,6 +16,8 @@ const cookieOptions = () => ({
   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
 });
 
+const getTokenFromRequest = (req) => req.cookies?.token || req.headers.authorization?.split(' ')[1];
+
 router.post('/login', loginLimiter, [
   body('identifier').notEmpty().withMessage('Username or email is required'),
   body('password').isString().notEmpty().withMessage('Password is required'),
@@ -64,7 +66,7 @@ router.post('/login', loginLimiter, [
 });
 
 router.post('/logout', async (req, res) => {
-  const token = req.cookies?.token;
+  const token = getTokenFromRequest(req);
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
@@ -80,7 +82,7 @@ router.post('/logout', async (req, res) => {
 });
 
 router.get('/me', async (req, res) => {
-  const token = req.cookies?.token;
+  const token = getTokenFromRequest(req);
   if (!token) return errorResponse(res, 'Authentication required', [], 401);
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');

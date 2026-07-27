@@ -77,6 +77,14 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
   return successResponse(res, 'RIS created', ris, 201);
 });
 
+router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), async (req, res) => {
+  const updates = { ...req.body };
+  if (updates.items) updates.items = updates.items.map((entry) => ({ ...entry, totalCost: entry.totalCost ?? null }));
+  const ris = await RequisitionIssueSlip.findOneAndUpdate({ _id: req.params.id, deleted: false }, updates, { new: true, runValidators: true });
+  if (!ris) return errorResponse(res, 'RIS not found', [], 404);
+  return successResponse(res, 'RIS updated', ris);
+});
+
 router.post('/:id/review', authenticate, async (req, res) => {
   if (!canReviewRis(req.user)) return errorResponse(res, 'Forbidden', [], 403);
   const ris = await RequisitionIssueSlip.findById(req.params.id);
@@ -131,9 +139,10 @@ router.post('/:id/approve', authenticate, async (req, res) => {
   if (!['REVIEWED', 'PENDING_APPROVAL'].includes(ris.status)) return errorResponse(res, 'RIS is not ready for approval', [], 400);
 
   const approver = getUserLabel(req.user);
+  const approvedAt = new Date();
   ris.status = 'APPROVED';
-  ris.approvedBy = approver;
-  ris.approvedAt = new Date();
+  ris.approvedBy = { name: approver, designation: req.user.office || '', date: approvedAt };
+  ris.approvedAt = approvedAt;
   ris.signatureHash = createSignatureHash({ risId: ris._id.toString(), action: 'APPROVED', userId: req.user._id.toString(), at: Date.now() });
   await ris.save();
 
@@ -234,7 +243,7 @@ router.post('/:id/issue', authenticate, async (req, res) => {
 
       const accountability = await PropertyAccountability.create({
         inventory: inventory._id,
-        employee: ris.receivedBy || ris.requestedBy,
+        employee: ris.receivedBy?.name || ris.requestedBy?.name || 'Unassigned',
         office: ris.office,
         serialNumber: inventory.serialNumber || entry.stockNumber,
         propertyNumber: inventory.propertyNumber || '',
@@ -276,7 +285,7 @@ router.post('/:id/issue', authenticate, async (req, res) => {
 
     ris.status = 'ACCOUNTABILITY_LOCKED';
     ris.issuedAt = issuedAt;
-    ris.issuedBy = issuedBy;
+    ris.issuedBy = { name: issuedBy, designation: req.user.office || '', date: issuedAt };
     ris.signatureHash = createSignatureHash({
       risId: ris._id.toString(),
       action: 'ISSUED',

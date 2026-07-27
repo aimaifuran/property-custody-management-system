@@ -6,6 +6,22 @@ const AuthContext = createContext(null);
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 axios.defaults.withCredentials = true;
 
+const authTokenKey = 'pcms_auth_token';
+
+const setAuthToken = (token) => {
+  if (token) {
+    axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+    return;
+  }
+
+  delete axios.defaults.headers.common.Authorization;
+};
+
+const savedToken = localStorage.getItem(authTokenKey);
+if (savedToken) {
+  setAuthToken(savedToken);
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +44,13 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (identifier, password, rememberMe) => {
     const { data } = await axios.post('/auth/login', { identifier, password, rememberMe });
+    const accessToken = data.data?.accessToken;
+
+    if (accessToken) {
+      localStorage.setItem(authTokenKey, accessToken);
+      setAuthToken(accessToken);
+    }
+
     setUser(data.data?.user || null);
     toast.success(data.message || 'Welcome back');
     return data;
@@ -35,6 +58,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     await axios.post('/auth/logout');
+    localStorage.removeItem(authTokenKey);
+    setAuthToken(null);
     setUser(null);
     toast.success('Signed out');
   };
