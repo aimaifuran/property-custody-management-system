@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -40,6 +40,11 @@ export default function ReturnedSupplyPage() {
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
     const [saving, setSaving] = useState(false);
+    const formTitleRef = useRef(null);
+
+    useEffect(() => {
+        if (editingId) formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [editingId]);
 
     const startEdit = (record) => {
         setEditingId(record._id);
@@ -49,6 +54,7 @@ export default function ReturnedSupplyPage() {
     const cancelEdit = () => {
         setEditingId(null);
         setForm(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -153,7 +159,7 @@ export default function ReturnedSupplyPage() {
             {form && (
                 <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <div className="mb-4 flex items-center justify-between">
-                        <h2 className="text-xl font-semibold">Edit Returned Supply Record</h2>
+                        <h2 ref={formTitleRef} className="text-xl font-semibold">Edit Returned Supply Record</h2>
                         <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">

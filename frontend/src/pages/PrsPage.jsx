@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
@@ -73,6 +73,7 @@ export default function PrsPage() {
     const [form, setForm] = useState(initial);
     const [editingId, setEditingId] = useState(null);
     const [saving, setSaving] = useState(false);
+    const formTitleRef = useRef(null);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -96,12 +97,13 @@ export default function PrsPage() {
     const startEdit = (record) => {
         setEditingId(record._id);
         setForm(toForm(record));
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const cancelEdit = () => {
         setEditingId(null);
         setForm(initial);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const save = async (event) => {
@@ -394,7 +396,7 @@ export default function PrsPage() {
 
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-semibold">{editingId ? 'Update Property Return Slip' : 'Property Return Slip'}</h1>
+                    <h1 ref={formTitleRef} className="text-3xl font-semibold">{editingId ? 'Update Property Return Slip' : 'Property Return Slip'}</h1>
                     <p className="text-sm text-slate-500">Saving a PRS automatically logs each item individually to Returned Supply.</p>
                 </div>
                 {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}

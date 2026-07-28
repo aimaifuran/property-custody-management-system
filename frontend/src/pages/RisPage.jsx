@@ -411,6 +411,7 @@ export default function RisPage() {
     setPage(1);
   };
   const supplyReviewRef = useRef(null);
+  const editFormTitleRef = useRef(null);
   const { user } = useAuth();
   const isSupplyOfficeUser = (user?.office || '').toLowerCase().includes('supply');
   const canReviewRis = user?.role === 'admin' || isSupplyOfficeUser || user?.permissions?.includes('canReviewRIS');
@@ -464,6 +465,10 @@ export default function RisPage() {
     supplyReviewRef.current.focus({ preventScroll: true });
   }, [reviewTarget, reviewDraft]);
 
+  useEffect(() => {
+    if (editingRis) editFormTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [editingRis]);
+
   const completedRows = useMemo(
     () => form.items.filter((item) => item.stockNumber || item.unit || item.description),
     [form.items],
@@ -514,6 +519,7 @@ export default function RisPage() {
   const resetForm = () => {
     setForm(initialForm);
     setEditingRis(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const save = async (e) => {
@@ -822,7 +828,6 @@ export default function RisPage() {
         quantityIssued: item.quantityIssued ?? '',
       })),
     });
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
   const statusClasses = {
@@ -1069,8 +1074,9 @@ export default function RisPage() {
       {editingRis ? (<>
       <hr className="border-slate-300 border-2" />
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div ref={editFormTitleRef} className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <h1 className="text-3xl font-semibold">Update Requisition & Issue Slip</h1>
           <p className="text-sm text-slate-500">Edit the selected RIS draft and save the updated record.</p>
           <p className="text-xs text-slate-400">RIS items and total cost remain linked to the originating IAR.</p>
         </div>

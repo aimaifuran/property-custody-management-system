@@ -1,4 +1,6 @@
 import {
+    useEffect,
+    useRef,
     useState
 } from 'react';
 import axios from 'axios';
@@ -44,6 +46,11 @@ export default function InventoryPage() {
     const [editingCard, setEditingCard] = useState(null);
     const [form, setForm] = useState(initialForm);
     const [saving, setSaving] = useState(false);
+    const formTitleRef = useRef(null);
+
+    useEffect(() => {
+        if (editingCard) formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [editingCard]);
 
     const edit = (card) => {
         const items = card.items?.length ? card.items : (card.entries || []).map((entry) => ({
@@ -77,6 +84,7 @@ export default function InventoryPage() {
     const closeEditor = () => {
         setEditingCard(null);
         setForm(initialForm);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     const save = async (event) => {
         event.preventDefault();
@@ -308,7 +316,7 @@ export default function InventoryPage() {
             <form onSubmit={save} className="mx-auto max-w-7xl rounded-3xl border border-slate-300 bg-white p-6 shadow-xl">
               <div className="rounded-2xl border-2 border-slate-700 p-5 text-slate-900">
                 <div className="border-b border-slate-300 pb-3 text-center">
-                  <h2 className="text-2xl font-black tracking-wide">PROPERTY CARD</h2>
+                  <h2 ref={formTitleRef} className="text-2xl font-black tracking-wide">PROPERTY CARD</h2>
                 </div>
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                   {field('Month','month')}
