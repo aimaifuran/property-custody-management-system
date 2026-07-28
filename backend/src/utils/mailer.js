@@ -40,4 +40,24 @@ const sendPasswordResetEmail = async (user, resetUrl) => {
   });
 };
 
-module.exports = { sendPasswordResetEmail };
+const sendEmailChangeCode = async (user, newEmail, code) => {
+  const from = process.env.EMAIL_FROM || 'no-reply@pais.local';
+  const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username;
+
+  await getTransporter().sendMail({
+    from,
+    to: newEmail,
+    subject: 'Confirm your new PAIS email address',
+    html: `
+      <div style="font-family: Arial, Helvetica, sans-serif; max-width: 480px; margin: 0 auto; color: #1e293b;">
+        <h2 style="color:#0f172a;">Confirm Your New Email</h2>
+        <p>Hi ${displayName},</p>
+        <p>You requested to change the email address on your PAIS account to this one. Enter the code below in the app to confirm the change. This code expires in 10 minutes.</p>
+        <p style="text-align:center; margin: 28px 0; font-size: 32px; font-weight: 700; letter-spacing: 8px; color:#0d9488;">${code}</p>
+        <p>If you didn't request this, you can safely ignore this email — your account email will not change.</p>
+      </div>
+    `,
+  });
+};
+
+module.exports = { sendPasswordResetEmail, sendEmailChangeCode };

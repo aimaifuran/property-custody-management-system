@@ -26,6 +26,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -57,14 +58,27 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    await axios.post('/auth/logout');
-    localStorage.removeItem(authTokenKey);
-    setAuthToken(null);
-    setUser(null);
-    toast.success('Signed out');
+    setLoggingOut(true);
+    try {
+      await axios.post('/auth/logout');
+      localStorage.removeItem(authTokenKey);
+      setAuthToken(null);
+      setUser(null);
+      toast.success('Signed out');
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
-  const value = useMemo(() => ({ user, loading, authReady, login, logout }), [user, loading, authReady]);
+  const refreshUser = async () => {
+    const { data } = await axios.get('/auth/me');
+    setUser(data.data?.user || null);
+  };
+
+  const value = useMemo(
+    () => ({ user, loading, authReady, loggingOut, login, logout, refreshUser }),
+    [user, loading, authReady, loggingOut],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

@@ -17,11 +17,17 @@ const permissionOptions = [
   { key: 'canManageUsers', label: 'Manage Users' },
 ];
 
+const emptyEditForm = () => ({ role: 'user', status: 'active', permissions: [] });
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', role: 'user', permissions: ['canViewRIS', 'canCreateRIS'] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editForm, setEditForm] = useState(emptyEditForm());
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -43,6 +49,41 @@ export default function UsersPage() {
       await load();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const startEditPermissions = (user) => {
+    setEditingUserId(user._id);
+    setEditForm({
+      role: user.role || 'user',
+      status: user.status || 'active',
+      permissions: user.permissions || [],
+    });
+  };
+
+  const cancelEditPermissions = () => {
+    setEditingUserId(null);
+    setEditForm(emptyEditForm());
+  };
+
+  const toggleEditPermission = (key, checked) => {
+    setEditForm((prev) => ({
+      ...prev,
+      permissions: checked
+        ? [...new Set([...prev.permissions, key])]
+        : prev.permissions.filter((value) => value !== key),
+    }));
+  };
+
+  const saveEditPermissions = async (e) => {
+    e.preventDefault();
+    setSavingEdit(true);
+    try {
+      await axios.put(`/users/${editingUserId}`, editForm);
+      await load();
+      cancelEditPermissions();
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -126,8 +167,60 @@ export default function UsersPage() {
             {users.length === 0 && <p className="text-sm text-slate-500">No users found.</p>}
             {users.map((user) => (
               <div key={user._id} className="rounded-xl border border-slate-200 p-4">
-                <div className="font-semibold">{user.firstName} {user.lastName}</div>
-                <div className="text-sm text-slate-500">{user.email} · {user.role}</div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold">{user.firstName} {user.lastName}</div>
+                    <div className="text-sm text-slate-500">{user.email} · {user.role} · {user.status || 'active'}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => (editingUserId === user._id ? cancelEditPermissions() : startEditPermissions(user))}
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                  >
+                    {editingUserId === user._id ? 'Cancel' : 'Edit Permissions'}
+                  </button>
+                </div>
+
+                {editingUserId === user._id && (
+                  <form onSubmit={saveEditPermissions} className="mt-4 border-t border-slate-200 pt-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-semibold text-slate-700">Role</span>
+                        <select value={editForm.role} onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2">
+                          <option value="user">User</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-semibold text-slate-700">Status</span>
+                        <select value={editForm.status} onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2">
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-sm font-semibold text-slate-700">Page Access</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {permissionOptions.map((permission) => (
+                          <label key={permission.key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={editForm.permissions.includes(permission.key)}
+                              onChange={(e) => toggleEditPermission(permission.key, e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            {permission.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <button type="submit" disabled={savingEdit} className="mt-4 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
+                      {savingEdit && <Spinner size={16} />}
+                      {savingEdit ? 'Saving…' : 'Save Permissions'}
+                    </button>
+                  </form>
+                )}
               </div>
             ))}
           </div>

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, FileText, ClipboardList, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive, ChevronDown, ChevronRight, UserCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
+import Spinner from './Spinner';
 
 const issueItems = [
   { to: '/iar', label: 'Inspection & Acceptance Report', icon: FileCheck2, permissions: ['canViewIAR'] },
@@ -26,7 +27,7 @@ const canAccessNavItem = (user, item) => (
 );
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, loggingOut } = useAuth();
   const [issueOpen, setIssueOpen] = useState(true);
 
   return (
@@ -97,8 +98,16 @@ export default function Layout() {
         <div className="mt-auto rounded-2xl border border-slate-800 bg-slate-900 p-4">
           <div className="font-semibold">{user?.firstName} {user?.lastName}</div>
           <div className="text-sm text-slate-400">{user?.office}</div>
-          <button onClick={logout} className="mt-4 flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm">
-            <LogOut size={16} /> Logout
+          <NavLink to="/profile" className={({ isActive }) => `mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${isActive ? 'bg-teal-600 text-white' : 'bg-slate-800 hover:bg-slate-700'}`}>
+            <UserCircle size={16} /> My Profile
+          </NavLink>
+          <button
+            onClick={logout}
+            disabled={loggingOut}
+            className="mt-2 flex w-full items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm disabled:opacity-60"
+          >
+            {loggingOut ? <Spinner size={16} /> : <LogOut size={16} />}
+            {loggingOut ? 'Signing out…' : 'Logout'}
           </button>
         </div>
       </aside>

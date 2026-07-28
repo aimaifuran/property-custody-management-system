@@ -13,8 +13,13 @@ const userSchema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   permissions: [{ type: String }],
   refreshToken: { type: String },
+  failedLoginAttempts: { type: Number, default: 0 },
+  lockUntil: { type: Date },
   resetToken: { type: String },
   resetTokenExpiry: { type: Date },
+  pendingEmail: { type: String, trim: true, lowercase: true },
+  emailChangeCode: { type: String },
+  emailChangeExpiry: { type: Date },
   lastLogin: { type: Date },
   deleted: { type: Boolean, default: false },
 }, { timestamps: true });
