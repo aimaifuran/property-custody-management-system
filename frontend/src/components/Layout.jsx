@@ -117,7 +117,7 @@ export default function Layout() {
             <div className="flex items-center gap-3">
               <button className="rounded-xl border border-slate-200 p-2 md:hidden"><Menu size={18} /></button>
               <div>
-                <div className="text-lg font-semibold">Government Supply Office</div>
+                <div className="text-lg font-semibold">Supply Office - Local Government Unit of Carigara</div>
                 <div className="text-sm text-slate-500">Secure property custody tracking</div>
               </div>
             </div>
