@@ -32,6 +32,11 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex bg-slate-100 text-slate-900">
+      {loggingOut && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+          <ThreeBodyLoader text="Signing out…" color="#2dd4bf" textClassName="text-slate-100" />
+        </div>
+      )}
       <aside className="hidden md:flex min-h-screen w-72 flex-col border-r border-slate-200 bg-slate-950 p-6 text-slate-100">
         <div className="mb-8">
           <div className="text-2xl font-semibold">PAIS</div>
@@ -106,7 +111,7 @@ export default function Layout() {
             disabled={loggingOut}
             className="mt-2 flex w-full items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm disabled:opacity-60"
           >
-            {loggingOut ? <ThreeBodyLoader text={null} size={16} color="#e2e8f0" /> : <LogOut size={16} />}
+            <LogOut size={16} />
             {loggingOut ? 'Signing out…' : 'Logout'}
           </button>
         </div>
