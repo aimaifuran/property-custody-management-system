@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Send } from 'lucide-react';
@@ -83,6 +83,7 @@ export default function PtrPage() {
     const [form, setForm] = useState(initial);
     const [editingId, setEditingId] = useState(null);
     const [saving, setSaving] = useState(false);
+    const formTitleRef = useRef(null);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -101,12 +102,13 @@ export default function PtrPage() {
     const startEdit = (record) => {
         setEditingId(record._id);
         setForm(toForm(record));
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const cancelEdit = () => {
         setEditingId(null);
         setForm(initial);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const save = async (event) => {
@@ -397,7 +399,7 @@ export default function PtrPage() {
 
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-semibold">{editingId ? 'Update Property Transfer Report' : 'Property Transfer Report'}</h1>
+                    <h1 ref={formTitleRef} className="text-3xl font-semibold">{editingId ? 'Update Property Transfer Report' : 'Property Transfer Report'}</h1>
                     <p className="text-sm text-slate-500">Transfer an accountable asset to another custodian.</p>
                 </div>
                 {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}

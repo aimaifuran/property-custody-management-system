@@ -1,4 +1,5 @@
 import {
+    useRef,
     useState
 } from 'react';
 import axios from 'axios';
@@ -80,6 +81,7 @@ export default function IarPage() {
     const [form, setForm] = useState(initial);
     const [editingId, setEditingId] = useState(null);
     const [saving, setSaving] = useState(false);
+    const formTitleRef = useRef(null);
     const update = (key, value) => setForm((prev) => ({
         ...prev,
         [key]: value
@@ -98,12 +100,13 @@ export default function IarPage() {
     const startEdit = (item) => {
         setEditingId(item._id);
         setForm(toForm(item));
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const cancelEdit = () => {
         setEditingId(null);
         setForm(initial);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const save = async (event) => {
@@ -329,7 +332,7 @@ export default function IarPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-semibold">{editingId ? 'Update Inspection & Acceptance Report' : 'Inspection & Acceptance Report'}</h1>
+              <h1 ref={formTitleRef} className="text-3xl font-semibold">{editingId ? 'Update Inspection & Acceptance Report' : 'Inspection & Acceptance Report'}</h1>
               <p className="text-sm text-slate-500">{editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR automatically creates its linked Property Card, RIS draft, and an Inventory Custodian (below ₱50,000) or Property Acknowledgement Receipt (₱50,000 and up) record.'}</p>
             </div>
             {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}
