@@ -10,8 +10,18 @@ const PropertyAccountability = require('../models/PropertyAccountability');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { paginateAndSearch } = require('../utils/paginate');
 
 const router = express.Router();
+
+const RIS_SEARCH_FIELDS = [
+  'entityName', 'fundCluster', 'division', 'office', 'responsibilityCenterCode', 'purpose',
+  'status', 'rejectionReason', 'rejectedBy', 'reviewedBy',
+  'requestedBy.name', 'requestedBy.designation',
+  'approvedBy.name', 'approvedBy.designation',
+  'issuedBy.name', 'issuedBy.designation',
+  'receivedBy.name', 'receivedBy.designation',
+];
 
 const getUserLabel = (user) => {
   const name = [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ').trim();
@@ -44,8 +54,11 @@ const getDocumentNumber = async (formType, createdAt, cache) => {
 };
 
 router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const ris = await RequisitionIssueSlip.find({ deleted: false }).sort({ createdAt: -1 });
-  return successResponse(res, 'RIS retrieved', ris);
+  const { data, pagination } = await paginateAndSearch(RequisitionIssueSlip, req, {
+    baseFilter: { deleted: false },
+    searchFields: RIS_SEARCH_FIELDS,
+  });
+  return successResponse(res, 'RIS retrieved', { items: data, pagination });
 });
 
 router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [

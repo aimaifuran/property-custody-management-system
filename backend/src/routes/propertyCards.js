@@ -2,11 +2,21 @@ const express = require('express');
 const PropertyCard = require('../models/PropertyCard');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { paginateAndSearch } = require('../utils/paginate');
 const router = express.Router();
 
+const PROPERTY_CARD_SEARCH_FIELDS = [
+  'poNumber', 'entityName', 'fundCluster', 'propertyPlantAndEquipment', 'propertyNumber',
+  'description', 'serialNumber',
+];
+
 router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const cards = await PropertyCard.find({ deleted: false }).populate('iar').populate('inventory').sort({ createdAt: -1 });
-  return successResponse(res, 'Property cards retrieved', cards);
+  const { data, pagination } = await paginateAndSearch(PropertyCard, req, {
+    baseFilter: { deleted: false },
+    searchFields: PROPERTY_CARD_SEARCH_FIELDS,
+    populate: ['iar', 'inventory'],
+  });
+  return successResponse(res, 'Property cards retrieved', { items: data, pagination });
 });
 
 router.put('/:id', authenticate, authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {

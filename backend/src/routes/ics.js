@@ -2,11 +2,22 @@ const express = require('express');
 const InventoryCustodianSlip = require('../models/InventoryCustodianSlip');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { paginateAndSearch } = require('../utils/paginate');
 const router = express.Router();
 
+const ICS_SEARCH_FIELDS = [
+  'entityName', 'fundCluster', 'icsNumber', 'remarks',
+  'receivedFrom.name', 'receivedFrom.position',
+  'receivedBy.name', 'receivedBy.position',
+];
+
 router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const records = await InventoryCustodianSlip.find({ deleted: false }).populate('iar').sort({ createdAt: -1 });
-  return successResponse(res, 'Inventory Custodian Slips retrieved', records);
+  const { data, pagination } = await paginateAndSearch(InventoryCustodianSlip, req, {
+    baseFilter: { deleted: false },
+    searchFields: ICS_SEARCH_FIELDS,
+    populate: 'iar',
+  });
+  return successResponse(res, 'Inventory Custodian Slips retrieved', { items: data, pagination });
 });
 
 router.put('/:id', authenticate, authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {

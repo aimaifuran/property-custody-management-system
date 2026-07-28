@@ -12,11 +12,22 @@ const Supplier = require('../models/Supplier');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { paginateAndSearch } = require('../utils/paginate');
 const router = express.Router();
 
+const IAR_SEARCH_FIELDS = [
+  'entityName', 'fundCluster', 'supplierName', 'poNumber', 'responsibilityCenterCode',
+  'iarNumber', 'invoiceNumber', 'inspectedBy', 'acceptanceStatus', 'custodian',
+  'receivedBy', 'acceptedBy',
+];
+
 router.get('/', authenticate, authorize('canViewIAR'), async (req, res) => {
-  const iar = await InspectionAcceptanceReport.find({ deleted: false }).populate('supplier').sort({ createdAt: -1 });
-  return successResponse(res, 'IAR retrieved', iar);
+  const { data, pagination } = await paginateAndSearch(InspectionAcceptanceReport, req, {
+    baseFilter: { deleted: false },
+    searchFields: IAR_SEARCH_FIELDS,
+    populate: 'supplier',
+  });
+  return successResponse(res, 'IAR retrieved', { items: data, pagination });
 });
 
 router.put('/:id', authenticate, authorize('canManageIAR'), async (req, res) => {

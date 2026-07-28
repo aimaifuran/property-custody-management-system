@@ -4,12 +4,22 @@ const ReturnedSupply = require('../models/ReturnedSupply');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { paginateAndSearch } = require('../utils/paginate');
 
 const router = express.Router();
 
+const PRS_SEARCH_FIELDS = [
+  'lguName', 'purpose', 'note',
+  'returnedBy.name', 'returnedBy.designation',
+  'returnedTo.name', 'returnedTo.designation',
+];
+
 router.get('/', authenticate, authorize('canViewDashboard'), async (req, res) => {
-  const reports = await PropertyReturnSlip.find({ deleted: false }).sort({ createdAt: -1 });
-  return successResponse(res, 'PRS retrieved', reports);
+  const { data, pagination } = await paginateAndSearch(PropertyReturnSlip, req, {
+    baseFilter: { deleted: false },
+    searchFields: PRS_SEARCH_FIELDS,
+  });
+  return successResponse(res, 'PRS retrieved', { items: data, pagination });
 });
 
 router.post('/', authenticate, authorize('canManageInventory'), async (req, res) => {
