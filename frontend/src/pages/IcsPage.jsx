@@ -260,34 +260,34 @@ export default function IcsPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(String(data.entityName));
-        form.getTextField("fundCluster").setText(String(data.fundCluster));
-        form.getTextField("icsNumber").setText(String(data.icsNumber));
+        form.getTextField("entityName").setText(String(data.entityName ?? ''));
+        form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
+        form.getTextField("icsNumber").setText(String(data.icsNumber ?? ''));
 
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-            form.getTextField(`unitCost${index + 1}`).setText(String(formatAmount(item.unitCost)));
-            form.getTextField(`totalCost${index + 1}`).setText(String(formatAmount(item.totalCost)));
-            form.getTextField(`description${index + 1}`).setText(String(item.description));
-            form.getTextField(`inventoryItemNo${index + 1}`).setText(String(item.inventoryItemNo));
-            form.getTextField(`estimatedUsefulLife${index + 1}`).setText(String(item.estimatedUsefulLife));
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity ?? ''));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
+            form.getTextField(`unitCost${index + 1}`).setText(String(formatAmount(item.unitCost ?? '')));
+            form.getTextField(`totalCost${index + 1}`).setText(String(formatAmount(item.totalCost ?? '')));
+            form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
+            form.getTextField(`inventoryItemNo${index + 1}`).setText(String(item.inventoryItemNo ?? ''));
+            form.getTextField(`estimatedUsefulLife${index + 1}`).setText(String(item.estimatedUsefulLife ?? ''));
         });
         
-        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
-        form.getTextField("remarks").setText(String(data.remarks));
+        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount ?? '')));
+        form.getTextField("remarks").setText(String(data.remarks ?? ''));
 
         // Received from
         form.getTextField("receivedFromName").setText(String(data.receivedFrom?.name || ''));
         form.getTextField("receivedFromPosition").setText(String(data.receivedFrom?.position || ''));
-        form.getTextField("receivedFromDate").setText(String(formatDate(data.receivedFrom?.date)));
+        form.getTextField("receivedFromDate").setText(String(formatDate(data.receivedFrom?.date ?? '')));
 
         // Received by
         form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
         form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
-        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date ?? '')));
 
         // Optional: prevent further editing
         form.flatten();

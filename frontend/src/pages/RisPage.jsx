@@ -726,10 +726,10 @@ export default function RisPage() {
     // Table data insertion
     const startRowNumber = 1; // Starting row for table data
     data.items.forEach((item, index) => {
-      form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber));
-      form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-      form.getTextField(`description${index + 1}`).setText(String(item.description));
-      form.getTextField(`quantityRequested${index + 1}`).setText(String(item.quantityRequested));
+      form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber ?? ''));
+      form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
+      form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
+      form.getTextField(`quantityRequested${index + 1}`).setText(String(item.quantityRequested ?? ''));
       form.getTextField(`yes${index + 1}`).setText(String(item.isAvailable ? '/' : ''));
       form.getTextField(`no${index + 1}`).setText(String(!item.isAvailable ? '/' : ''));
       form.getTextField(`quantityIssued${index + 1}`).setText(String(item.quantityIssued <= 0 ? '' : item.quantityIssued));
@@ -737,27 +737,27 @@ export default function RisPage() {
     });
 
     
-    form.getTextField("purpose").setText(String(data.purpose));
+    form.getTextField("purpose").setText(String(data.purpose ?? ''));
 
     // Requested by
     form.getTextField("requestedByName").setText(String(data.requestedBy?.name || ''));
     form.getTextField("requestedByDesignation").setText(String(data.requestedBy?.designation || ''));
-    form.getTextField("requestedByDate").setText(String(formatDate(data.requestedBy?.date)));
+    form.getTextField("requestedByDate").setText(String(formatDate(data.requestedBy?.date ?? '')));
 
     // Approved by
     form.getTextField("approvedByName").setText(String(data.approvedBy?.name || ''));
     form.getTextField("approvedByDesignation").setText(String(data.approvedBy?.designation || ''));
-    form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date)));
+    form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date ?? '')));
 
     // Issued by
     form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
     form.getTextField("issuedByDesignation").setText(String(data.issuedBy?.designation || ''));
-    form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
+    form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date ?? '')));
 
     // Received by
     form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
     form.getTextField("receivedByDesignation").setText(String(data.receivedBy?.designation || ''));
-    form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
+    form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date ?? '')));
 
     // Optional: prevent further editing
     form.flatten();

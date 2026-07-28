@@ -311,12 +311,12 @@ export default function PtrPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(String(data.entityName));
-        form.getTextField("fundCluster").setText(String(data.fundCluster));
-        form.getTextField("fromAccountableOfficer").setText(String(data.fromAccountableOfficer));
-        form.getTextField("toAccountableOfficer").setText(String(data.toAccountableOfficer));
-        form.getTextField("ptrNumber").setText(String(data.ptrNumber));
-        form.getTextField("date").setText(String(formatDate(data.date)));
+        form.getTextField("entityName").setText(String(data.entityName ?? ''));
+        form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
+        form.getTextField("fromAccountableOfficer").setText(String(data.fromAccountableOfficer ?? ''));
+        form.getTextField("toAccountableOfficer").setText(String(data.toAccountableOfficer ?? ''));
+        form.getTextField("ptrNumber").setText(String(data.ptrNumber ?? ''));
+        form.getTextField("date").setText(String(formatDate(data.date ?? '')));
         form.getTextField("donation").setText(String(data.transferType === "Donation" ? "/" : ""));
         form.getTextField("reassignment").setText(String(data.transferType === "Reassignment" ? "/" : ""));
         form.getTextField("relocate").setText(String(data.transferType === "Relocate" ? "/" : ""));
@@ -326,30 +326,30 @@ export default function PtrPage() {
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired)));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
-            form.getTextField(`description${index + 1}`).setText(String(item.description));
-            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
-            form.getTextField(`condition${index + 1}`).setText(String(item.condition));
+            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired ?? '')));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber ?? ''));
+            form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
+            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount ?? '')));
+            form.getTextField(`condition${index + 1}`).setText(String(item.condition ?? ''));
         });
 
-        form.getTextField("remarks").setText(String(data.remarks));
-        form.getTextField("reasonForTransfer").setText(String(data.reasonForTransfer));
+        form.getTextField("remarks").setText(String(data.remarks ?? ''));
+        form.getTextField("reasonForTransfer").setText(String(data.reasonForTransfer ?? ''));
 
         // Approved by
         form.getTextField("approvedByName").setText(String(data.approvedBy?.name || ''));
         form.getTextField("approvedByDesignation").setText(String(data.approvedBy?.designation || ''));
-        form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date)));
+        form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date ?? '')));
 
         // Issued by
         form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
         form.getTextField("issuedByDesignation").setText(String(data.issuedBy?.designation || ''));
-        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
+        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date ?? '')));
 
         // Received by
         form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
         form.getTextField("receivedByDesignation").setText(String(data.receivedBy?.designation || ''));
-        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date ?? '')));
 
         // Optional: prevent further editing
         form.flatten();
