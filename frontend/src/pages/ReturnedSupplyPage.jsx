@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import Spinner from '../components/Spinner';
+import { SkeletonList } from '../components/Skeleton';
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -35,10 +37,17 @@ export default function ReturnedSupplyPage() {
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
     const load = async () => {
-        const { data } = await axios.get('/returned-supply');
-        setRecords(data.data || []);
+        setLoading(true);
+        try {
+            const { data } = await axios.get('/returned-supply');
+            setRecords(data.data || []);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => { load(); }, []);
@@ -70,6 +79,7 @@ export default function ReturnedSupplyPage() {
 
     const save = async (event) => {
         event.preventDefault();
+        setSaving(true);
         try {
             await axios.put(`/returned-supply/${editingId}`, {
                 ...form,
@@ -78,9 +88,11 @@ export default function ReturnedSupplyPage() {
             });
             toast.success('Returned supply record updated');
             cancelEdit();
-            load();
+            await load();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save record');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -113,27 +125,33 @@ export default function ReturnedSupplyPage() {
 
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Returned Items</h2>
-                {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
-                <div className="mt-3 space-y-3">
-                    {records.map((record) => (
-                        <div key={record._id} className="rounded-xl border border-slate-200 p-4">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                    <div className="font-semibold">{record.description || 'Untitled item'}</div>
-                                    <div className="text-sm text-slate-500">{record.lguName || 'No LGU'} · {record.purpose || 'N/A'}</div>
+                {loading ? (
+                    <SkeletonList count={3} actions={1} />
+                ) : (
+                    <>
+                        {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
+                        <div className="mt-3 space-y-3">
+                            {records.map((record) => (
+                                <div key={record._id} className="rounded-xl border border-slate-200 p-4">
+                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <div className="font-semibold">{record.description || 'Untitled item'}</div>
+                                            <div className="text-sm text-slate-500">{record.lguName || 'No LGU'} · {record.purpose || 'N/A'}</div>
+                                        </div>
+                                        <button type="button" onClick={() => startEdit(record)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                                    </div>
+                                    <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+                                        <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>
+                                        <div>Property No.: {record.propertyNumber || 'N/A'}</div>
+                                        <div>M.R. No.: {record.mrNumber || 'N/A'}</div>
+                                        <div>Unit Value: {Number(record.unitValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                        <div>Total Value: {Number(record.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                    </div>
                                 </div>
-                                <button type="button" onClick={() => startEdit(record)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                            </div>
-                            <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
-                                <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>
-                                <div>Property No.: {record.propertyNumber || 'N/A'}</div>
-                                <div>M.R. No.: {record.mrNumber || 'N/A'}</div>
-                                <div>Unit Value: {Number(record.unitValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                <div>Total Value: {Number(record.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                            </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
+                    </>
+                )}
             </motion.div>
 
             {form && (
@@ -206,7 +224,10 @@ export default function ReturnedSupplyPage() {
                         {signatoryFields('Returned To', 'returnedTo')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
+                    <button type="submit" disabled={saving} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
+                        {saving && <Spinner size={16} />}
+                        {saving ? 'Saving…' : 'Save Changes'}
+                    </button>
                 </form>
             )}
         </div>

@@ -3,6 +3,8 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Spinner from '../components/Spinner';
+import { SkeletonList } from '../components/Skeleton';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -68,10 +70,17 @@ export default function PrsPage() {
     const [reports, setReports] = useState([]);
     const [form, setForm] = useState(initial);
     const [editingId, setEditingId] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
     const load = async () => {
-        const { data } = await axios.get('/prs');
-        setReports(data.data || []);
+        setLoading(true);
+        try {
+            const { data } = await axios.get('/prs');
+            setReports(data.data || []);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -123,6 +132,7 @@ export default function PrsPage() {
             returnedBy: form.returnedBy,
             returnedTo: form.returnedTo
         };
+        setSaving(true);
         try {
             if (editingId) {
                 await axios.put(`/prs/${editingId}`, payload);
@@ -133,9 +143,11 @@ export default function PrsPage() {
             }
             setEditingId(null);
             setForm(initial);
-            load();
+            await load();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Unable to save PRS');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -358,24 +370,30 @@ export default function PrsPage() {
         <div className="space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Saved Reports</h2>
-                {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
-                {reports.map((item) => (
-                    <div key={item._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
-                        <div>
-                            <b>{item.lguName || 'No LGU'}</b>
-                            <div className="text-sm text-slate-500">
-                                {item.purpose || 'N/A'} · {item.items?.length || 0} item(s)
+                {loading ? (
+                    <SkeletonList count={3} actions={4} />
+                ) : (
+                    <>
+                        {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
+                        {reports.map((item) => (
+                            <div key={item._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
+                                <div>
+                                    <b>{item.lguName || 'No LGU'}</b>
+                                    <div className="text-sm text-slate-500">
+                                        {item.purpose || 'N/A'} · {item.items?.length || 0} item(s)
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                                    <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                                    {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                                    <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                                    <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex gap-2">
-                            <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                            <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                            {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                            <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
-                            <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
-                        </div>
-                    </div>
-                ))}
+                        ))}
+                    </>
+                )}
             </div>
 
             <hr className="border-slate-300 border-2" />
@@ -484,9 +502,9 @@ export default function PrsPage() {
                     {signatoryFields('Returned To', 'returnedTo')}
                 </div>
 
-                <button type="submit" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
-                    <RotateCcw size={16} />
-                    {editingId ? 'Update PRS' : 'Create PRS'}
+                <button type="submit" disabled={saving} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
+                    {saving ? <Spinner size={16} /> : <RotateCcw size={16} />}
+                    {saving ? 'Saving…' : (editingId ? 'Update PRS' : 'Create PRS')}
                 </button>
             </motion.form>
         </div>

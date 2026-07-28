@@ -33,8 +33,8 @@ export default function Layout() {
     <div className="min-h-screen flex bg-slate-100 text-slate-900">
       <aside className="hidden md:flex min-h-screen w-72 flex-col border-r border-slate-200 bg-slate-950 p-6 text-slate-100">
         <div className="mb-8">
-          <div className="text-2xl font-semibold">PCMS</div>
-          <p className="text-sm text-slate-400">Property Custody Management System</p>
+          <div className="text-2xl font-semibold">PAIS</div>
+          <p className="text-sm text-slate-400">Property Accountability Information System</p>
         </div>
         <nav className="space-y-2">
           {navItems.filter((item) => canAccessNavItem(user, item)).map((item) => {

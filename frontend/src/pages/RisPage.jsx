@@ -3,6 +3,8 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Download, Printer, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Spinner from '../components/Spinner';
+import { SkeletonList } from '../components/Skeleton';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -387,9 +389,13 @@ export default function RisPage() {
   const [form, setForm] = useState(initialForm);
   const [editingRis, setEditingRis] = useState(null);
   const [issueErrors, setIssueErrors] = useState({});
+  const [issuingIds, setIssuingIds] = useState({});
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewDraft, setReviewDraft] = useState(null);
   const [stockLoadError, setStockLoadError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
   const supplyReviewRef = useRef(null);
   const { user } = useAuth();
   const isSupplyOfficeUser = (user?.office || '').toLowerCase().includes('supply');
@@ -399,20 +405,25 @@ export default function RisPage() {
 
   const load = async () => {
     setStockLoadError('');
+    setLoading(true);
 
-    const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get('/items')]);
+    try {
+      const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get('/items')]);
 
-    if (risResult.status === 'fulfilled') {
-      setRis(risResult.value.data.data || []);
-    } else {
-      setRis([]);
-    }
+      if (risResult.status === 'fulfilled') {
+        setRis(risResult.value.data.data || []);
+      } else {
+        setRis([]);
+      }
 
-    if (itemsResult.status === 'fulfilled') {
-      setItems(itemsResult.value.data.data || []);
-    } else {
-      setItems([]);
-      setStockLoadError('Unable to load stock list. Please refresh the page or check your account permissions.');
+      if (itemsResult.status === 'fulfilled') {
+        setItems(itemsResult.value.data.data || []);
+      } else {
+        setItems([]);
+        setStockLoadError('Unable to load stock list. Please refresh the page or check your account permissions.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -495,8 +506,9 @@ export default function RisPage() {
         })),
     };
 
+    if (!editingRis) return;
+    setSaving(true);
     try {
-      if (!editingRis) return;
       await axios.put(`/ris/${editingRis._id}`, payload);
       toast.success('RIS updated');
       await load();
@@ -504,6 +516,8 @@ export default function RisPage() {
     } catch (error) {
       const message = error?.response?.data?.message || 'Unable to save RIS';
       toast.error(message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -560,6 +574,7 @@ export default function RisPage() {
 
   const saveReview = async () => {
     if (!canEditReview || !reviewTarget || !reviewDraft) return;
+    setReviewSaving(true);
     try {
       await axios.post(`/ris/${reviewTarget._id}/review`, { items: reviewDraft.items });
       toast.success('RIS reviewed');
@@ -568,6 +583,8 @@ export default function RisPage() {
       await load();
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Unable to save review');
+    } finally {
+      setReviewSaving(false);
     }
   };
 
@@ -595,14 +612,17 @@ export default function RisPage() {
   };
 
   const issueRis = async (id) => {
+    setIssuingIds((prev) => ({ ...prev, [id]: true }));
     try {
       setIssueErrors((prev) => ({ ...prev, [id]: '' }));
       await axios.post(`/ris/${id}/issue`);
       toast.success('RIS issued and accountability locked');
-      load();
+      await load();
     } catch (error) {
       const message = error?.response?.data?.message || 'Unable to issue RIS';
       setIssueErrors((prev) => ({ ...prev, [id]: message }));
+    } finally {
+      setIssuingIds((prev) => ({ ...prev, [id]: false }));
     }
   };
 
@@ -804,7 +824,9 @@ export default function RisPage() {
             {stockLoadError}
           </div>
         ) : null}
+        {loading ? <SkeletonList count={3} actions={4} /> : (
         <div className="mt-4 space-y-3">
+          {ris.length === 0 && <p className="text-sm text-slate-500">No RIS records yet.</p>}
           {ris.map((item) => (
             <div key={item._id} className="rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -865,10 +887,11 @@ export default function RisPage() {
                     <button
                       type="button"
                       onClick={() => issueRis(item._id)}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      disabled={!!issuingIds[item._id]}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
                     >
-                      <Send size={16} />
-                      Issue RIS
+                      {issuingIds[item._id] ? <Spinner size={16} /> : <Send size={16} />}
+                      {issuingIds[item._id] ? 'Issuing…' : 'Issue RIS'}
                     </button>
                   ) : null}
                   {item.status === 'ACCOUNTABILITY_LOCKED' ? (
@@ -887,6 +910,7 @@ export default function RisPage() {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {reviewTarget && reviewDraft ? (
@@ -916,16 +940,20 @@ export default function RisPage() {
                   <button
                     type="button"
                     onClick={saveReview}
-                    className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+                    disabled={reviewSaving}
+                    className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-60"
                   >
-                    Save Review
+                    {reviewSaving && <Spinner size={14} />}
+                    {reviewSaving ? 'Saving…' : 'Save Review'}
                   </button>
                   <button
                     type="button"
                     onClick={() => issueRis(reviewTarget._id)}
-                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    disabled={!!issuingIds[reviewTarget._id]}
+                    className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    Issue RIS
+                    {issuingIds[reviewTarget._id] && <Spinner size={14} />}
+                    {issuingIds[reviewTarget._id] ? 'Issuing…' : 'Issue RIS'}
                   </button>
                 </>
               ) : (
@@ -1287,10 +1315,11 @@ export default function RisPage() {
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
               >
-                <Save size={16} />
-                Update RIS
+                {saving ? <Spinner size={16} /> : <Save size={16} />}
+                {saving ? 'Updating…' : 'Update RIS'}
               </button>
             </div>
           </div>

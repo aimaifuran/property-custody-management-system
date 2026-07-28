@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import Spinner from '../components/Spinner';
+import { SkeletonList } from '../components/Skeleton';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -52,10 +54,17 @@ export default function ParPage() {
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
     const load = async () => {
-        const { data } = await axios.get('/par');
-        setRecords(data.data || []);
+        setLoading(true);
+        try {
+            const { data } = await axios.get('/par');
+            setRecords(data.data || []);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => { load(); }, []);
@@ -88,6 +97,7 @@ export default function ParPage() {
 
     const save = async (event) => {
         event.preventDefault();
+        setSaving(true);
         try {
             await axios.put(`/par/${editingId}`, {
                 ...form,
@@ -99,9 +109,11 @@ export default function ParPage() {
             });
             toast.success('Property Acknowledgement Receipt updated');
             cancelEdit();
-            load();
+            await load();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save PAR');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -298,24 +310,30 @@ export default function ParPage() {
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Saved Records</h2>
-                {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
-                {records.map((record) => (
-                    <div key={record._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
-                        <div>
-                            <b>{record.parNumber || 'Unassigned PAR No.'}</b>
-                            <div className="text-sm text-slate-500">
-                                {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {loading ? (
+                    <SkeletonList count={3} actions={4} />
+                ) : (
+                    <>
+                        {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
+                        {records.map((record) => (
+                            <div key={record._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
+                                <div>
+                                    <b>{record.parNumber || 'Unassigned PAR No.'}</b>
+                                    <div className="text-sm text-slate-500">
+                                        {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                                    <button type="button" onClick={() => generateExcel(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                                    {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                                    <button type="button" onClick={() => generatePdf(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                                    <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex gap-2">
-                            <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                            <button type="button" onClick={() => generateExcel(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                            {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                            <button type="button" onClick={() => generatePdf(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
-                            <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
-                        </div>
-                    </div>
-                ))}
+                        ))}
+                    </>
+                )}
             </div>
 
             {form && (
@@ -387,7 +405,10 @@ export default function ParPage() {
                         {signatoryFields('Issued By', 'issuedBy')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
+                    <button type="submit" disabled={saving} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
+                        {saving && <Spinner size={16} />}
+                        {saving ? 'Saving…' : 'Save Changes'}
+                    </button>
                 </form>
             )}
         </div>

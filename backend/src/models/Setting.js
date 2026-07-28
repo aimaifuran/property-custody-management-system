@@ -6,8 +6,8 @@ const settingSchema = new mongoose.Schema({
   governmentAgency: { type: String, default: 'Government Agency' },
   address: { type: String, default: 'Office Address' },
   telephone: { type: String, default: '000-0000' },
-  footer: { type: String, default: 'Property Custody Management System' },
-  systemName: { type: String, default: 'PCMS' },
+  footer: { type: String, default: 'Property Accountability Information System' },
+  systemName: { type: String, default: 'PAIS' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Setting', settingSchema);

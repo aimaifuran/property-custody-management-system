@@ -50,7 +50,7 @@ app.use(compression());
 const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: '3.0.0',
-    info: { title: 'Property Custody Management System API', version: '1.0.0' },
+    info: { title: 'Property Accountability Information System API', version: '1.0.0' },
   },
   apis: [path.join(__dirname, 'routes/*.js')],
 });
@@ -75,7 +75,7 @@ app.use('/api/reports', reportRoutes);
 
 const getHealthPayload = () => ({
   ok: true,
-  service: 'pcms-backend',
+  service: 'pais-backend',
   uptime: Math.round(process.uptime()),
   database: {
     connected: mongoose.connection.readyState === 1,

@@ -4,6 +4,8 @@ import {
 } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import Spinner from '../components/Spinner';
+import { SkeletonList } from '../components/Skeleton';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -40,11 +42,18 @@ export default function InventoryPage() {
     const [cards, setCards] = useState([]);
     const [editingCard, setEditingCard] = useState(null);
     const [form, setForm] = useState(initialForm);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const load = async () => {
-        const {
-            data
-        } = await axios.get('/property-cards');
-        setCards(data.data || []);
+        setLoading(true);
+        try {
+            const {
+                data
+            } = await axios.get('/property-cards');
+            setCards(data.data || []);
+        } finally {
+            setLoading(false);
+        }
     };
     useEffect(() => {
         load();
@@ -85,6 +94,7 @@ export default function InventoryPage() {
     };
     const save = async (event) => {
         event.preventDefault();
+        setSaving(true);
         try {
             await axios.put(`/property-cards/${editingCard._id}`, {
                 ...form,
@@ -102,6 +112,8 @@ export default function InventoryPage() {
             await load();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
+        } finally {
+            setSaving(false);
         }
     };
     const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
@@ -268,32 +280,36 @@ export default function InventoryPage() {
           <div><h1 className="text-3xl font-semibold">Property Card</h1><p className="text-sm text-slate-500">One Property Card form is created for each Inspection &amp; Acceptance Report, including all received items.</p></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold">Submitted Property Cards</h2>
-            <div className="mt-4 space-y-3">
-              {cards.map((card) => (
-                <div key={card._id} className="rounded-xl border border-slate-200 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">{card.iar?.iarNumber || 'Property Card'}</div>
-                      <div className="text-sm text-slate-500">
-                        {card.entityName || 'No entity'} · PO {card.poNumber || '—'} · {card.items?.length || card.entries?.length || 0} item(s)
+            {loading ? (
+              <SkeletonList count={3} actions={4} />
+            ) : (
+              <div className="mt-4 space-y-3">
+                {cards.map((card) => (
+                  <div key={card._id} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold">{card.iar?.iarNumber || 'Property Card'}</div>
+                        <div className="text-sm text-slate-500">
+                          {card.entityName || 'No entity'} · PO {card.poNumber || '—'} · {card.items?.length || card.entries?.length || 0} item(s)
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => edit(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                        <button type="button" onClick={() => generateExcel(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                        {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                        <button type="button" onClick={() => generatePdf(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                        <button type="button" onClick={() => generatePdf(card, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => edit(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                      <button type="button" onClick={() => generateExcel(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                      {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                      <button type="button" onClick={() => generatePdf(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
-                      <button type="button" onClick={() => generatePdf(card, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
-                    </div>
                   </div>
-                </div>
-              ))}
-              {!cards.length && (
-                <p className="py-4 text-slate-500">
-                  No Property Cards yet. Save an IAR to create one.
-                </p>
-              )}
-            </div>
+                ))}
+                {!cards.length && (
+                  <p className="py-4 text-slate-500">
+                    No Property Cards yet. Save an IAR to create one.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           {editingCard ? (
             <form onSubmit={save} className="mx-auto max-w-7xl rounded-3xl border border-slate-300 bg-white p-6 shadow-xl">
@@ -358,9 +374,11 @@ export default function InventoryPage() {
                   </button>
                   <button
                     type="submit"
-                    className="rounded-xl bg-teal-600 px-4 py-2 font-semibold text-white"
+                    disabled={saving}
+                    className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 font-semibold text-white disabled:opacity-60"
                   >
-                    Update Property Card
+                    {saving && <Spinner size={16} />}
+                    {saving ? 'Updating…' : 'Update Property Card'}
                   </button>
                 </div>
               </div>
