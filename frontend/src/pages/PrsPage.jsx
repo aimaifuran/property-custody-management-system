@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
+import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import { usePaginatedList } from '../hooks/usePaginatedList';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -67,25 +69,10 @@ const toForm = (record) => ({
 });
 
 export default function PrsPage() {
-    const [reports, setReports] = useState([]);
+    const { items: reports, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/prs', { limit: 5 });
     const [form, setForm] = useState(initial);
     const [editingId, setEditingId] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
-    const load = async () => {
-        setLoading(true);
-        try {
-            const { data } = await axios.get('/prs');
-            setReports(data.data || []);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        load();
-    }, []);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -143,7 +130,7 @@ export default function PrsPage() {
             }
             setEditingId(null);
             setForm(initial);
-            await load();
+            await reload();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Unable to save PRS');
         } finally {
@@ -369,7 +356,13 @@ export default function PrsPage() {
     return (
         <div className="space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Saved Reports</h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold">Saved Reports</h2>
+                    <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
+                        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search LGU, purpose, note…" />
+                        <PageSizeSelect limit={limit} onChange={setLimit} />
+                    </div>
+                </div>
                 {loading ? (
                     <SkeletonList count={3} actions={4} />
                 ) : (
@@ -394,6 +387,7 @@ export default function PrsPage() {
                         ))}
                     </>
                 )}
+                {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
             </div>
 
             <hr className="border-slate-300 border-2" />

@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
+import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import { usePaginatedList } from '../hooks/usePaginatedList';
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -34,23 +36,10 @@ const toForm = (record) => ({
 });
 
 export default function ReturnedSupplyPage() {
-    const [records, setRecords] = useState([]);
+    const { items: records, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/returned-supply', { limit: 5 });
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
-    const load = async () => {
-        setLoading(true);
-        try {
-            const { data } = await axios.get('/returned-supply');
-            setRecords(data.data || []);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => { load(); }, []);
 
     const startEdit = (record) => {
         setEditingId(record._id);
@@ -88,7 +77,7 @@ export default function ReturnedSupplyPage() {
             });
             toast.success('Returned supply record updated');
             cancelEdit();
-            await load();
+            await reload();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save record');
         } finally {
@@ -124,7 +113,13 @@ export default function ReturnedSupplyPage() {
             </div>
 
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Returned Items</h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold">Returned Items</h2>
+                    <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
+                        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search LGU, purpose, description, property/M.R. no.…" />
+                        <PageSizeSelect limit={limit} onChange={setLimit} />
+                    </div>
+                </div>
                 {loading ? (
                     <SkeletonList count={3} actions={1} />
                 ) : (
@@ -152,6 +147,7 @@ export default function ReturnedSupplyPage() {
                         </div>
                     </>
                 )}
+                {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
             </motion.div>
 
             {form && (

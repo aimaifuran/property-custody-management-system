@@ -1,11 +1,12 @@
 import {
-    useEffect,
     useState
 } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
+import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import { usePaginatedList } from '../hooks/usePaginatedList';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -39,25 +40,10 @@ const initialForm = {
 const inputDate = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
 
 export default function InventoryPage() {
-    const [cards, setCards] = useState([]);
+    const { items: cards, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/property-cards', { limit: 5 });
     const [editingCard, setEditingCard] = useState(null);
     const [form, setForm] = useState(initialForm);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const load = async () => {
-        setLoading(true);
-        try {
-            const {
-                data
-            } = await axios.get('/property-cards');
-            setCards(data.data || []);
-        } finally {
-            setLoading(false);
-        }
-    };
-    useEffect(() => {
-        load();
-    }, []);
 
     const edit = (card) => {
         const items = card.items?.length ? card.items : (card.entries || []).map((entry) => ({
@@ -109,7 +95,7 @@ export default function InventoryPage() {
             });
             toast.success('Property Card updated');
             closeEditor();
-            await load();
+            await reload();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
         } finally {
@@ -279,7 +265,13 @@ export default function InventoryPage() {
         <div className="space-y-6">
           <div><h1 className="text-3xl font-semibold">Property Card</h1><p className="text-sm text-slate-500">One Property Card form is created for each Inspection &amp; Acceptance Report, including all received items.</p></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold">Submitted Property Cards</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">Submitted Property Cards</h2>
+              <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
+                <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, PO no., description, S/N…" />
+                <PageSizeSelect limit={limit} onChange={setLimit} />
+              </div>
+            </div>
             {loading ? (
               <SkeletonList count={3} actions={4} />
             ) : (
@@ -310,6 +302,7 @@ export default function InventoryPage() {
                 )}
               </div>
             )}
+            {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
           </div>
           {editingCard ? (
             <form onSubmit={save} className="mx-auto max-w-7xl rounded-3xl border border-slate-300 bg-white p-6 shadow-xl">

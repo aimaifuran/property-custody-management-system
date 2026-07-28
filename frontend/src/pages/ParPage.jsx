@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
+import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import { usePaginatedList } from '../hooks/usePaginatedList';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -51,23 +53,10 @@ const toForm = (record) => ({
 });
 
 export default function ParPage() {
-    const [records, setRecords] = useState([]);
+    const { items: records, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/par', { limit: 5 });
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
-    const load = async () => {
-        setLoading(true);
-        try {
-            const { data } = await axios.get('/par');
-            setRecords(data.data || []);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => { load(); }, []);
 
     const startEdit = (record) => {
         setEditingId(record._id);
@@ -109,7 +98,7 @@ export default function ParPage() {
             });
             toast.success('Property Acknowledgement Receipt updated');
             cancelEdit();
-            await load();
+            await reload();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save PAR');
         } finally {
@@ -309,7 +298,13 @@ export default function ParPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Saved Records</h2>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold">Saved Records</h2>
+                    <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
+                        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, PAR no., remarks…" />
+                        <PageSizeSelect limit={limit} onChange={setLimit} />
+                    </div>
+                </div>
                 {loading ? (
                     <SkeletonList count={3} actions={4} />
                 ) : (
@@ -334,6 +329,7 @@ export default function ParPage() {
                         ))}
                     </>
                 )}
+                {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
             </div>
 
             {form && (

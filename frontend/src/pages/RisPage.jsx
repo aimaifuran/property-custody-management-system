@@ -5,6 +5,7 @@ import { Download, Printer, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
+import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -383,6 +384,9 @@ const toFormSignatory = (signatory) => {
 //   return workbook;
 // };
 
+const DEFAULT_RIS_LIMIT = 5;
+const DEFAULT_RIS_PAGINATION = { page: 1, limit: DEFAULT_RIS_LIMIT, total: 0, totalPages: 1 };
+
 export default function RisPage() {
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
@@ -396,6 +400,16 @@ export default function RisPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimitState] = useState(DEFAULT_RIS_LIMIT);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [pagination, setPagination] = useState(DEFAULT_RIS_PAGINATION);
+
+  const setLimit = (nextLimit) => {
+    setLimitState(nextLimit);
+    setPage(1);
+  };
   const supplyReviewRef = useRef(null);
   const { user } = useAuth();
   const isSupplyOfficeUser = (user?.office || '').toLowerCase().includes('supply');
@@ -403,17 +417,30 @@ export default function RisPage() {
   const canManage = canReviewRis;
   const canEditReview = canReviewRis;
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const load = async () => {
     setStockLoadError('');
     setLoading(true);
 
     try {
-      const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get('/items')]);
+      const [risResult, itemsResult] = await Promise.allSettled([
+        axios.get('/ris', { params: { page, limit, search: search || undefined } }),
+        axios.get('/items'),
+      ]);
 
       if (risResult.status === 'fulfilled') {
-        setRis(risResult.value.data.data || []);
+        setRis(risResult.value.data.data?.items || []);
+        setPagination(risResult.value.data.data?.pagination || { ...DEFAULT_RIS_PAGINATION, limit });
       } else {
         setRis([]);
+        setPagination({ ...DEFAULT_RIS_PAGINATION, limit });
       }
 
       if (itemsResult.status === 'fulfilled') {
@@ -429,7 +456,7 @@ export default function RisPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [page, limit, search]);
 
   useEffect(() => {
     if (!reviewTarget || !reviewDraft || !supplyReviewRef.current) return;
@@ -818,7 +845,13 @@ export default function RisPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">Submitted RIS</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">Submitted RIS</h2>
+          <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
+            <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, division, office, purpose, signatories…" />
+            <PageSizeSelect limit={limit} onChange={setLimit} />
+          </div>
+        </div>
         {stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {stockLoadError}
@@ -911,6 +944,7 @@ export default function RisPage() {
           ))}
         </div>
         )}
+        {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
       </div>
 
       {reviewTarget && reviewDraft ? (
