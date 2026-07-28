@@ -72,7 +72,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await axios.get('/reports/summary');
+        const { data } = await axios.get('/dashboard-data/summary');
         setCounts(data.data.counts);
         setInventoryStatus(data.data.inventoryStatus || []);
         setRecentActivity(data.data.recentActivity || []);
