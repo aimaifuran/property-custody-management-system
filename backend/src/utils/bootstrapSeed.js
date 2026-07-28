@@ -20,7 +20,7 @@ async function bootstrapSeed() {
   await User.create({
     firstName: 'System',
     lastName: 'Administrator',
-    email: 'teadyborts@gmail.com',
+    email: 'cheriemae.francisco@evsu.edu.ph',
     username: 'admin',
     password: adminPassword,
     office: 'Supply Office',
