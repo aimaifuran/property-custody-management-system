@@ -13,8 +13,13 @@ const formatRemaining = (lockUntil) => {
   return `${minutes}m ${seconds}s`;
 };
 
+// Only the username is remembered here — never the password. Passwords are
+// left to the browser's own (encrypted, permission-gated) password manager
+// via autoComplete="current-password" below, rather than app-readable storage.
+const REMEMBERED_IDENTIFIER_KEY = 'pais_remembered_identifier';
+
 export default function LoginPage() {
-  const [identifier, setIdentifier] = useState('admin');
+  const [identifier, setIdentifier] = useState(() => localStorage.getItem(REMEMBERED_IDENTIFIER_KEY) || 'admin');
   const [password, setPassword] = useState('Admin123!');
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -50,6 +55,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(identifier, password, rememberMe);
+      if (rememberMe) {
+        localStorage.setItem(REMEMBERED_IDENTIFIER_KEY, identifier);
+      } else {
+        localStorage.removeItem(REMEMBERED_IDENTIFIER_KEY);
+      }
       navigate('/dashboard');
     } catch (error) {
       const data = error.response?.data;
@@ -81,14 +91,14 @@ export default function LoginPage() {
             {displayError}
           </div>
         )}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} autoComplete="on" className="space-y-4">
           <label htmlFor="login-identifier" className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-300">Username or email</span>
-            <input id="login-identifier" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Username or email" />
+            <input id="login-identifier" name="username" autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Username or email" />
           </label>
           <label htmlFor="login-password" className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-300">Password</span>
-            <input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Password" />
+            <input id="login-password" name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3" placeholder="Password" />
           </label>
           <div className="flex items-center justify-between text-sm">
             <label className="flex items-center gap-2 text-slate-400">

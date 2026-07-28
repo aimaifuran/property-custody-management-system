@@ -254,34 +254,34 @@ export default function ParPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(String(data.entityName));
-        form.getTextField("fundCluster").setText(String(data.fundCluster));
-        form.getTextField("parNumber").setText(String(data.parNumber));
+        form.getTextField("entityName").setText(String(data.entityName ?? ''));
+        form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
+        form.getTextField("parNumber").setText(String(data.parNumber ?? ''));
 
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-            form.getTextField(`description${index + 1}`).setText(String(item.description));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
-            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired)));
-            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity ?? ''));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
+            form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber ?? ''));
+            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired ?? '')));
+            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount ?? '')));
         });
 
         
-        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
-        form.getTextField("remarks").setText(String(data.remarks));
+        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount ?? '')));
+        form.getTextField("remarks").setText(String(data.remarks ?? ''));
 
         // Received by
         form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
         form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
-        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date ?? '')));
         
         // Issued by
         form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
         form.getTextField("issuedByPosition").setText(String(data.issuedBy?.position || ''));
-        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
+        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date ?? '')));
 
         // Optional: prevent further editing
         form.flatten();

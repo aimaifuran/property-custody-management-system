@@ -234,25 +234,25 @@ export default function InventoryPage() {
 
       const form = pdfDoc.getForm();
 
-      form.getTextField("month").setText(String(formatDate(data.month)));
-      form.getTextField("poNumber").setText(String(data.poNumber));
-      form.getTextField("entityName").setText(String(data.entityName));
-      form.getTextField("fundCluster").setText(String(data.fundCluster));
-      form.getTextField("propertyPlantAndEquipment").setText(String(data.propertyPlantAndEquipment));
-      form.getTextField("description").setText(String(data.description));
-      form.getTextField("propertyNumber").setText(String(data.propertyNumber));
-      form.getTextField("serialNumber").setText(String(data.serialNumber));
+      form.getTextField("month").setText(String(formatDate(data.month ?? '')));
+      form.getTextField("poNumber").setText(String(data.poNumber ?? ''));
+      form.getTextField("entityName").setText(String(data.entityName ?? ''));
+      form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
+      form.getTextField("propertyPlantAndEquipment").setText(String(data.propertyPlantAndEquipment ?? ''));
+      form.getTextField("description").setText(String(data.description ?? ''));
+      form.getTextField("propertyNumber").setText(String(data.propertyNumber ?? ''));
+      form.getTextField("serialNumber").setText(String(data.serialNumber ?? ''));
 
       // Table data insertion
       const startRowNumber = 1; // Starting row for table data
       data.items.forEach((item, index) => {
-        form.getTextField(`date${index + 1}`).setText(String(formatDate(item.date)));
+        form.getTextField(`date${index + 1}`).setText(String(formatDate(item.date ?? '')));
         form.getTextField(`referenceParNo${index + 1}`).setText(String(item.referenceParNo ?? ''));
         form.getTextField(`receiptQuantity${index + 1}`).setText(String(item.receiptQuantity ?? ''));
         form.getTextField(`itdQuantity${index + 1}`).setText(String(item.itdQuantity ?? ''));
         form.getTextField(`itdOfficeOfficer${index + 1}`).setText(String(item.itdOfficeOfficer ?? ''));
         form.getTextField(`balanceQuantity${index + 1}`).setText(String(item.balanceQuantity ?? ''));
-        form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
+        form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount ?? '')));
         form.getTextField(`remarks${index + 1}`).setText(String(item.remarks ?? ''));
       });
 

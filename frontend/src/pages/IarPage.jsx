@@ -257,33 +257,33 @@ export default function IarPage() {
 
       const form = pdfDoc.getForm();
 
-      form.getTextField("entityName").setText(data.entityName);
-      form.getTextField("fundCluster").setText(data.fundCluster);
-      form.getTextField("supplierName").setText(data.supplierName);
-      form.getTextField("poNumber").setText(data.poNumber);
-      form.getTextField("reqOffice").setText(data.requisitioningOffice);
-      form.getTextField("rcc").setText(data.responsibilityCenterCode);
-      form.getTextField("iarNumber").setText(data.iarNumber);
-      form.getTextField("iarDate").setText(formatDate(data.iarDate));
-      form.getTextField("invoiceNumber").setText(data.invoiceNumber);
-      form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
+      form.getTextField("entityName").setText(String(data.entityName ?? ''));
+      form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
+      form.getTextField("supplierName").setText(String(data.supplierName ?? ''));
+      form.getTextField("poNumber").setText(String(data.poNumber ?? ''));
+      form.getTextField("reqOffice").setText(String(data.requisitioningOffice ?? ''));
+      form.getTextField("rcc").setText(String(data.responsibilityCenterCode ?? ''));
+      form.getTextField("iarNumber").setText(String(data.iarNumber ?? ''));
+      form.getTextField("iarDate").setText(String(formatDate(data.iarDate ?? '')));
+      form.getTextField("invoiceNumber").setText(String(data.invoiceNumber ?? ''));
+      form.getTextField("invoiceDate").setText(String(formatDate(data.invoiceDate ?? '')));
 
       // Table data insertion
       const startRowNumber = 1; // Starting row for table data
       data.items.forEach((item, index) => {
-        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
-        form.getTextField(`description${index + 1}`).setText(item.description);
-        form.getTextField(`unit${index + 1}`).setText(item.unit);
-        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+        form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber ?? ''));
+        form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
+        form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
+        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity ?? ''));
       });
 
       
-      form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
-      form.getTextField("inspectedBy").setText(data.inspectedBy);
-      form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
-      form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
-      form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
-      form.getTextField("acceptedBy").setText(data.acceptedBy);
+      form.getTextField("inspectionDate").setText(String(formatDate(data.inspectionDate ?? '')));
+      form.getTextField("inspectedBy").setText(String(data.inspectedBy ?? ''));
+      form.getTextField("acceptanceDate").setText(String(formatDate(data.acceptanceDate ?? '')));
+      form.getTextField("complete").setText(String(data.acceptanceStatus === "Complete" ? "/" : ""));
+      form.getTextField("partial").setText(String(data.acceptanceStatus === "Partial" ? "/" : ""));
+      form.getTextField("acceptedBy").setText(String(data.acceptedBy ?? ''));
 
       // Optional: prevent further editing
       form.flatten();

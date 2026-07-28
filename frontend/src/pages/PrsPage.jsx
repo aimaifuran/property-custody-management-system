@@ -312,7 +312,7 @@ export default function PrsPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("lguName").setText(String(data.lguName));
+        form.getTextField("lguName").setText(String(data.lguName ?? ''));
         form.getTextField("disposal").setText(String(data.purpose === "Disposal" ? "/":""));
         form.getTextField("repair").setText(String(data.purpose === "Repair" ? "/":""));
         form.getTextField("returnedToStock").setText(String(data.purpose === "Returned To Stock" ? "/":""));
@@ -323,30 +323,30 @@ export default function PrsPage() {
         const startRowNumber = 1; // Starting row for table data
         let totalAmount = 0;
         data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-            form.getTextField(`description${index + 1}`).setText(String(item.description));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
-            form.getTextField(`mrNumber${index + 1}`).setText(String(item.mrNumber));
-            form.getTextField(`endUser${index + 1}`).setText(String(data.returnedBy));
-            form.getTextField(`unitValue${index + 1}`).setText(String(formatAmount(item.unitValue)));
-            form.getTextField(`totalValue${index + 1}`).setText(String(formatAmount(item.totalValue)));
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity ?? ''));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
+            form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber ?? ''));
+            form.getTextField(`mrNumber${index + 1}`).setText(String(item.mrNumber ?? ''));
+            form.getTextField(`endUser${index + 1}`).setText(String(data.returnedBy ?? ''));
+            form.getTextField(`unitValue${index + 1}`).setText(String(formatAmount(item.unitValue ?? '')));
+            form.getTextField(`totalValue${index + 1}`).setText(String(formatAmount(item.totalValue ?? '')));
             totalAmount += item.totalValue;
         });
         
-        form.getTextField("totalAmount").setText(String(formatAmount(totalAmount)));
-        form.getTextField("note").setText(String(data.note));
+        form.getTextField("totalAmount").setText(String(formatAmount(totalAmount ?? '')));
+        form.getTextField("note").setText(String(data.note ?? ''));
 
         // Returned to
-        form.getTextField("returnedToDate").setText(String(formatLegalDateString(data.returnedTo.date)));
-        form.getTextField("returnedToName1").setText(String(data.returnedTo.name));
-        form.getTextField("returnedToDesignation1").setText(String(data.returnedTo.designation));
-        form.getTextField("returnedToName2").setText(String(data.returnedTo.name));
-        form.getTextField("returnedToDesignation2").setText(String(data.returnedTo.designation));
+        form.getTextField("returnedToDate").setText(String(formatLegalDateString(data.returnedTo.date ?? '')));
+        form.getTextField("returnedToName1").setText(String(data.returnedTo.name ?? ''));
+        form.getTextField("returnedToDesignation1").setText(String(data.returnedTo.designation ?? ''));
+        form.getTextField("returnedToName2").setText(String(data.returnedTo.name ?? ''));
+        form.getTextField("returnedToDesignation2").setText(String(data.returnedTo.designation ?? ''));
         
         // Returned by
-        form.getTextField("returnedByDate").setText(String(formatLegalDateString(data.returnedBy.date)));
-        form.getTextField("returnedByName").setText(String(data.returnedBy.name));
+        form.getTextField("returnedByDate").setText(String(formatLegalDateString(data.returnedBy.date ?? '')));
+        form.getTextField("returnedByName").setText(String(data.returnedBy.name ?? ''));
 
         // Optional: prevent further editing
         form.flatten();
