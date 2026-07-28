@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
+import ThreeBodyLoader from './components/ThreeBodyLoader';
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -20,7 +21,7 @@ import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children }) {
   const { user, loading, authReady } = useAuth();
-  if (!authReady || loading) return <div className="flex min-h-screen items-center justify-center">Loading…</div>;
+  if (!authReady || loading) return <div className="flex min-h-screen items-center justify-center"><ThreeBodyLoader /></div>;
   return user ? children : <Navigate to="/login" replace />;
 }
 
