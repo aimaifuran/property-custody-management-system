@@ -16,6 +16,7 @@ import UsersPage from './pages/UsersPage';
 import IcsPage from './pages/IcsPage';
 import ParPage from './pages/ParPage';
 import ReturnedSupplyPage from './pages/ReturnedSupplyPage';
+import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children }) {
   const { user, loading, authReady } = useAuth();
@@ -43,6 +44,7 @@ function AppRoutes() {
           <Route path="/returns" element={<PrsPage />} />
           <Route path="/returned-supply" element={<ReturnedSupplyPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Routes>
       <Toaster position="top-right" />
