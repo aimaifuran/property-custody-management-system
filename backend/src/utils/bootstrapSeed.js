@@ -24,30 +24,39 @@ const ENTITY_NAMES = [
 const FUND_CLUSTERS = ['01', '02'];
 const STAFF_NAMES = ['A. Cruz', 'B. Reyes', 'C. Santos', 'D. Mendoza', 'E. Villanueva', 'F. Torres'];
 const DESIGNATIONS = ['Supply Officer', 'Administrative Aide', 'Property Custodian', 'Records Officer', 'General Services Officer'];
+const DIVISIONS = ['Supply Division', 'General Services Division', 'Administrative Division', 'Property Division'];
+const OFFICES = ['Supply Office', 'General Services Office', 'Property Office', 'Planning Office'];
+const REQUISITION_PURPOSES = [
+  'Replenishment of office supplies and equipment for daily operations.',
+  'Requisition for newly issued office equipment.',
+  'Restocking of consumable supplies for the current quarter.',
+  'Replacement of worn-out equipment and furniture.',
+  'Additional supplies for ongoing office projects.',
+];
 
 const pick = (arr, i) => arr[((i % arr.length) + arr.length) % arr.length];
 
 const ITEM_CATALOG = {
-  laptop: { stockNumber: 'STK-1001', description: 'Laptop', unit: 'unit', cost: 45000 },
-  printer: { stockNumber: 'STK-1002', description: 'Printer', unit: 'unit', cost: 15000 },
-  chair: { stockNumber: 'STK-1003', description: 'Office Chair', unit: 'piece', cost: 3500 },
-  cabinet: { stockNumber: 'STK-1004', description: 'Steel Filing Cabinet', unit: 'unit', cost: 8500 },
-  aircon: { stockNumber: 'STK-1005', description: 'Air Conditioner (1HP)', unit: 'unit', cost: 22000 },
-  generator: { stockNumber: 'STK-1006', description: 'Generator Set (5kVA)', unit: 'unit', cost: 65000 },
-  projector: { stockNumber: 'STK-1007', description: 'LCD Projector', unit: 'unit', cost: 28000 },
-  photocopier: { stockNumber: 'STK-1008', description: 'Photocopier', unit: 'unit', cost: 85000 },
-  desk: { stockNumber: 'STK-1009', description: 'Office Desk', unit: 'piece', cost: 6500 },
-  dispenser: { stockNumber: 'STK-1010', description: 'Water Dispenser', unit: 'unit', cost: 4500 },
-  whiteboard: { stockNumber: 'STK-1011', description: 'Whiteboard', unit: 'piece', cost: 2500 },
-  bondpaper: { stockNumber: 'STK-1012', description: 'Bond Paper (Substance 20)', unit: 'ream', cost: 250 },
-  ballpen: { stockNumber: 'STK-1013', description: 'Ballpen (Box of 12)', unit: 'box', cost: 150 },
-  ups: { stockNumber: 'STK-1014', description: 'Uninterruptible Power Supply', unit: 'unit', cost: 5500 },
-  router: { stockNumber: 'STK-1015', description: 'Wireless Router', unit: 'unit', cost: 3200 },
-  bookshelf: { stockNumber: 'STK-1016', description: 'Bookshelf', unit: 'piece', cost: 4200 },
-  extinguisher: { stockNumber: 'STK-1017', description: 'Fire Extinguisher', unit: 'unit', cost: 2800 },
-  firstaid: { stockNumber: 'STK-1018', description: 'First Aid Kit', unit: 'unit', cost: 1800 },
-  monitor: { stockNumber: 'STK-1019', description: 'Monitor (24-inch)', unit: 'unit', cost: 7500 },
-  harddrive: { stockNumber: 'STK-1020', description: 'External Hard Drive (1TB)', unit: 'unit', cost: 3800 },
+  laptop: { stockNumber: 'STK-1001', description: 'Laptop', unit: 'unit', cost: 45000, category: 'ICT Equipment' },
+  printer: { stockNumber: 'STK-1002', description: 'Printer', unit: 'unit', cost: 15000, category: 'ICT Equipment' },
+  chair: { stockNumber: 'STK-1003', description: 'Office Chair', unit: 'piece', cost: 3500, category: 'Furniture and Fixtures' },
+  cabinet: { stockNumber: 'STK-1004', description: 'Steel Filing Cabinet', unit: 'unit', cost: 8500, category: 'Furniture and Fixtures' },
+  aircon: { stockNumber: 'STK-1005', description: 'Air Conditioner (1HP)', unit: 'unit', cost: 22000, category: 'Office Equipment' },
+  generator: { stockNumber: 'STK-1006', description: 'Generator Set (5kVA)', unit: 'unit', cost: 65000, category: 'Office Equipment' },
+  projector: { stockNumber: 'STK-1007', description: 'LCD Projector', unit: 'unit', cost: 28000, category: 'ICT Equipment' },
+  photocopier: { stockNumber: 'STK-1008', description: 'Photocopier', unit: 'unit', cost: 85000, category: 'ICT Equipment' },
+  desk: { stockNumber: 'STK-1009', description: 'Office Desk', unit: 'piece', cost: 6500, category: 'Furniture and Fixtures' },
+  dispenser: { stockNumber: 'STK-1010', description: 'Water Dispenser', unit: 'unit', cost: 4500, category: 'Office Equipment' },
+  whiteboard: { stockNumber: 'STK-1011', description: 'Whiteboard', unit: 'piece', cost: 2500, category: 'Furniture and Fixtures' },
+  bondpaper: { stockNumber: 'STK-1012', description: 'Bond Paper (Substance 20)', unit: 'ream', cost: 250, category: 'Office Supplies' },
+  ballpen: { stockNumber: 'STK-1013', description: 'Ballpen (Box of 12)', unit: 'box', cost: 150, category: 'Office Supplies' },
+  ups: { stockNumber: 'STK-1014', description: 'Uninterruptible Power Supply', unit: 'unit', cost: 5500, category: 'ICT Equipment' },
+  router: { stockNumber: 'STK-1015', description: 'Wireless Router', unit: 'unit', cost: 3200, category: 'ICT Equipment' },
+  bookshelf: { stockNumber: 'STK-1016', description: 'Bookshelf', unit: 'piece', cost: 4200, category: 'Furniture and Fixtures' },
+  extinguisher: { stockNumber: 'STK-1017', description: 'Fire Extinguisher', unit: 'unit', cost: 2800, category: 'Office Equipment' },
+  firstaid: { stockNumber: 'STK-1018', description: 'First Aid Kit', unit: 'unit', cost: 1800, category: 'Office Equipment' },
+  monitor: { stockNumber: 'STK-1019', description: 'Monitor (24-inch)', unit: 'unit', cost: 7500, category: 'ICT Equipment' },
+  harddrive: { stockNumber: 'STK-1020', description: 'External Hard Drive (1TB)', unit: 'unit', cost: 3800, category: 'ICT Equipment' },
 };
 
 // Each blueprint's combined total cost intentionally sits below or above the
@@ -131,8 +140,65 @@ async function seedIarChain(suppliers) {
       items,
     });
 
+    // Created before the Property Card so each item row can reference the
+    // resulting ICS/PAR number instead of leaving "Reference PAR No." blank.
+    const combinedTotalCost = iar.items.reduce((sum, entry) => sum + entry.totalCost, 0);
+    const itemsForAccountability = iar.items.map((entry) => ({
+      quantity: entry.quantity,
+      unit: entry.unit,
+      unitCost: entry.unitCost,
+      totalCost: entry.totalCost,
+      description: entry.description,
+      propertyNumber: entry.stockPropertyNumber,
+      dateAcquired: iar.purchaseDate || iar.acceptanceDate,
+    }));
+
+    let referenceNumber;
+    if (combinedTotalCost < 50000) {
+      const ics = await InventoryCustodianSlip.create({
+        iar: iar._id,
+        entityName: iar.entityName,
+        fundCluster: iar.fundCluster,
+        icsNumber: `ICS-2026-${seq}`,
+        items: itemsForAccountability.map((entry) => ({
+          quantity: entry.quantity,
+          unit: entry.unit,
+          unitCost: entry.unitCost,
+          totalCost: entry.totalCost,
+          description: entry.description,
+          inventoryItemNo: entry.propertyNumber,
+          estimatedUsefulLife: '5 years',
+        })),
+        remarks: 'Issued to custodian for official use.',
+        receivedFrom: { name: supplier.name, position: 'Supplier', date: iar.acceptanceDate },
+        receivedBy: { name: custodian, position: pick(DESIGNATIONS, i), date: iar.acceptanceDate },
+      });
+      iar.inventoryCustodianSlip = ics._id;
+      referenceNumber = ics.icsNumber;
+    } else {
+      const par = await PropertyAcknowledgementReceipt.create({
+        iar: iar._id,
+        entityName: iar.entityName,
+        fundCluster: iar.fundCluster,
+        parNumber: `PAR-2026-${seq}`,
+        items: itemsForAccountability.map((entry) => ({
+          quantity: entry.quantity,
+          unit: entry.unit,
+          description: entry.description,
+          propertyNumber: entry.propertyNumber,
+          dateAcquired: entry.dateAcquired,
+          amount: entry.totalCost,
+        })),
+        remarks: 'Acknowledged receipt of the properties listed above.',
+        receivedBy: { name: custodian, position: pick(DESIGNATIONS, i), date: iar.acceptanceDate },
+        issuedBy: { name: pick(STAFF_NAMES, i + 2), position: 'Supply Officer', date: iar.acceptanceDate },
+      });
+      iar.propertyAcknowledgementReceipt = par._id;
+      referenceNumber = par.parNumber;
+    }
+
     const propertyCardItems = [];
-    for (const entry of iar.items) {
+    for (const [entryIndex, entry] of iar.items.entries()) {
       let item = await Item.findOne({ stockNumber: entry.stockNumber });
       if (!item) {
         item = await Item.create({
@@ -144,8 +210,11 @@ async function seedIarChain(suppliers) {
         });
       }
 
+      const serialNumber = `SN-${seq}-${entryIndex + 1}`;
+
       const inventory = await Inventory.create({
         item: item._id,
+        serialNumber,
         propertyNumber: entry.stockPropertyNumber,
         quantity: entry.quantity,
         unitCost: entry.unitCost,
@@ -172,17 +241,19 @@ async function seedIarChain(suppliers) {
         inventory: inventory._id,
         propertyNumber: entry.stockPropertyNumber,
         description: entry.description,
-        serialNumber: null,
+        serialNumber,
         date: iar.acceptanceDate,
-        referenceParNo: null,
+        referenceParNo: referenceNumber,
         receiptQuantity: entry.quantity,
-        itdQuantity: null,
-        itdOfficeOfficer: null,
+        itdQuantity: 0,
+        itdOfficeOfficer: custodian,
         balanceQuantity: entry.quantity,
         amount: entry.totalCost,
-        remarks: null,
+        remarks: 'Received in good condition.',
       });
     }
+
+    const primaryCatalogEntry = ITEM_CATALOG[blueprint[0].item];
 
     const propertyCard = await PropertyCard.create({
       iar: iar._id,
@@ -190,21 +261,26 @@ async function seedIarChain(suppliers) {
       poNumber: iar.poNumber,
       entityName: iar.entityName,
       fundCluster: iar.fundCluster,
+      propertyPlantAndEquipment: primaryCatalogEntry.category,
+      propertyNumber: propertyCardItems[0].propertyNumber,
+      description: propertyCardItems[0].description,
+      serialNumber: propertyCardItems[0].serialNumber,
       items: propertyCardItems,
     });
 
     const ris = await RequisitionIssueSlip.create({
       iar: iar._id,
+      risNumber: `RIS-2026-${seq}`,
       entityName: iar.entityName,
       fundCluster: iar.fundCluster,
-      division: null,
-      office: null,
+      division: pick(DIVISIONS, i),
+      office: pick(OFFICES, i),
       responsibilityCenterCode: iar.responsibilityCenterCode,
-      purpose: null,
-      requestedBy: null,
-      approvedBy: null,
-      issuedBy: null,
-      receivedBy: { name: custodian, designation: null, date: null },
+      purpose: pick(REQUISITION_PURPOSES, i),
+      requestedBy: { name: custodian, designation: pick(DESIGNATIONS, i), date: iar.acceptanceDate },
+      approvedBy: { name: pick(STAFF_NAMES, i + 2), designation: 'Municipal Administrator', date: iar.acceptanceDate },
+      issuedBy: { name: pick(STAFF_NAMES, i + 3), designation: 'Supply Officer', date: iar.acceptanceDate },
+      receivedBy: { name: custodian, designation: pick(DESIGNATIONS, i), date: iar.acceptanceDate },
       date: iar.acceptanceDate,
       status: 'DRAFT',
       items: iar.items.map((entry) => ({
@@ -219,56 +295,6 @@ async function seedIarChain(suppliers) {
         remarks: null,
       })),
     });
-
-    const combinedTotalCost = iar.items.reduce((sum, entry) => sum + entry.totalCost, 0);
-    const itemsForAccountability = iar.items.map((entry) => ({
-      quantity: entry.quantity,
-      unit: entry.unit,
-      unitCost: entry.unitCost,
-      totalCost: entry.totalCost,
-      description: entry.description,
-      propertyNumber: entry.stockPropertyNumber,
-      dateAcquired: iar.purchaseDate || iar.acceptanceDate,
-    }));
-
-    if (combinedTotalCost < 50000) {
-      const ics = await InventoryCustodianSlip.create({
-        iar: iar._id,
-        entityName: iar.entityName,
-        fundCluster: iar.fundCluster,
-        items: itemsForAccountability.map((entry) => ({
-          quantity: entry.quantity,
-          unit: entry.unit,
-          unitCost: entry.unitCost,
-          totalCost: entry.totalCost,
-          description: entry.description,
-          inventoryItemNo: entry.propertyNumber,
-          estimatedUsefulLife: '5 years',
-        })),
-        remarks: null,
-        receivedFrom: { name: supplier.name, position: 'Supplier', date: iar.acceptanceDate },
-        receivedBy: { name: custodian, position: pick(DESIGNATIONS, i), date: iar.acceptanceDate },
-      });
-      iar.inventoryCustodianSlip = ics._id;
-    } else {
-      const par = await PropertyAcknowledgementReceipt.create({
-        iar: iar._id,
-        entityName: iar.entityName,
-        fundCluster: iar.fundCluster,
-        items: itemsForAccountability.map((entry) => ({
-          quantity: entry.quantity,
-          unit: entry.unit,
-          description: entry.description,
-          propertyNumber: entry.propertyNumber,
-          dateAcquired: entry.dateAcquired,
-          amount: entry.totalCost,
-        })),
-        remarks: null,
-        receivedBy: { name: custodian, position: pick(DESIGNATIONS, i), date: iar.acceptanceDate },
-        issuedBy: { name: pick(STAFF_NAMES, i + 2), position: 'Supply Officer', date: iar.acceptanceDate },
-      });
-      iar.propertyAcknowledgementReceipt = par._id;
-    }
 
     iar.propertyCards = [propertyCard._id];
     iar.requisition = ris._id;
