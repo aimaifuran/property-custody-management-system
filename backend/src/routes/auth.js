@@ -153,6 +153,9 @@ router.post('/forgot-password', forgotPasswordLimiter, [
       user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
       await user.save();
 
+      if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+        console.warn('FRONTEND_URL is not set in production — password reset emails will link to localhost.');
+      }
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
       await sendPasswordResetEmail(user, resetUrl);
