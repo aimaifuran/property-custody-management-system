@@ -75,7 +75,7 @@ app.use('/api/users', userRoutes);
 // intercepted by Vercel's edge routing before reaching this app (returned a
 // platform-level 404 with no X-Vercel-Cache header, meaning the function was
 // never invoked), even though the code and deployment were verified correct.
-app.use('/api/dashboard-data', reportRoutes);
+app.use('/api/dashboard', reportRoutes);
 
 const getHealthPayload = () => ({
   ok: true,
