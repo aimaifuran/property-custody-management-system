@@ -71,7 +71,11 @@ app.use('/api/ics', icsRoutes);
 app.use('/api/par', parRoutes);
 app.use('/api/returned-supply', returnedSupplyRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/reports', reportRoutes);
+// Renamed from '/api/reports' — that exact path prefix was mysteriously
+// intercepted by Vercel's edge routing before reaching this app (returned a
+// platform-level 404 with no X-Vercel-Cache header, meaning the function was
+// never invoked), even though the code and deployment were verified correct.
+app.use('/api/dashboard-data', reportRoutes);
 
 const getHealthPayload = () => ({
   ok: true,
