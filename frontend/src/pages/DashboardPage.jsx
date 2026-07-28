@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   FileText, ClipboardList, Users, FileCheck2, ArrowLeftRight, RotateCcw, Archive, Clock,
 } from 'lucide-react';
+import { SkeletonBar, SkeletonStatCard } from '../components/Skeleton';
 
 // Mirrors the sidebar's "Issue" submenu (Layout.jsx issueItems) — same labels, same icons.
 const primaryCards = [
@@ -102,39 +103,43 @@ export default function DashboardPage() {
       <div>
         <h2 className="mb-3 text-lg font-semibold text-slate-700">Issue</h2>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {primaryCards.map((card, index) => {
-            const Icon = card.icon;
-            return (
-              <motion.div key={card.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className={`flex flex-col justify-between rounded-2xl bg-gradient-to-br ${card.color} p-5 text-white`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="text-sm leading-snug opacity-90">{card.title}</div>
-                  <div className="shrink-0 rounded-2xl bg-white/20 p-3"><Icon size={22} /></div>
-                </div>
-                <div className="mt-4 text-3xl font-semibold">{loading ? '—' : (counts?.[card.key] ?? 0)}</div>
-              </motion.div>
-            );
-          })}
+          {loading
+            ? primaryCards.map((card) => <SkeletonStatCard key={card.key} big />)
+            : primaryCards.map((card, index) => {
+                const Icon = card.icon;
+                return (
+                  <motion.div key={card.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className={`flex flex-col justify-between rounded-2xl bg-gradient-to-br ${card.color} p-5 text-white`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="text-sm leading-snug opacity-90">{card.title}</div>
+                      <div className="shrink-0 rounded-2xl bg-white/20 p-3"><Icon size={22} /></div>
+                    </div>
+                    <div className="mt-4 text-3xl font-semibold">{counts?.[card.key] ?? 0}</div>
+                  </motion.div>
+                );
+              })}
         </div>
       </div>
 
       <div>
         <h2 className="mb-3 text-lg font-semibold text-slate-700">Other Records</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {secondaryCards.map((card) => {
-            if (card.key === 'users' && counts?.users == null) return null;
-            const Icon = card.icon;
-            return (
-              <div key={card.key} className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div>
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Icon size={18} />
-                    <span className="text-xs font-semibold uppercase tracking-wide leading-snug">{card.title}</span>
+          {loading
+            ? secondaryCards.map((card) => <SkeletonStatCard key={card.key} />)
+            : secondaryCards.map((card) => {
+                if (card.key === 'users' && counts?.users == null) return null;
+                const Icon = card.icon;
+                return (
+                  <div key={card.key} className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div>
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Icon size={18} />
+                        <span className="text-xs font-semibold uppercase tracking-wide leading-snug">{card.title}</span>
+                      </div>
+                      <div className="mt-2 text-2xl font-semibold text-slate-900">{counts?.[card.key] ?? 0}</div>
+                    </div>
                   </div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{loading ? '—' : (counts?.[card.key] ?? 0)}</div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
         </div>
       </div>
 
@@ -145,19 +150,35 @@ export default function DashboardPage() {
             <Clock size={18} className="text-slate-400" />
           </div>
           <div className="mt-4 space-y-3 max-h-[500px] overflow-y-auto">
-            {!loading && recentActivity.length === 0 && (
-              <p className="text-sm text-slate-500">No recent activity recorded yet.</p>
-            )}
-            {recentActivity.map((entry) => (
-              <div key={entry._id} className="rounded-xl bg-slate-50 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-semibold text-slate-800">{entry.action}</div>
-                  <div className="whitespace-nowrap text-xs text-slate-400">{formatRelativeTime(entry.createdAt)}</div>
-                </div>
-                {entry.details && <div className="mt-1 text-sm text-slate-500">{entry.details}</div>}
-                <div className="mt-1 text-xs text-slate-400">by {formatUserName(entry.user)}</div>
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="rounded-xl bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <SkeletonBar className="h-4 w-32" />
+                      <SkeletonBar className="h-3 w-12" />
+                    </div>
+                    <SkeletonBar className="mt-2 h-3 w-48" />
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <>
+                {recentActivity.length === 0 && (
+                  <p className="text-sm text-slate-500">No recent activity recorded yet.</p>
+                )}
+                {recentActivity.map((entry) => (
+                  <div key={entry._id} className="rounded-xl bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-semibold text-slate-800">{entry.action}</div>
+                      <div className="whitespace-nowrap text-xs text-slate-400">{formatRelativeTime(entry.createdAt)}</div>
+                    </div>
+                    {entry.details && <div className="mt-1 text-sm text-slate-500">{entry.details}</div>}
+                    <div className="mt-1 text-xs text-slate-400">by {formatUserName(entry.user)}</div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </div>
 
@@ -167,21 +188,37 @@ export default function DashboardPage() {
             <span className="text-sm text-slate-400">{totalInventory} total</span>
           </div>
           <div className="mt-4 space-y-3 max-h-[500px] overflow-y-auto">
-            {!loading && inventoryStatus.length === 0 && (
-              <p className="text-sm text-slate-500">No inventory records yet.</p>
-            )}
-            {inventoryStatus.map((entry) => {
-              const meta = STATUS_STYLES[entry.status] || { label: entry.status || 'Unknown', tone: 'warning' };
-              return (
-                <div key={entry.status} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${TONE_DOT[meta.tone]}`} />
-                    {meta.label}
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <SkeletonBar className="h-2.5 w-2.5 rounded-full" />
+                      <SkeletonBar className="h-3 w-28" />
+                    </div>
+                    <SkeletonBar className="h-4 w-8" />
                   </div>
-                  <div className="font-semibold">{entry.count}</div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            ) : (
+              <>
+                {inventoryStatus.length === 0 && (
+                  <p className="text-sm text-slate-500">No inventory records yet.</p>
+                )}
+                {inventoryStatus.map((entry) => {
+                  const meta = STATUS_STYLES[entry.status] || { label: entry.status || 'Unknown', tone: 'warning' };
+                  return (
+                    <div key={entry.status} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${TONE_DOT[meta.tone]}`} />
+                        {meta.label}
+                      </div>
+                      <div className="font-semibold">{entry.count}</div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         </div>
       </div>

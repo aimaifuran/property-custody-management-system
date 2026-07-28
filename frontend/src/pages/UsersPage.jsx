@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import Spinner from '../components/Spinner';
+import { SkeletonList } from '../components/Skeleton';
 
 const permissionOptions = [
   { key: 'canViewRIS', label: 'View RIS' },
@@ -18,18 +20,30 @@ const permissionOptions = [
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', role: 'user', permissions: ['canViewRIS', 'canCreateRIS'] });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const { data } = await axios.get('/users');
-    setUsers(data.data || []);
+    setLoading(true);
+    try {
+      const { data } = await axios.get('/users');
+      setUsers(data.data || []);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
 
   const save = async (e) => {
     e.preventDefault();
-    await axios.post('/users', form);
-    load();
+    setSaving(true);
+    try {
+      await axios.post('/users', form);
+      await load();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -99,17 +113,25 @@ export default function UsersPage() {
             ))}
           </div>
         </div>
-        <button type="submit" className="mt-4 rounded-xl bg-teal-600 px-4 py-2 text-white">Create User</button>
+        <button type="submit" disabled={saving} className="mt-4 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
+          {saving && <Spinner size={16} />}
+          {saving ? 'Creating…' : 'Create User'}
+        </button>
       </motion.form>
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="space-y-3">
-          {users.map((user) => (
-            <div key={user._id} className="rounded-xl border border-slate-200 p-4">
-              <div className="font-semibold">{user.firstName} {user.lastName}</div>
-              <div className="text-sm text-slate-500">{user.email} · {user.role}</div>
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <SkeletonList count={4} />
+        ) : (
+          <div className="space-y-3">
+            {users.length === 0 && <p className="text-sm text-slate-500">No users found.</p>}
+            {users.map((user) => (
+              <div key={user._id} className="rounded-xl border border-slate-200 p-4">
+                <div className="font-semibold">{user.firstName} {user.lastName}</div>
+                <div className="text-sm text-slate-500">{user.email} · {user.role}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import {
 } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import Spinner from '../components/Spinner';
+import { SkeletonList } from '../components/Skeleton';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -76,6 +78,8 @@ export default function IarPage() {
     const [iar, setIar] = useState([]);
     const [form, setForm] = useState(initial);
     const [editingId, setEditingId] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const update = (key, value) => setForm((prev) => ({
         ...prev,
         [key]: value
@@ -92,10 +96,15 @@ export default function IarPage() {
         };
     });
     const load = async () => {
-        const {
-            data
-        } = await axios.get('/iar');
-        setIar(data.data || []);
+        setLoading(true);
+        try {
+            const {
+                data
+            } = await axios.get('/iar');
+            setIar(data.data || []);
+        } finally {
+            setLoading(false);
+        }
     };
     useEffect(() => {
         load();
@@ -121,6 +130,7 @@ export default function IarPage() {
                 unitCost: Number(item.unitCost || 0)
             }))
         };
+        setSaving(true);
         try {
             if (editingId) {
                 await axios.put(`/iar/${editingId}`, payload);
@@ -131,9 +141,11 @@ export default function IarPage() {
             }
             setEditingId(null);
             setForm(initial);
-            load();
+            await load();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save IAR');
+        } finally {
+            setSaving(false);
         }
     };
     const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
@@ -295,22 +307,29 @@ export default function IarPage() {
       <>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold">Saved Reports</h2>
-          {iar.map((item) => 
-            <div key={item._id} className="mt-3 rounded-xl border p-3 flex justify-between items-center">
-              <div>
-                <b>{item.iarNumber}</b>
-                <div className="text-sm text-slate-500">
-                  {item.entityName || 'No entity'} · linked records created
+          {loading ? (
+            <SkeletonList count={3} actions={4} />
+          ) : (
+            <>
+              {iar.length === 0 && <p className="mt-3 text-sm text-slate-500">No IAR records yet.</p>}
+              {iar.map((item) =>
+                <div key={item._id} className="mt-3 rounded-xl border p-3 flex justify-between items-center">
+                  <div>
+                    <b>{item.iarNumber}</b>
+                    <div className="text-sm text-slate-500">
+                      {item.entityName || 'No entity'} · linked records created
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                    <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                    {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                    <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                    <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
-                {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
-                <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
         <hr className="border-slate-300 border-2 my-8" />
@@ -387,7 +406,10 @@ export default function IarPage() {
               {field('Partial Quantity (if applicable)', 'acceptanceQuantity', 'number')}
               {field('Supply/Property Custodian', 'custodian')}
             </div>
-            <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end">{editingId ? 'Update IAR' : 'Save IAR'}</button>
+            <button type="submit" disabled={saving} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
+              {saving && <Spinner size={16} />}
+              {saving ? 'Saving…' : (editingId ? 'Update IAR' : 'Save IAR')}
+            </button>
           </form>
         </div>
       </>

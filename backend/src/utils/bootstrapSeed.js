@@ -20,7 +20,7 @@ async function bootstrapSeed() {
   await User.create({
     firstName: 'System',
     lastName: 'Administrator',
-    email: 'admin@pcms.gov',
+    email: 'teadyborts@gmail.com',
     username: 'admin',
     password: adminPassword,
     office: 'Supply Office',

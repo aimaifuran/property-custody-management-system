@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema({
   permissions: [{ type: String }],
   refreshToken: { type: String },
   resetToken: { type: String },
+  resetTokenExpiry: { type: Date },
   lastLogin: { type: Date },
   deleted: { type: Boolean, default: false },
 }, { timestamps: true });

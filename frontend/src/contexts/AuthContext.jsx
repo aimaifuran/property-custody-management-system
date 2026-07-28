@@ -6,7 +6,7 @@ const AuthContext = createContext(null);
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 axios.defaults.withCredentials = true;
 
-const authTokenKey = 'pcms_auth_token';
+const authTokenKey = 'pais_auth_token';
 
 const setAuthToken = (token) => {
   if (token) {
