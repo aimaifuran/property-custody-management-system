@@ -153,10 +153,16 @@ router.post('/forgot-password', forgotPasswordLimiter, [
       user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
       await user.save();
 
+      // TODO: remove this hardcoded fallback once FRONTEND_URL is confirmed
+      // working in Vercel's production environment vars - it's still not
+      // being picked up there for reasons unresolved so far.
       if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
-        console.warn('FRONTEND_URL is not set in production — password reset emails will link to localhost.');
+        console.warn('FRONTEND_URL is not set in production — falling back to the hardcoded production URL.');
       }
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const defaultFrontendUrl = process.env.NODE_ENV === 'production'
+        ? 'https://pais-v1.vercel.app'
+        : 'http://localhost:5173';
+      const frontendUrl = process.env.FRONTEND_URL || defaultFrontendUrl;
       const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
       await sendPasswordResetEmail(user, resetUrl);
 

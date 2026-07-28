@@ -28,6 +28,12 @@ const mongoose = require('mongoose');
 
 const app = express();
 
+// Vercel puts exactly one reverse proxy hop in front of this app, which sets
+// X-Forwarded-For. Trusting only that one hop lets req.ip (and therefore
+// express-rate-limit's per-IP tracking) resolve the real client IP instead of
+// the proxy's, without blindly trusting an arbitrary number of hops.
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(cors({
