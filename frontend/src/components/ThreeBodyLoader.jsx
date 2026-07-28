@@ -1,7 +1,7 @@
-export default function ThreeBodyLoader({ text = 'Please wait…', size = 64 }) {
+export default function ThreeBodyLoader({ text = 'Please wait…', size = 64, color = '#0d9488' }) {
     return (
         <div className="flex flex-col items-center gap-5">
-            <div className="three-body" style={{ '--uib-size': `${size}px` }}>
+            <div className="three-body" style={{ '--uib-size': `${size}px`, '--uib-color': color }}>
                 <div className="three-body__dot" />
                 <div className="three-body__dot" />
                 <div className="three-body__dot" />
