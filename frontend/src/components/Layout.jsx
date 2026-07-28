@@ -3,7 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { LayoutDashboard, FileText, ClipboardList, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive, ChevronDown, ChevronRight, UserCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
-import Spinner from './Spinner';
+import ThreeBodyLoader from './ThreeBodyLoader';
 
 const issueItems = [
   { to: '/iar', label: 'Inspection & Acceptance Report', icon: FileCheck2, permissions: ['canViewIAR'] },
@@ -106,7 +106,7 @@ export default function Layout() {
             disabled={loggingOut}
             className="mt-2 flex w-full items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm disabled:opacity-60"
           >
-            {loggingOut ? <Spinner size={16} /> : <LogOut size={16} />}
+            {loggingOut ? <ThreeBodyLoader text={null} size={16} color="#e2e8f0" /> : <LogOut size={16} />}
             {loggingOut ? 'Signing out…' : 'Logout'}
           </button>
         </div>
