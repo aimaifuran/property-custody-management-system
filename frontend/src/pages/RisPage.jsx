@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
 import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import DownloadButton from '../components/DownloadButton';
+import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -412,6 +414,7 @@ export default function RisPage() {
   };
   const supplyReviewRef = useRef(null);
   const editFormTitleRef = useRef(null);
+  const { getStatus, run } = useDownloadStatus();
   const { user } = useAuth();
   const isSupplyOfficeUser = (user?.office || '').toLowerCase().includes('supply');
   const canReviewRis = user?.role === 'admin' || isSupplyOfficeUser || user?.permissions?.includes('canReviewRIS');
@@ -887,22 +890,22 @@ export default function RisPage() {
               {canManage ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <button type="button" onClick={() => editDraft(item)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                <button
-                  type="button"
-                  onClick={() => generateExcel(item)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <Download size={16} />
-                  Excel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => generatePdf(item)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <Printer size={16} />
-                  PDF
-                </button>
+                <DownloadButton
+                  label="Excel"
+                  icon={Download}
+                  variant="outline"
+                  width="w-28"
+                  status={getStatus(`${item._id}-excel`)}
+                  onClick={() => run(`${item._id}-excel`, () => generateExcel(item))}
+                />
+                <DownloadButton
+                  label="PDF"
+                  icon={Printer}
+                  variant="outline"
+                  width="w-28"
+                  status={getStatus(`${item._id}-pdf`)}
+                  onClick={() => run(`${item._id}-pdf`, () => generatePdf(item))}
+                />
                 <button
                   type="button"
                   onClick={() => generatePdf(item, true)}

@@ -6,7 +6,9 @@ import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
 import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import DownloadButton from '../components/DownloadButton';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -84,6 +86,7 @@ export default function PtrPage() {
     const [editingId, setEditingId] = useState(null);
     const [saving, setSaving] = useState(false);
     const formTitleRef = useRef(null);
+    const { getStatus, run } = useDownloadStatus();
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -383,9 +386,9 @@ export default function PtrPage() {
                                 </div>
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                                    <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                                    <DownloadButton label="Excel" status={getStatus(`${item._id}-excel`)} onClick={() => run(`${item._id}-excel`, () => generateExcel(item))} />
                                     {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                                    <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                                    <DownloadButton label="PDF" status={getStatus(`${item._id}-pdf`)} onClick={() => run(`${item._id}-pdf`, () => generatePdf(item))} />
                                     <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                                 </div>
                             </div>
