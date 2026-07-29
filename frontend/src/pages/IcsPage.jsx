@@ -334,11 +334,11 @@ export default function IcsPage() {
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                                    <DownloadButton label="Excel" status={getStatus(`${record._id}-excel`)} onClick={() => run(`${record._id}-excel`, () => generateExcel(record))} />
+                                    <DownloadButton type="update" onClick={() => startEdit(record)} />
+                                    <DownloadButton type="excel" status={getStatus(`${record._id}-excel`)} onClick={() => run(`${record._id}-excel`, () => generateExcel(record))} />
                                     {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                                    <DownloadButton label="PDF" status={getStatus(`${record._id}-pdf`)} onClick={() => run(`${record._id}-pdf`, () => generatePdf(record))} />
-                                    <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                                    <DownloadButton type="pdf" status={getStatus(`${record._id}-pdf`)} onClick={() => run(`${record._id}-pdf`, () => generatePdf(record))} />
+                                    <DownloadButton type="print" status={getStatus(`${record._id}-print`)} onClick={() => run(`${record._id}-print`, () => generatePdf(record, true))} />
                                 </div>
                             </div>
                         ))}

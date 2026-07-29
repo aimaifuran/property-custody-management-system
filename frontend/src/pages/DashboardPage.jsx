@@ -101,7 +101,7 @@ export default function DashboardPage() {
       )}
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-slate-700">Issue</h2>
+        <h2 className="mb-3 text-lg font-semibold text-slate-700">Form Records</h2>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {loading
             ? primaryCards.map((card) => <SkeletonStatCard key={card.key} big />)
