@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
 import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import DownloadButton from '../components/DownloadButton';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 
 const toDateInputValue = (date) => {
@@ -139,7 +140,7 @@ export default function ReturnedSupplyPage() {
                                             <div className="font-semibold">{record.description || 'Untitled item'}</div>
                                             <div className="text-sm text-slate-500">{record.lguName || 'No LGU'} · {record.purpose || 'N/A'}</div>
                                         </div>
-                                        <button type="button" onClick={() => startEdit(record)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                                        <DownloadButton type="update" onClick={() => startEdit(record)} />
                                     </div>
                                     <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
                                         <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>

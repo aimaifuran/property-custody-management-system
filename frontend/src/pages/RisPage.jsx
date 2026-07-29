@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Download, Printer, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
+import { Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
@@ -889,31 +889,22 @@ export default function RisPage() {
               </div>
               {canManage ? (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" onClick={() => editDraft(item)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                <DownloadButton type="update" onClick={() => editDraft(item)} />
                 <DownloadButton
-                  label="Excel"
-                  icon={Download}
-                  variant="outline"
-                  width="w-28"
+                  type="excel"
                   status={getStatus(`${item._id}-excel`)}
                   onClick={() => run(`${item._id}-excel`, () => generateExcel(item))}
                 />
                 <DownloadButton
-                  label="PDF"
-                  icon={Printer}
-                  variant="outline"
-                  width="w-28"
+                  type="pdf"
                   status={getStatus(`${item._id}-pdf`)}
                   onClick={() => run(`${item._id}-pdf`, () => generatePdf(item))}
                 />
-                <button
-                  type="button"
-                  onClick={() => generatePdf(item, true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <Printer size={16} />
-                  Print
-                </button>
+                <DownloadButton
+                  type="print"
+                  status={getStatus(`${item._id}-print`)}
+                  onClick={() => run(`${item._id}-print`, () => generatePdf(item, true))}
+                />
                 {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
                   <button
                     type="button"

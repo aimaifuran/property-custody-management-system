@@ -297,11 +297,11 @@ export default function InventoryPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => edit(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                        <DownloadButton label="Excel" status={getStatus(`${card._id}-excel`)} onClick={() => run(`${card._id}-excel`, () => generateExcel(card))} />
+                        <DownloadButton type="update" onClick={() => edit(card)} />
+                        <DownloadButton type="excel" status={getStatus(`${card._id}-excel`)} onClick={() => run(`${card._id}-excel`, () => generateExcel(card))} />
                         {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                        <DownloadButton label="PDF" status={getStatus(`${card._id}-pdf`)} onClick={() => run(`${card._id}-pdf`, () => generatePdf(card))} />
-                        <button type="button" onClick={() => generatePdf(card, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                        <DownloadButton type="pdf" status={getStatus(`${card._id}-pdf`)} onClick={() => run(`${card._id}-pdf`, () => generatePdf(card))} />
+                        <DownloadButton type="print" status={getStatus(`${card._id}-print`)} onClick={() => run(`${card._id}-print`, () => generatePdf(card, true))} />
                       </div>
                     </div>
                   </div>
