@@ -4,7 +4,9 @@ import toast from 'react-hot-toast';
 import Spinner from '../components/Spinner';
 import { SkeletonList } from '../components/Skeleton';
 import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
+import DownloadButton from '../components/DownloadButton';
 import { usePaginatedList } from '../hooks/usePaginatedList';
+import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -58,6 +60,7 @@ export default function ParPage() {
     const [form, setForm] = useState(null);
     const [saving, setSaving] = useState(false);
     const formTitleRef = useRef(null);
+    const { getStatus, run } = useDownloadStatus();
 
     useEffect(() => {
         if (editingId) formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -326,9 +329,9 @@ export default function ParPage() {
                                 </div>
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                                    <button type="button" onClick={() => generateExcel(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                                    <DownloadButton label="Excel" status={getStatus(`${record._id}-excel`)} onClick={() => run(`${record._id}-excel`, () => generateExcel(record))} />
                                     {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                                    <button type="button" onClick={() => generatePdf(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
+                                    <DownloadButton label="PDF" status={getStatus(`${record._id}-pdf`)} onClick={() => run(`${record._id}-pdf`, () => generatePdf(record))} />
                                     <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
                                 </div>
                             </div>
