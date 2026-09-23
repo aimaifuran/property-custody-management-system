@@ -24,6 +24,9 @@ const parRoutes = require('./routes/par');
 const returnedSupplyRoutes = require('./routes/returnedSupply');
 const userRoutes = require('./routes/users');
 const reportRoutes = require('./routes/reports');
+const propertyRoutes = require('./routes/properties');
+const documentNumberRoutes = require('./routes/documentNumbers');
+const settingRoutes = require('./routes/settings');
 const mongoose = require('mongoose');
 
 const app = express();
@@ -50,7 +53,7 @@ app.use(compression());
 const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: '3.0.0',
-    info: { title: 'Property Custody Management System API', version: '1.0.0' },
+    info: { title: 'Property Accountability Management System API', version: '1.0.0' },
   },
   apis: [path.join(__dirname, 'routes/*.js')],
 });
@@ -72,6 +75,9 @@ app.use('/api/par', parRoutes);
 app.use('/api/returned-supply', returnedSupplyRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/properties', propertyRoutes);
+app.use('/api/document-numbers', documentNumberRoutes);
+app.use('/api/settings', settingRoutes);
 
 const getHealthPayload = () => ({
   ok: true,

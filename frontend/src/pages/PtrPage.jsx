@@ -8,6 +8,11 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import FundClusterField from '../components/FundClusterField';
+import Pagination from '../components/Pagination';
+import { FileText, Printer, RotateCcw } from 'lucide-react';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const FIXED_TRANSFER_TYPES = ['Donation', 'Reassignment', 'Relocation'];
 
@@ -37,6 +42,14 @@ const initial = {
     issuedBy: emptySignatory(),
     receivedBy: emptySignatory()
 };
+
+const newForm = () => ({
+    ...initial,
+    items: [emptyItem()],
+    approvedBy: getStickySignatory('approvedBy', emptySignatory()),
+    issuedBy: getStickySignatory('issuedBy', emptySignatory()),
+    receivedBy: getStickySignatory('receivedBy', emptySignatory())
+});
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -76,24 +89,40 @@ const toForm = (record) => ({
 
 export default function PtrPage() {
     const [reports, setReports] = useState([]);
-    const [form, setForm] = useState(initial);
+    const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
         const { data } = await axios.get('/ptr');
         setReports(data.data || []);
     };
 
+    const assignNextNumber = async () => {
+        try {
+            const { data } = await axios.get('/document-numbers/PTR');
+            setForm((previous) => previous.ptrNumber ? previous : { ...previous, ptrNumber: data.data.nextNumber });
+        } catch {
+            // Keep the input editable when a number cannot be retrieved.
+        }
+    };
+
     useEffect(() => {
         load();
+        assignNextNumber();
     }, []);
+    const pageCount = Math.max(1, Math.ceil(reports.length / perPage));
+    const visibleReports = reports.slice((page - 1) * perPage, page * perPage);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-    const updateSignatory = (section, key, value) => setForm((prev) => ({
-        ...prev,
-        [section]: { ...prev[section], [key]: value }
-    }));
+    const updateSignatory = (section, key, value) => setForm((prev) => {
+        const signatory = { ...prev[section], [key]: value };
+        saveStickySignatory(section, signatory);
+        return { ...prev, [section]: signatory };
+    });
 
     const updateItem = (index, key, value) => setForm((prev) => ({
         ...prev,
@@ -105,12 +134,12 @@ export default function PtrPage() {
     const startEdit = (record) => {
         setEditingId(record._id);
         setForm(toForm(record));
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     };
 
     const cancelEdit = () => {
         setEditingId(null);
-        setForm(initial);
+        setForm(newForm());
+        assignNextNumber();
     };
 
     const save = async (event) => {
@@ -138,13 +167,16 @@ export default function PtrPage() {
             if (editingId) {
                 await axios.put(`/ptr/${editingId}`, payload);
                 toast.success('PTR updated');
+                markUpdated(editingId);
             } else {
                 await axios.post('/ptr', payload);
                 toast.success('PTR created');
             }
             setEditingId(null);
-            setForm(initial);
+            setForm(newForm());
+            assignNextNumber();
             load();
+            if (editingId) scrollToRecords();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Unable to save PTR');
         }
@@ -153,7 +185,7 @@ export default function PtrPage() {
     const field = (label, key, type = 'text') => (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input type={type} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'e.g., PTR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -359,11 +391,11 @@ export default function PtrPage() {
 
     return (
         <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Saved Reports</h2>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
-                {reports.map((item) => (
-                    <div key={item._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
+                {visibleReports.map((item) => (
+                    <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
                         <div>
                             <b>{item.ptrNumber}</b>
                             <div className="text-sm text-slate-500">
@@ -371,30 +403,27 @@ export default function PtrPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button type="button" onClick={() => startEdit(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                            <button type="button" onClick={() => generateExcel(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                            <button type="button" title="Update record" onClick={() => startEdit(item)} className="grid h-11 w-16 place-items-center rounded-2xl border border-teal-200 bg-teal-50 hover:bg-teal-100"><img src="/update.png" alt="" className="h-7 w-7 object-contain" /></button>
                             {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                            <button type="button" onClick={() => generatePdf(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
-                            <button type="button" onClick={() => generatePdf(item, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                            <button type="button" title="Download PDF" onClick={() => generatePdf(item)} className="grid h-11 w-16 place-items-center rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100"><img src="/pdf.png" alt="" className="h-7 w-7 object-contain" /></button>
+                            <button type="button" title="Print record" onClick={() => generatePdf(item, true)} className="grid h-11 w-16 place-items-center rounded-2xl border border-slate-300 bg-slate-100 hover:bg-slate-200"><img src="/print.png" alt="" className="h-7 w-7 object-contain" /></button>
                         </div>
                     </div>
                 ))}
+                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            <hr className="border-slate-300 border-2" />
-
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-semibold">{editingId ? 'Update Property Transfer Report' : 'Property Transfer Report'}</h1>
-                    <p className="text-sm text-slate-500">Transfer an accountable asset to another custodian.</p>
+            <motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                <div className="form-title-row mb-5">
+                    <div>
+                        <h1 className="form-page-title">{editingId ? 'Update Property Transfer Report' : 'Property Transfer Report'}</h1>
+                        <p className="mt-2 text-sm text-slate-500">Transfer an accountable asset to another custodian.</p>
+                    </div>
+                    {editingId && <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>}
                 </div>
-                {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}
-            </div>
-
-            <motion.form initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-3">
                     {field('Entity Name', 'entityName')}
-                    {field('Fund Cluster', 'fundCluster')}
+                    <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                     {field('PTR No.', 'ptrNumber')}
                     {field('From Accountable Officer', 'fromAccountableOfficer')}
                     {field('To Accountable Officer', 'toAccountableOfficer')}

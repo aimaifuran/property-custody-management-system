@@ -8,6 +8,7 @@ const Item = require('../models/Item');
 const LedgerTransaction = require('../models/LedgerTransaction');
 const PropertyAccountability = require('../models/PropertyAccountability');
 const ActivityLog = require('../models/ActivityLog');
+const User = require('../models/User');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
@@ -20,10 +21,34 @@ const getUserLabel = (user) => {
 
 const createSignatureHash = (payload) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
+const userLabel = (user) => [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ').trim();
+
+const resolvePersonUser = async (person) => {
+  if (!person || person.user) return person;
+  const name = String(person.name || '').trim();
+  if (!name) return person;
+  const user = await User.findOne({
+    deleted: false,
+    $or: [
+      { username: name },
+      { email: name.toLowerCase() },
+      { firstName: name.split(/\s+/)[0], lastName: name.split(/\s+/).slice(-1)[0] },
+    ],
+  }).select('_id');
+  return user ? { ...person, user: user._id } : person;
+};
+
+const ownRisFilter = (user) => ({
+  $or: [
+    { 'requestedBy.user': user._id },
+    { 'receivedBy.user': user._id },
+    { 'requestedBy.name': { $in: [userLabel(user), user.username, user.email] } },
+    { 'receivedBy.name': { $in: [userLabel(user), user.username, user.email] } },
+  ],
+});
+
 const canReviewRis = (user) => (
   user?.role === 'admin'
-  || (user?.office || '').toLowerCase().includes('supply')
-  || user?.permissions?.includes('canReviewRIS')
 );
 
 const getDocumentNumber = async (formType, createdAt, cache) => {
@@ -43,8 +68,10 @@ const getDocumentNumber = async (formType, createdAt, cache) => {
   return `${formType}-${year}-MM-${String(cache[cacheKey]).padStart(4, '0')}`;
 };
 
-router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const ris = await RequisitionIssueSlip.find({ deleted: false }).sort({ createdAt: -1 });
+router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS']), async (req, res) => {
+  const query = { deleted: false };
+  if (req.user.role !== 'admin') Object.assign(query, ownRisFilter(req.user));
+  const ris = await RequisitionIssueSlip.find(query).sort({ updatedAt: -1, createdAt: -1 });
   return successResponse(res, 'RIS retrieved', ris);
 });
 
@@ -61,8 +88,11 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
   const errors = validationResult(req);
   if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
+  const payload = { ...req.body };
+  payload.requestedBy = await resolvePersonUser(payload.requestedBy);
+  payload.receivedBy = await resolvePersonUser(payload.receivedBy);
   const ris = await RequisitionIssueSlip.create({
-    ...req.body,
+    ...payload,
     status: 'PENDING_REVIEW',
   });
 
@@ -79,6 +109,8 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
 
 router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), async (req, res) => {
   const updates = { ...req.body };
+  updates.requestedBy = await resolvePersonUser(updates.requestedBy);
+  updates.receivedBy = await resolvePersonUser(updates.receivedBy);
   if (updates.items) updates.items = updates.items.map((entry) => ({ ...entry, totalCost: entry.totalCost ?? null }));
   const ris = await RequisitionIssueSlip.findOneAndUpdate({ _id: req.params.id, deleted: false }, updates, { new: true, runValidators: true });
   if (!ris) return errorResponse(res, 'RIS not found', [], 404);

@@ -10,6 +10,7 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
   responsibilityCenterCode: { type: String },
   purpose: { type: String },
   requestedBy: {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     name: { type: String, trim: true },
     designation: { type: String, trim: true },
     date: { type: Date },
@@ -25,6 +26,7 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
     date: { type: Date },
   },
   receivedBy: {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     name: { type: String, trim: true },
     designation: { type: String, trim: true },
     date: { type: Date },

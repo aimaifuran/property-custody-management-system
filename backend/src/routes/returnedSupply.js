@@ -4,8 +4,8 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 const router = express.Router();
 
-router.get('/', authenticate, authorize('canViewDashboard'), async (req, res) => {
-  const records = await ReturnedSupply.find({ deleted: false }).populate('prs').sort({ createdAt: -1 });
+router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
+  const records = await ReturnedSupply.find({ deleted: false }).populate('prs').sort({ updatedAt: -1, createdAt: -1 });
   return successResponse(res, 'Returned supply retrieved', records);
 });
 

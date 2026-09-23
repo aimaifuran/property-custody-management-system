@@ -7,8 +7,8 @@ const { authenticate, authorize } = require('../middlewares/auth');
 
 const router = express.Router();
 
-router.get('/', authenticate, authorize('canViewDashboard'), async (req, res) => {
-  const reports = await PropertyReturnSlip.find({ deleted: false }).sort({ createdAt: -1 });
+router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
+  const reports = await PropertyReturnSlip.find({ deleted: false }).sort({ updatedAt: -1, createdAt: -1 });
   return successResponse(res, 'PRS retrieved', reports);
 });
 

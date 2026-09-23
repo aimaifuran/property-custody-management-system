@@ -14,8 +14,8 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 const router = express.Router();
 
-router.get('/', authenticate, authorize('canViewIAR'), async (req, res) => {
-  const iar = await InspectionAcceptanceReport.find({ deleted: false }).populate('supplier').sort({ createdAt: -1 });
+router.get('/', authenticate, authorize(['canViewIAR', 'canManageIAR']), async (req, res) => {
+  const iar = await InspectionAcceptanceReport.find({ deleted: false }).populate('supplier').sort({ updatedAt: -1, createdAt: -1 });
   return successResponse(res, 'IAR retrieved', iar);
 });
 

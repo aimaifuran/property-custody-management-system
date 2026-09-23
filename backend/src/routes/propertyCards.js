@@ -5,7 +5,7 @@ const { authenticate, authorize } = require('../middlewares/auth');
 const router = express.Router();
 
 router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const cards = await PropertyCard.find({ deleted: false }).populate('iar').populate('inventory').sort({ createdAt: -1 });
+  const cards = await PropertyCard.find({ deleted: false }).populate('iar').populate('inventory').sort({ updatedAt: -1, createdAt: -1 });
   return successResponse(res, 'Property cards retrieved', cards);
 });
 

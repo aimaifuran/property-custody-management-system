@@ -6,7 +6,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 const router = express.Router();
 
-router.get('/', authenticate, authorize('canViewDashboard'), async (req, res) => {
+router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
   const inventories = await Inventory.find({ deleted: false }).populate('item').populate('supplier').populate('accountability').sort({ createdAt: -1 });
   return successResponse(res, 'Inventories retrieved', inventories);
 });

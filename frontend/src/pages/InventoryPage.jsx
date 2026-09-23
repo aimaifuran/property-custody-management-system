@@ -9,6 +9,10 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import FundClusterField from '../components/FundClusterField';
+import Pagination from '../components/Pagination';
+import { FileText, Printer, RotateCcw } from 'lucide-react';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const emptyItem = () => ({
     propertyNumber: '',
@@ -40,6 +44,9 @@ export default function InventoryPage() {
     const [cards, setCards] = useState([]);
     const [editingCard, setEditingCard] = useState(null);
     const [form, setForm] = useState(initialForm);
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
     const load = async () => {
         const {
             data
@@ -49,6 +56,8 @@ export default function InventoryPage() {
     useEffect(() => {
         load();
     }, []);
+    const pageCount = Math.max(1, Math.ceil(cards.length / perPage));
+    const visibleCards = cards.slice((page - 1) * perPage, page * perPage);
 
     const edit = (card) => {
         const items = card.items?.length ? card.items : (card.entries || []).map((entry) => ({
@@ -98,13 +107,15 @@ export default function InventoryPage() {
                 })),
             });
             toast.success('Property Card updated');
+            markUpdated(editingCard._id);
             closeEditor();
             await load();
+            scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
         }
     };
-    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     const itemLabels = ['Property No.', 'Description', 'S/N', 'Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
     const itemFields = [
         ['propertyNumber', 'text'],
@@ -265,12 +276,11 @@ export default function InventoryPage() {
     return (
       <>
         <div className="space-y-6">
-          <div><h1 className="text-3xl font-semibold">Property Card</h1><p className="text-sm text-slate-500">One Property Card form is created for each Inspection &amp; Acceptance Report, including all received items.</p></div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold">Submitted Property Cards</h2>
             <div className="mt-4 space-y-3">
-              {cards.map((card) => (
-                <div key={card._id} className="rounded-xl border border-slate-200 p-4">
+              {visibleCards.map((card) => (
+                <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <div className="font-semibold">{card.iar?.iarNumber || 'Property Card'}</div>
@@ -279,15 +289,15 @@ export default function InventoryPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => edit(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                      <button type="button" onClick={() => generateExcel(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                      <button type="button" title="Update record" onClick={() => edit(card)} className="grid h-11 w-16 place-items-center rounded-2xl border border-teal-200 bg-teal-50 hover:bg-teal-100"><img src="/update.png" alt="" className="h-7 w-7 object-contain" /></button>
                       {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                      <button type="button" onClick={() => generatePdf(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
-                      <button type="button" onClick={() => generatePdf(card, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                      <button type="button" title="Download PDF" onClick={() => generatePdf(card)} className="grid h-11 w-16 place-items-center rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100"><img src="/pdf.png" alt="" className="h-7 w-7 object-contain" /></button>
+                      <button type="button" title="Print record" onClick={() => generatePdf(card, true)} className="grid h-11 w-16 place-items-center rounded-2xl border border-slate-300 bg-slate-100 hover:bg-slate-200"><img src="/print.png" alt="" className="h-7 w-7 object-contain" /></button>
                     </div>
                   </div>
                 </div>
               ))}
+              <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
               {!cards.length && (
                 <p className="py-4 text-slate-500">
                   No Property Cards yet. Save an IAR to create one.
@@ -296,16 +306,18 @@ export default function InventoryPage() {
             </div>
           </div>
           {editingCard ? (
-            <form onSubmit={save} className="mx-auto max-w-7xl rounded-3xl border border-slate-300 bg-white p-6 shadow-xl">
+            <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
               <div className="rounded-2xl border-2 border-slate-700 p-5 text-slate-900">
-                <div className="border-b border-slate-300 pb-3 text-center">
-                  <h2 className="text-2xl font-black tracking-wide">PROPERTY CARD</h2>
+                <div className="form-title-row border-b border-slate-300 pb-3">
+                  <h1 className="form-page-title">Property Card</h1>
+                  <p className="mt-2 text-sm text-slate-500">One Property Card form is created for each Inspection &amp; Acceptance Report, including all received items.</p>
+                  <button type="button" onClick={closeEditor} className="form-title-action rounded-xl border px-4 py-2 text-sm">Close Editor</button>
                 </div>
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                   {field('Month','month')}
                   {field('PO No.','poNumber')}
                   {field('Entity Name','entityName')}
-                  {field('Fund Cluster','fundCluster')}
+                  <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                   {field('Property, Plant and Equipment','propertyPlantAndEquipment')}
                   {field('Property Number','propertyNumber')}
                   {field('Description','description')}
@@ -348,13 +360,6 @@ export default function InventoryPage() {
                     className="rounded-xl border px-4 py-2"
                   >
                     Add Item
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeEditor}
-                    className="rounded-xl border px-4 py-2"
-                  >
-                    Close Editor
                   </button>
                   <button
                     type="submit"

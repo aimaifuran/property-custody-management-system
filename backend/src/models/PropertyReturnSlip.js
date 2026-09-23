@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const propertyReturnSlipSchema = new mongoose.Schema({
+  prsNumber: { type: String, unique: true, sparse: true, trim: true },
   lguName: { type: String, trim: true },
   // Holds the chosen purpose; when the "Other" option is picked on the form,
   // this stores the free-text value the user specified instead.

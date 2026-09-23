@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Plus, Search } from 'lucide-react';
+import Pagination from '../components/Pagination';
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', address: '', contactNumber: '' });
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(5);
 
   const load = async () => {
     const { data } = await axios.get('/suppliers');
@@ -23,6 +26,8 @@ export default function SuppliersPage() {
   };
 
   const filtered = suppliers.filter((supplier) => supplier.name.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
+  const visibleSuppliers = filtered.slice((page - 1) * perPage, page * perPage);
 
   return (
     <div className="space-y-6">
@@ -41,7 +46,7 @@ export default function SuppliersPage() {
             <input id="supplier-search" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full outline-none" placeholder="Search suppliers" />
           </div>
           <div className="space-y-3">
-            {filtered.map((supplier) => (
+            {visibleSuppliers.map((supplier) => (
               <div key={supplier._id} className="rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -52,6 +57,7 @@ export default function SuppliersPage() {
                 </div>
               </div>
             ))}
+            <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
           </div>
         </motion.div>
         <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

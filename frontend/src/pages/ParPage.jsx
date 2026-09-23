@@ -6,6 +6,11 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import FundClusterField from '../components/FundClusterField';
+import Pagination from '../components/Pagination';
+import { FileText, Printer, RotateCcw } from 'lucide-react';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const emptyItem = () => ({
     quantity: '',
@@ -52,6 +57,9 @@ export default function ParPage() {
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
         const { data } = await axios.get('/par');
@@ -59,10 +67,21 @@ export default function ParPage() {
     };
 
     useEffect(() => { load(); }, []);
+    const pageCount = Math.max(1, Math.ceil(records.length / perPage));
+    const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
 
     const startEdit = (record) => {
         setEditingId(record._id);
-        setForm(toForm(record));
+        const nextForm = toForm(record);
+        nextForm.receivedBy = getStickySignatory('receivedBy', nextForm.receivedBy);
+        nextForm.issuedBy = getStickySignatory('issuedBy', nextForm.issuedBy);
+        if (nextForm.parNumber) {
+            setForm(nextForm);
+        } else {
+            axios.get('/document-numbers/PAR')
+                .then(({ data }) => setForm({ ...nextForm, parNumber: data.data.nextNumber }))
+                .catch(() => setForm(nextForm));
+        }
     };
 
     const cancelEdit = () => {
@@ -72,10 +91,11 @@ export default function ParPage() {
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-    const updateSignatory = (section, key, value) => setForm((prev) => ({
-        ...prev,
-        [section]: { ...prev[section], [key]: value }
-    }));
+    const updateSignatory = (section, key, value) => setForm((prev) => {
+        const signatory = { ...prev[section], [key]: value };
+        saveStickySignatory(section, signatory);
+        return { ...prev, [section]: signatory };
+    });
 
     const updateItem = (index, key, value) => setForm((prev) => ({
         ...prev,
@@ -98,8 +118,10 @@ export default function ParPage() {
                 }))
             });
             toast.success('Property Acknowledgement Receipt updated');
+            markUpdated(editingId);
             cancelEdit();
             load();
+            scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save PAR');
         }
@@ -108,7 +130,7 @@ export default function ParPage() {
     const field = (label, key, type = 'text') => (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input type={type} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'parNumber' ? 'e.g., PAR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -291,16 +313,11 @@ export default function ParPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-semibold">Property Acknowledgement Receipts</h1>
-                <p className="text-sm text-slate-500">Records here are created automatically from IAR items whose combined total cost is ₱50,000 or more.</p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Saved Records</h2>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
-                {records.map((record) => (
-                    <div key={record._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
+                {visibleRecords.map((record) => (
+                    <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
                         <div>
                             <b>{record.parNumber || 'Unassigned PAR No.'}</b>
                             <div className="text-sm text-slate-500">
@@ -308,25 +325,28 @@ export default function ParPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button type="button" onClick={() => startEdit(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
-                            <button type="button" onClick={() => generateExcel(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Excel</button>
+                            <button type="button" title="Update record" onClick={() => startEdit(record)} className="grid h-11 w-16 place-items-center rounded-2xl border border-teal-200 bg-teal-50 hover:bg-teal-100"><img src="/update.png" alt="" className="h-7 w-7 object-contain" /></button>
                             {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                            <button type="button" onClick={() => generatePdf(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">PDF</button>
-                            <button type="button" onClick={() => generatePdf(record, true)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button>
+                            <button type="button" title="Download PDF" onClick={() => generatePdf(record)} className="grid h-11 w-16 place-items-center rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100"><img src="/pdf.png" alt="" className="h-7 w-7 object-contain" /></button>
+                            <button type="button" title="Print record" onClick={() => generatePdf(record, true)} className="grid h-11 w-16 place-items-center rounded-2xl border border-slate-300 bg-slate-100 hover:bg-slate-200"><img src="/print.png" alt="" className="h-7 w-7 object-contain" /></button>
                         </div>
                     </div>
                 ))}
+                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
             {form && (
-                <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <div className="mb-4 flex items-center justify-between">
-                        <h2 className="text-xl font-semibold">Edit Property Acknowledgement Receipt</h2>
-                        <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>
+                <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                    <div className="form-title-row mb-5">
+                        <div>
+                            <h1 className="form-page-title">Property Acknowledgement Receipt</h1>
+                            <p className="mt-2 text-sm text-slate-500">Records here are created automatically from IAR items whose combined total cost is ₱50,000 or more.</p>
+                        </div>
+                        <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
-                        {field('Fund Cluster', 'fundCluster')}
+                        <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                         {field('PAR No.', 'parNumber')}
                     </div>
                     <div className="mt-6 overflow-x-auto">

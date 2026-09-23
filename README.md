@@ -1,6 +1,6 @@
-# Property Custody Management System
+# Property Accountability Management System
 
-This workspace contains a production-style full-stack Property Custody Management System for a government supply office.
+This workspace contains a production-style full-stack Property Accountability Management System for a government supply office.
 
 ## Stack
 - Frontend: React 19, Vite, Tailwind CSS, React Router, React Query, Framer Motion

@@ -5,7 +5,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 const router = express.Router();
 
-router.get('/', authenticate, authorize('canViewSuppliers'), async (req, res) => {
+router.get('/', authenticate, authorize(['canViewSuppliers', 'canManageSuppliers']), async (req, res) => {
   const suppliers = await Supplier.find({ deleted: false }).sort({ createdAt: -1 });
   return successResponse(res, 'Suppliers retrieved', suppliers);
 });

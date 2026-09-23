@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   division: { type: String, required: true },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  locked: { type: Boolean, default: false },
   permissions: [{ type: String }],
   refreshToken: { type: String },
   resetToken: { type: String },

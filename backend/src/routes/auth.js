@@ -29,6 +29,7 @@ router.post('/login', loginLimiter, [
     const { identifier, password, rememberMe } = req.body;
     const user = await User.findOne({ $or: [{ email: identifier }, { username: identifier }] });
     if (!user) return errorResponse(res, 'Invalid credentials', [], 401);
+    if (user.locked) return errorResponse(res, 'This user account is temporarily locked', [], 423);
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return errorResponse(res, 'Invalid credentials', [], 401);

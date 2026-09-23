@@ -19,8 +19,11 @@ const authenticate = async (req, res, next) => {
 };
 
 const authorize = (permission) => (req, res, next) => {
-  if (req.user.role === 'admin') return next();
   const requiredPermissions = Array.isArray(permission) ? permission : [permission];
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.user.role !== 'admin') {
+    return errorResponse(res, 'Only administrators can modify Supply Office records', [], 403);
+  }
+  if (req.user.role === 'admin') return next();
   if (requiredPermissions.some((value) => req.user.permissions?.includes(value))) return next();
   return errorResponse(res, 'Forbidden', [], 403);
 };

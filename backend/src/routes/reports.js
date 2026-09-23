@@ -25,6 +25,37 @@ router.get('/suppliers', authenticate, authorize('canViewSuppliers'), async (req
   return successResponse(res, 'Supplier report', suppliers);
 });
 
+router.get('/issued', authenticate, authorize('canViewDashboard'), async (req, res) => {
+  const getValue = (document, path) => path.split('.').reduce((value, key) => value?.[key], document);
+  const reportSources = [
+    { model: InspectionAcceptanceReport, type: 'IAR', title: 'Inspection & Acceptance Report', numberField: 'iarNumber', dateFields: ['date', 'createdAt'] },
+    { model: RequisitionIssueSlip, type: 'RIS', title: 'Requisition Issue Slip', numberField: 'risNumber', dateFields: ['issuedAt', 'date', 'createdAt'] },
+    { model: InventoryCustodianSlip, type: 'ICS', title: 'Inventory Custodian Slip', numberField: 'icsNumber', dateFields: ['createdAt'] },
+    { model: PropertyAcknowledgementReceipt, type: 'PAR', title: 'Property Acknowledgement Receipt', numberField: 'parNumber', dateFields: ['createdAt'] },
+    { model: PropertyTransferReport, type: 'PTR', title: 'Property Transfer Report', numberField: 'ptrNumber', dateFields: ['date', 'createdAt'] },
+    { model: PropertyReturnSlip, type: 'PRS', title: 'Property Return Slip', numberField: 'prsNumber', dateFields: ['date', 'returnedBy.date', 'returnedTo.date', 'createdAt'] },
+    { model: ReturnedSupply, type: 'RETURNED SUPPLY', numberField: 'mrNumber', dateFields: ['date', 'returnedBy.date', 'returnedTo.date', 'createdAt'] },
+  ];
+
+  const records = await Promise.all(reportSources.map(async (source) => {
+    const documents = await source.model.find({ deleted: false }).lean();
+    return documents.map((document) => {
+      const reportDate = source.dateFields.map((field) => getValue(document, field)).find(Boolean) || document.createdAt;
+      return {
+        id: document._id,
+        type: source.type,
+        title: source.title,
+        documentNumber: document[source.numberField] || 'Unnumbered',
+        entityName: document.entityName || document.office || '',
+        reportDate,
+        status: document.status || 'RECORDED',
+      };
+    });
+  }));
+
+  return successResponse(res, 'Issued reports retrieved', records.flat().sort((left, right) => new Date(right.reportDate) - new Date(left.reportDate)));
+});
+
 router.get('/ris', authenticate, authorize('canViewRIS'), async (req, res) => {
   const ris = await RequisitionIssueSlip.find({ deleted: false });
   return successResponse(res, 'RIS report', ris);
@@ -68,6 +99,19 @@ router.get('/summary', authenticate, authorize('canViewDashboard'), async (req, 
 
   const canViewUsers = req.user.role === 'admin' || req.user.permissions?.includes('canManageUsers');
   const users = canViewUsers ? await User.countDocuments({ deleted: false }) : null;
+  const [returnSlipBreakdown, returnedSupplyBreakdown, userBreakdown] = await Promise.all([
+    PropertyReturnSlip.aggregate([
+      { $match: { deleted: false } },
+      { $group: { _id: { $ifNull: ['$purpose', 'Unspecified'] }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]),
+    ReturnedSupply.aggregate([
+      { $match: { deleted: false } },
+      { $group: { _id: { $ifNull: ['$purpose', 'Unspecified'] }, count: { $sum: '$quantity' } } },
+      { $sort: { count: -1 } },
+    ]),
+    canViewUsers ? User.aggregate([{ $match: { deleted: false } }, { $group: { _id: '$role', count: { $sum: 1 } } }]) : [],
+  ]);
 
   const recentActivity = await ActivityLog.find({})
     .populate('user', 'firstName lastName username')
@@ -77,6 +121,9 @@ router.get('/summary', authenticate, authorize('canViewDashboard'), async (req, 
   return successResponse(res, 'Dashboard summary', {
     counts: { suppliers, iar, ris, inventory, propertyCards, ics, par, ptr, prs, returnedSupply, users },
     inventoryStatus: statusBreakdown.map((entry) => ({ status: entry._id, count: entry.count })),
+    returnSlipBreakdown: returnSlipBreakdown.map((entry) => ({ label: entry._id, count: entry.count })),
+    returnedSupplyBreakdown: returnedSupplyBreakdown.map((entry) => ({ label: entry._id, count: entry.count })),
+    userBreakdown: userBreakdown.map((entry) => ({ label: entry._id, count: entry.count })),
     recentActivity,
   });
 });

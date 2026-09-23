@@ -4,8 +4,8 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 const router = express.Router();
 
-router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const records = await PropertyAcknowledgementReceipt.find({ deleted: false }).populate('iar').sort({ createdAt: -1 });
+router.get('/', authenticate, authorize(['canViewRIS', 'canManageRIS', 'canManageInventory']), async (req, res) => {
+  const records = await PropertyAcknowledgementReceipt.find({ deleted: false }).populate('iar').sort({ updatedAt: -1, createdAt: -1 });
   return successResponse(res, 'Property Acknowledgement Receipts retrieved', records);
 });
 
