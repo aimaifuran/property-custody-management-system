@@ -20,6 +20,9 @@ import ReportsPage from './pages/ReportsPage';
 import MonthlyItemsReportPage from './pages/MonthlyItemsReportPage';
 import PpeStationReportPage from './pages/PpeStationReportPage';
 import HistoricalRecordsPage from './pages/HistoricalRecordsPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
@@ -56,6 +59,7 @@ const permissionRoutes = {
   '/returns': ['canViewDashboard', 'canManageInventory'],
   '/returned-supply': ['canViewDashboard', 'canManageInventory'],
   '/users': 'canManageUsers',
+  '/profile': 'adminOnly',
   '/my-returns': 'canViewRIS',
   '/my-issued-items': 'canViewRIS',
 };
@@ -65,6 +69,8 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/settings" element={<Navigate to="/dashboard" replace />} />
           <Route path="/my-ris" element={<Navigate to="/my-issued-items" replace />} />
@@ -86,6 +92,7 @@ function AppRoutes() {
               '/returns': PrsPage,
               '/returned-supply': ReturnedSupplyPage,
               '/users': UsersPage,
+              '/profile': ProfilePage,
               '/my-returns': MyReturnsPage,
               '/my-issued-items': MyIssuedItemsPage,
             };

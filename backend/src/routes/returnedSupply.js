@@ -2,10 +2,17 @@ const express = require('express');
 const ReturnedSupply = require('../models/ReturnedSupply');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
 
+const RETURNED_SUPPLY_SEARCH_FIELDS = [
+  'lguName', 'purpose', 'unit', 'description', 'propertyNumber', 'mrNumber', 'note',
+  'returnedBy.name', 'returnedBy.designation',
+  'returnedTo.name', 'returnedTo.designation',
+];
+
 router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
-  const records = await ReturnedSupply.find({ deleted: false }).populate('prs').sort({ updatedAt: -1, createdAt: -1 });
+  const records = await listRecords(ReturnedSupply, req, { baseFilter: { deleted: false }, searchFields: RETURNED_SUPPLY_SEARCH_FIELDS, populate: 'prs' });
   return successResponse(res, 'Returned supply retrieved', records);
 });
 

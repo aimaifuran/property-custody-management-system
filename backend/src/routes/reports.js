@@ -172,7 +172,7 @@ router.get('/iar', authenticate, authorize('canViewIAR'), async (req, res) => {
   return successResponse(res, 'IAR report', iar);
 });
 
-router.get('/summary', authenticate, authorize('canViewDashboard'), async (req, res) => {
+router.get(['/', '/summary'], authenticate, authorize('canViewDashboard'), async (req, res) => {
   const [
     suppliers,
     iar,

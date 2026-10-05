@@ -12,10 +12,17 @@ const Supplier = require('../models/Supplier');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
 
+const IAR_SEARCH_FIELDS = [
+  'entityName', 'fundCluster', 'supplierName', 'poNumber', 'responsibilityCenterCode',
+  'iarNumber', 'invoiceNumber', 'inspectedBy', 'acceptanceStatus', 'custodian',
+  'receivedBy', 'acceptedBy',
+];
+
 router.get('/', authenticate, authorize(['canViewIAR', 'canManageIAR']), async (req, res) => {
-  const iar = await InspectionAcceptanceReport.find({ deleted: false }).populate('supplier').sort({ updatedAt: -1, createdAt: -1 });
+  const iar = await listRecords(InspectionAcceptanceReport, req, { baseFilter: { deleted: false }, searchFields: IAR_SEARCH_FIELDS, populate: 'supplier' });
   return successResponse(res, 'IAR retrieved', iar);
 });
 

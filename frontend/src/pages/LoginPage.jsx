@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { useAuth } from '../contexts/AuthContext';
 
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { motion } from 'framer-motion';
 
@@ -109,6 +109,7 @@ export default function LoginPage() {
             <button type="submit" className="login-button w-full rounded-xl px-4 py-3 font-semibold text-white">Sign in</button>
 
           </form>
+          <Link to="/forgot-password" className="mt-4 block text-center text-sm text-white/85 underline">Forgot your password?</Link>
 
         </div>
 
@@ -121,4 +122,3 @@ export default function LoginPage() {
   );
 
 }
-

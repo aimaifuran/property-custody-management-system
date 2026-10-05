@@ -2,10 +2,17 @@ const express = require('express');
 const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgementReceipt');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
 
+const PAR_SEARCH_FIELDS = [
+  'entityName', 'fundCluster', 'parNumber', 'remarks',
+  'receivedBy.name', 'receivedBy.position',
+  'issuedBy.name', 'issuedBy.position',
+];
+
 router.get('/', authenticate, authorize(['canViewRIS', 'canManageRIS', 'canManageInventory']), async (req, res) => {
-  const records = await PropertyAcknowledgementReceipt.find({ deleted: false }).populate('iar').sort({ updatedAt: -1, createdAt: -1 });
+  const records = await listRecords(PropertyAcknowledgementReceipt, req, { baseFilter: { deleted: false }, searchFields: PAR_SEARCH_FIELDS, populate: 'iar' });
   return successResponse(res, 'Property Acknowledgement Receipts retrieved', records);
 });
 

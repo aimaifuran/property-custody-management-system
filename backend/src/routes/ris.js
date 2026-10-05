@@ -13,7 +13,18 @@ const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
+
+const RIS_SEARCH_FIELDS = [
+  'risNumber',
+  'entityName', 'fundCluster', 'division', 'office', 'responsibilityCenterCode', 'purpose',
+  'status', 'rejectionReason', 'rejectedBy', 'reviewedBy',
+  'requestedBy.name', 'requestedBy.designation',
+  'approvedBy.name', 'approvedBy.designation',
+  'issuedBy.name', 'issuedBy.designation',
+  'receivedBy.name', 'receivedBy.designation',
+];
 
 const getUserLabel = (user) => {
   const name = [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ').trim();
@@ -72,7 +83,7 @@ const getDocumentNumber = async (formType, createdAt, cache) => {
 router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS']), async (req, res) => {
   const query = { deleted: false };
   if (req.user.role !== 'admin') Object.assign(query, ownRisFilter(req.user));
-  const ris = await RequisitionIssueSlip.find(query).sort({ updatedAt: -1, createdAt: -1 });
+  const ris = await listRecords(RequisitionIssueSlip, req, { baseFilter: query, searchFields: RIS_SEARCH_FIELDS });
   return successResponse(res, 'RIS retrieved', ris);
 });
 

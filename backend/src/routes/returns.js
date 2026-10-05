@@ -6,7 +6,14 @@ const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
+
+const PRS_SEARCH_FIELDS = [
+  'lguName', 'purpose', 'note',
+  'returnedBy.name', 'returnedBy.designation',
+  'returnedTo.name', 'returnedTo.designation',
+];
 
 const logReturnedSupply = (report) => ReturnedSupply.insertMany(report.items.map(entry => ({ prs: report._id, lguName: report.lguName, purpose: report.purpose, quantity: entry.quantity, unit: entry.unit, description: entry.description, propertyNumber: entry.propertyNumber, mrNumber: entry.mrNumber, unitValue: entry.unitValue, totalValue: entry.totalValue, note: report.note, returnedBy: report.returnedBy, returnedTo: report.returnedTo })));
 
@@ -29,7 +36,7 @@ const validateLinks = async (items, excludeId) => {
 };
 
 router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
-  const reports = await PropertyReturnSlip.find({ deleted: false }).sort({ updatedAt: -1, createdAt: -1 });
+  const reports = await listRecords(PropertyReturnSlip, req, { baseFilter: { deleted: false }, searchFields: PRS_SEARCH_FIELDS });
   return successResponse(res, 'PRS retrieved', reports);
 });
 

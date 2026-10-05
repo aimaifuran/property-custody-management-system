@@ -29,6 +29,7 @@ const navItems = [
   { to: '/returned-supply', label: 'Returned Supply', icon: ClipboardList, permissions: ['canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
   { to: '/users', label: 'User Management', icon: Users, permissions: ['canManageUsers'] },
+  { to: '/profile', label: 'My Profile', icon: Users, permissions: [], adminOnly: true },
 ];
 
 const canAccessNavItem = (user, item) => {

@@ -1,5 +1,6 @@
 # Dependencies
 backend/node_modules/
+backend/database/
 frontend/node_modules/
 
 # Build output
@@ -28,3 +29,5 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+Flow Chart.excalidraw

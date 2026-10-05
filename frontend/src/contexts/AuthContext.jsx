@@ -7,8 +7,17 @@ import { loadStickySignatories } from '../utils/stickySignatories';
 const AuthContext = createContext(null);
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 axios.defaults.withCredentials = true;
+// Use the report route that works with the live Vercel deployment.
+// The backend also retains /reports for existing clients.
+axios.interceptors.request.use((config) => {
+  if (config.url === '/reports' || config.url?.startsWith('/reports/')) {
+    config.url = config.url.replace(/^\/reports(?=\/|$)/, '/dashboard');
+  }
+  return config;
+});
 
-const authTokenKey = 'pcms_auth_token';
+const authTokenKey = 'pais_auth_token';
+const legacyAuthTokenKey = 'pcms_auth_token';
 
 const setAuthToken = (token) => {
   if (token) {
@@ -19,8 +28,10 @@ const setAuthToken = (token) => {
   delete axios.defaults.headers.common.Authorization;
 };
 
-const savedToken = localStorage.getItem(authTokenKey);
+const savedToken = localStorage.getItem(authTokenKey) || localStorage.getItem(legacyAuthTokenKey);
 if (savedToken) {
+  localStorage.setItem(authTokenKey, savedToken);
+  localStorage.removeItem(legacyAuthTokenKey);
   setAuthToken(savedToken);
 }
 
@@ -28,6 +39,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -61,14 +73,28 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    await axios.post('/auth/logout');
-    localStorage.removeItem(authTokenKey);
-    setAuthToken(null);
-    setUser(null);
-    toast.success('Signed out');
+    setLoggingOut(true);
+    try {
+      await axios.post('/auth/logout');
+      localStorage.removeItem(authTokenKey);
+      localStorage.removeItem(legacyAuthTokenKey);
+      setAuthToken(null);
+      setUser(null);
+      toast.success('Signed out');
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
-  const value = useMemo(() => ({ user, loading, authReady, login, logout }), [user, loading, authReady]);
+  const refreshUser = async () => {
+    const { data } = await axios.get('/auth/me');
+    setUser(data.data?.user || null);
+  };
+
+  const value = useMemo(
+    () => ({ user, loading, authReady, loggingOut, login, logout, refreshUser }),
+    [user, loading, authReady, loggingOut],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

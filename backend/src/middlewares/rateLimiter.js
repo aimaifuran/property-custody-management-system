@@ -8,4 +8,12 @@ const loginLimiter = rateLimit({
   message: 'Too many login attempts. Please try again later.',
 });
 
-module.exports = { loginLimiter };
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many password reset requests. Please try again later.',
+});
+
+module.exports = { loginLimiter, forgotPasswordLimiter };

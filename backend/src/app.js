@@ -30,6 +30,8 @@ const settingRoutes = require('./routes/settings');
 const mongoose = require('mongoose');
 
 const app = express();
+// Vercel forwards requests through one proxy hop.
+app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(morgan('dev'));
@@ -78,6 +80,8 @@ app.use('/api/par', parRoutes);
 app.use('/api/returned-supply', returnedSupplyRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
+// Keep both the current report URL and the URL used by the live deployment.
+app.use('/api/dashboard', reportRoutes);
 app.use('/api/ppe-lists', require('./routes/monthlyItemReports'));
 app.use('/api/monthly-item-reports', require('./routes/monthlyItemReports'));
 app.use('/api/ppe-station-reports', require('./routes/ppeStationReports'));
