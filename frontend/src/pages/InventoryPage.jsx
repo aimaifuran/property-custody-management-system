@@ -1,21 +1,19 @@
+import RecordActionButton from '../components/RecordActionButton';
 import {
     useEffect,
-    useRef,
     useState
 } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import { SkeletonList } from '../components/Skeleton';
-import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
-import DownloadButton from '../components/DownloadButton';
-import { usePaginatedList } from '../hooks/usePaginatedList';
-import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import FundClusterField from '../components/FundClusterField';
+import Pagination from '../components/Pagination';
+import { FileText, Printer, RotateCcw } from 'lucide-react';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const emptyItem = () => ({
     propertyNumber: '',
@@ -44,16 +42,23 @@ const initialForm = {
 const inputDate = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
 
 export default function InventoryPage() {
-    const { items: cards, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/property-cards', { limit: 5 });
+    const [cards, setCards] = useState([]);
     const [editingCard, setEditingCard] = useState(null);
     const [form, setForm] = useState(initialForm);
-    const [saving, setSaving] = useState(false);
-    const formTitleRef = useRef(null);
-    const { getStatus, run } = useDownloadStatus();
-
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
+    const load = async () => {
+        const {
+            data
+        } = await axios.get('/property-cards');
+        setCards(data.data || []);
+    };
     useEffect(() => {
-        if (editingCard) formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, [editingCard]);
+        load();
+    }, []);
+    const pageCount = Math.max(1, Math.ceil(cards.length / perPage));
+    const visibleCards = cards.slice((page - 1) * perPage, page * perPage);
 
     const edit = (card) => {
         const items = card.items?.length ? card.items : (card.entries || []).map((entry) => ({
@@ -87,11 +92,9 @@ export default function InventoryPage() {
     const closeEditor = () => {
         setEditingCard(null);
         setForm(initialForm);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     const save = async (event) => {
         event.preventDefault();
-        setSaving(true);
         try {
             await axios.put(`/property-cards/${editingCard._id}`, {
                 ...form,
@@ -105,15 +108,15 @@ export default function InventoryPage() {
                 })),
             });
             toast.success('Property Card updated');
+            markUpdated(editingCard._id);
             closeEditor();
-            await reload();
+            await load();
+            scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
-        } finally {
-            setSaving(false);
         }
     };
-    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     const itemLabels = ['Property No.', 'Description', 'S/N', 'Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
     const itemFields = [
         ['propertyNumber', 'text'],
@@ -231,25 +234,25 @@ export default function InventoryPage() {
 
       const form = pdfDoc.getForm();
 
-      form.getTextField("month").setText(String(formatDate(data.month ?? '')));
-      form.getTextField("poNumber").setText(String(data.poNumber ?? ''));
-      form.getTextField("entityName").setText(String(data.entityName ?? ''));
-      form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
-      form.getTextField("propertyPlantAndEquipment").setText(String(data.propertyPlantAndEquipment ?? ''));
-      form.getTextField("description").setText(String(data.description ?? ''));
-      form.getTextField("propertyNumber").setText(String(data.propertyNumber ?? ''));
-      form.getTextField("serialNumber").setText(String(data.serialNumber ?? ''));
+      form.getTextField("month").setText(String(formatDate(data.month)));
+      form.getTextField("poNumber").setText(String(data.poNumber));
+      form.getTextField("entityName").setText(String(data.entityName));
+      form.getTextField("fundCluster").setText(String(data.fundCluster));
+      form.getTextField("propertyPlantAndEquipment").setText(String(data.propertyPlantAndEquipment));
+      form.getTextField("description").setText(String(data.description));
+      form.getTextField("propertyNumber").setText(String(data.propertyNumber));
+      form.getTextField("serialNumber").setText(String(data.serialNumber));
 
       // Table data insertion
       const startRowNumber = 1; // Starting row for table data
       data.items.forEach((item, index) => {
-        form.getTextField(`date${index + 1}`).setText(String(formatDate(item.date ?? '')));
+        form.getTextField(`date${index + 1}`).setText(String(formatDate(item.date)));
         form.getTextField(`referenceParNo${index + 1}`).setText(String(item.referenceParNo ?? ''));
         form.getTextField(`receiptQuantity${index + 1}`).setText(String(item.receiptQuantity ?? ''));
         form.getTextField(`itdQuantity${index + 1}`).setText(String(item.itdQuantity ?? ''));
         form.getTextField(`itdOfficeOfficer${index + 1}`).setText(String(item.itdOfficeOfficer ?? ''));
         form.getTextField(`balanceQuantity${index + 1}`).setText(String(item.balanceQuantity ?? ''));
-        form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount ?? '')));
+        form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
         form.getTextField(`remarks${index + 1}`).setText(String(item.remarks ?? ''));
       });
 
@@ -274,58 +277,48 @@ export default function InventoryPage() {
     return (
       <>
         <div className="space-y-6">
-          <div><h1 className="text-3xl font-semibold">Property Card</h1><p className="text-sm text-slate-500">One Property Card form is created for each Inspection &amp; Acceptance Report, including all received items.</p></div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">Submitted Property Cards</h2>
-              <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
-                <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, PO no., description, S/N…" />
-                <PageSizeSelect limit={limit} onChange={setLimit} />
-              </div>
-            </div>
-            {loading ? (
-              <SkeletonList count={3} actions={4} />
-            ) : (
-              <div className="mt-4 space-y-3">
-                {cards.map((card) => (
-                  <div key={card._id} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="font-semibold">{card.iar?.iarNumber || 'Property Card'}</div>
-                        <div className="text-sm text-slate-500">
-                          {card.entityName || 'No entity'} · PO {card.poNumber || '—'} · {card.items?.length || card.entries?.length || 0} item(s)
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <DownloadButton type="update" onClick={() => edit(card)} />
-                        <DownloadButton type="excel" status={getStatus(`${card._id}-excel`)} onClick={() => run(`${card._id}-excel`, () => generateExcel(card))} />
-                        {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                        <DownloadButton type="pdf" status={getStatus(`${card._id}-pdf`)} onClick={() => run(`${card._id}-pdf`, () => generatePdf(card))} />
-                        <DownloadButton type="print" status={getStatus(`${card._id}-print`)} onClick={() => run(`${card._id}-print`, () => generatePdf(card, true))} />
+          <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold">Submitted Property Cards</h2>
+            <div className="mt-4 space-y-3">
+              {visibleCards.map((card) => (
+                <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">{card.iar?.iarNumber || 'Property Card'}</div>
+                      <div className="text-sm text-slate-500">
+                        {card.entityName || 'No entity'} · PO {card.poNumber || '—'} · {card.items?.length || card.entries?.length || 0} item(s)
                       </div>
                     </div>
+                    <div className="flex gap-2">
+                      <RecordActionButton action="edit" title="Update record" onClick={() => edit(card)} />
+                      {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                      <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(card)} />
+                      <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(card, true)} />
+                    </div>
                   </div>
-                ))}
-                {!cards.length && (
-                  <p className="py-4 text-slate-500">
-                    No Property Cards yet. Save an IAR to create one.
-                  </p>
-                )}
-              </div>
-            )}
-            {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
+                </div>
+              ))}
+              <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+              {!cards.length && (
+                <p className="py-4 text-slate-500">
+                  No Property Cards yet. Save an IAR to create one.
+                </p>
+              )}
+            </div>
           </div>
           {editingCard ? (
-            <form onSubmit={save} className="mx-auto max-w-7xl rounded-3xl border border-slate-300 bg-white p-6 shadow-xl">
+            <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
               <div className="rounded-2xl border-2 border-slate-700 p-5 text-slate-900">
-                <div className="border-b border-slate-300 pb-3 text-center">
-                  <h2 ref={formTitleRef} className="text-2xl font-black tracking-wide">PROPERTY CARD</h2>
+                <div className="form-title-row border-b border-slate-300 pb-3">
+                  <h1 className="form-page-title">Property Card</h1>
+                  <p className="mt-2 text-sm text-slate-500">One Property Card form is created for each Inspection &amp; Acceptance Report, including all received items.</p>
+                  <button type="button" onClick={closeEditor} className="form-title-action rounded-xl border px-4 py-2 text-sm">Close Editor</button>
                 </div>
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                   {field('Month','month')}
                   {field('PO No.','poNumber')}
                   {field('Entity Name','entityName')}
-                  {field('Fund Cluster','fundCluster')}
+                  <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                   {field('Property, Plant and Equipment','propertyPlantAndEquipment')}
                   {field('Property Number','propertyNumber')}
                   {field('Description','description')}
@@ -370,19 +363,10 @@ export default function InventoryPage() {
                     Add Item
                   </button>
                   <button
-                    type="button"
-                    onClick={closeEditor}
-                    className="rounded-xl border px-4 py-2"
-                  >
-                    Close Editor
-                  </button>
-                  <button
                     type="submit"
-                    disabled={saving}
-                    className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 font-semibold text-white disabled:opacity-60"
+                    className="rounded-xl bg-teal-600 px-4 py-2 font-semibold text-white"
                   >
-                    {saving && <Spinner size={16} />}
-                    {saving ? 'Updating…' : 'Update Property Card'}
+                    Update Property Card
                   </button>
                 </div>
               </div>

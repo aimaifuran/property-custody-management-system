@@ -25,6 +25,11 @@ router.put('/:id', authenticate, authorize('canManageUsers'), async (req, res) =
   return successResponse(res, 'User updated', user);
 });
 
+router.patch('/:id/lock', authenticate, authorize('canManageUsers'), async (req, res) => {
+  const user = await User.findByIdAndUpdate(req.params.id, { locked: Boolean(req.body.locked) }, { new: true }).select('-password');
+  return successResponse(res, user.locked ? 'User locked' : 'User unlocked', user);
+});
+
 router.delete('/:id', authenticate, authorize('canManageUsers'), async (req, res) => {
   await User.findByIdAndUpdate(req.params.id, { deleted: true });
   return successResponse(res, 'User deleted');

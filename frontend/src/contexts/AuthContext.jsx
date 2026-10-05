@@ -2,11 +2,22 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
+import { loadStickySignatories } from '../utils/stickySignatories';
+
 const AuthContext = createContext(null);
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 axios.defaults.withCredentials = true;
+// Use the report route that works with the live Vercel deployment.
+// The backend also retains /reports for existing clients.
+axios.interceptors.request.use((config) => {
+  if (config.url === '/reports' || config.url?.startsWith('/reports/')) {
+    config.url = config.url.replace(/^\/reports(?=\/|$)/, '/dashboard');
+  }
+  return config;
+});
 
 const authTokenKey = 'pais_auth_token';
+const legacyAuthTokenKey = 'pcms_auth_token';
 
 const setAuthToken = (token) => {
   if (token) {
@@ -17,8 +28,10 @@ const setAuthToken = (token) => {
   delete axios.defaults.headers.common.Authorization;
 };
 
-const savedToken = localStorage.getItem(authTokenKey);
+const savedToken = localStorage.getItem(authTokenKey) || localStorage.getItem(legacyAuthTokenKey);
 if (savedToken) {
+  localStorage.setItem(authTokenKey, savedToken);
+  localStorage.removeItem(legacyAuthTokenKey);
   setAuthToken(savedToken);
 }
 
@@ -32,6 +45,7 @@ export const AuthProvider = ({ children }) => {
     const fetchUser = async () => {
       try {
         const { data } = await axios.get('/auth/me');
+        if (data.data?.user?.role === 'admin') await loadStickySignatories().catch(() => {});
         setUser(data.data?.user || null);
       } catch {
         setUser(null);
@@ -52,6 +66,7 @@ export const AuthProvider = ({ children }) => {
       setAuthToken(accessToken);
     }
 
+    if (data.data?.user?.role === 'admin') await loadStickySignatories().catch(() => {});
     setUser(data.data?.user || null);
     toast.success(data.message || 'Welcome back');
     return data;
@@ -62,6 +77,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await axios.post('/auth/logout');
       localStorage.removeItem(authTokenKey);
+      localStorage.removeItem(legacyAuthTokenKey);
       setAuthToken(null);
       setUser(null);
       toast.success('Signed out');

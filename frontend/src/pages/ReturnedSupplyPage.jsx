@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import RecordActionButton from '../components/RecordActionButton';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import { SkeletonList } from '../components/Skeleton';
-import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
-import DownloadButton from '../components/DownloadButton';
-import { usePaginatedList } from '../hooks/usePaginatedList';
+import Pagination from '../components/Pagination';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -32,20 +31,32 @@ const toForm = (record) => ({
     unitValue: record.unitValue ?? '',
     totalValue: record.totalValue ?? 0,
     note: record.note || '',
-    returnedBy: toFormSignatory(record.returnedBy),
-    returnedTo: toFormSignatory(record.returnedTo)
+    returnedBy: getStickySignatory('returnedBy', toFormSignatory(record.returnedBy)),
+    returnedTo: getStickySignatory('returnedTo', toFormSignatory(record.returnedTo))
 });
 
 export default function ReturnedSupplyPage() {
-    const { items: records, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/returned-supply', { limit: 5 });
+    const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
-    const [saving, setSaving] = useState(false);
-    const formTitleRef = useRef(null);
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+
+    const load = async () => {
+        const { data } = await axios.get('/returned-supply');
+        setRecords(data.data || []);
+    };
 
     useEffect(() => {
-        if (editingId) formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, [editingId]);
+        const controller = new AbortController();
+        axios.get('/returned-supply', { signal: controller.signal })
+            .then(({ data }) => setRecords(data.data || []))
+            .catch(() => { if (!controller.signal.aborted) toast.error('Unable to load returned supply records'); });
+        return () => controller.abort();
+    }, []);
+    const pageCount = Math.max(1, Math.ceil(records.length / perPage));
+    const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
 
     const startEdit = (record) => {
         setEditingId(record._id);
@@ -55,15 +66,15 @@ export default function ReturnedSupplyPage() {
     const cancelEdit = () => {
         setEditingId(null);
         setForm(null);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-    const updateSignatory = (section, key, value) => setForm((prev) => ({
-        ...prev,
-        [section]: { ...prev[section], [key]: value }
-    }));
+    const updateSignatory = (section, key, value) => setForm(prev => {
+        const signatory = { ...prev[section], [key]: value };
+        saveStickySignatory(section, signatory, key);
+        return { ...prev, [section]: signatory };
+    });
 
     const updateValue = (key, value) => setForm((prev) => {
         const next = { ...prev, [key]: value };
@@ -75,7 +86,6 @@ export default function ReturnedSupplyPage() {
 
     const save = async (event) => {
         event.preventDefault();
-        setSaving(true);
         try {
             await axios.put(`/returned-supply/${editingId}`, {
                 ...form,
@@ -83,12 +93,12 @@ export default function ReturnedSupplyPage() {
                 unitValue: Number(form.unitValue || 0)
             });
             toast.success('Returned supply record updated');
+            markUpdated(editingId);
             cancelEdit();
-            await reload();
+            load();
+            scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save record');
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -114,54 +124,40 @@ export default function ReturnedSupplyPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-semibold">Returned Supply</h1>
-                <p className="text-sm text-slate-500">Each item on a saved Property Return Slip is logged here individually.</p>
-            </div>
-
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold">Returned Items</h2>
-                    <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
-                        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search LGU, purpose, description, property/M.R. no.…" />
-                        <PageSizeSelect limit={limit} onChange={setLimit} />
-                    </div>
-                </div>
-                {loading ? (
-                    <SkeletonList count={3} actions={1} />
-                ) : (
-                    <>
-                        {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
-                        <div className="mt-3 space-y-3">
-                            {records.map((record) => (
-                                <div key={record._id} className="rounded-xl border border-slate-200 p-4">
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div>
-                                            <div className="font-semibold">{record.description || 'Untitled item'}</div>
-                                            <div className="text-sm text-slate-500">{record.lguName || 'No LGU'} · {record.purpose || 'N/A'}</div>
-                                        </div>
-                                        <DownloadButton type="update" onClick={() => startEdit(record)} />
-                                    </div>
-                                    <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
-                                        <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>
-                                        <div>Property No.: {record.propertyNumber || 'N/A'}</div>
-                                        <div>M.R. No.: {record.mrNumber || 'N/A'}</div>
-                                        <div>Unit Value: {Number(record.unitValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                        <div>Total Value: {Number(record.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                    </div>
+            <motion.div ref={recordsRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Returned Items</h2>
+                {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
+                <div className="mt-3 space-y-3">
+                    {visibleRecords.map((record) => (
+                        <div key={record._id} className={`saved-record rounded-xl border p-4 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <div className="font-semibold">{record.description || 'Untitled item'}</div>
+                                    <div className="text-sm text-slate-500">{record.lguName || 'No LGU'} · {record.purpose || 'N/A'}</div>
                                 </div>
-                            ))}
+                                <RecordActionButton action="edit" onClick={() => startEdit(record)} />
+                            </div>
+                            <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+                                <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>
+                                <div>Property No.: {record.propertyNumber || 'N/A'}</div>
+                                <div>M.R. No.: {record.mrNumber || 'N/A'}</div>
+                                <div>Unit Value: {Number(record.unitValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                <div>Total Value: {Number(record.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                            </div>
                         </div>
-                    </>
-                )}
-                {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
+                    ))}
+                </div>
+                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </motion.div>
 
             {form && (
-                <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <div className="mb-4 flex items-center justify-between">
-                        <h2 ref={formTitleRef} className="text-xl font-semibold">Edit Returned Supply Record</h2>
-                        <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>
+                <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                    <div className="form-title-row mb-5">
+                        <div>
+                            <h1 className="form-page-title">Returned Supply</h1>
+                            <p className="mt-2 text-sm text-slate-500">Each item on a saved Property Return Slip is logged here individually.</p>
+                        </div>
+                        <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
                         <label className="block">
@@ -227,10 +223,7 @@ export default function ReturnedSupplyPage() {
                         {signatoryFields('Returned To', 'returnedTo')}
                     </div>
 
-                    <button type="submit" disabled={saving} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                        {saving && <Spinner size={16} />}
-                        {saving ? 'Saving…' : 'Save Changes'}
-                    </button>
+                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
                 </form>
             )}
         </div>

@@ -12,7 +12,7 @@ const Supplier = require('../models/Supplier');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { paginateAndSearch } = require('../utils/paginate');
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
 
 const IAR_SEARCH_FIELDS = [
@@ -21,13 +21,9 @@ const IAR_SEARCH_FIELDS = [
   'receivedBy', 'acceptedBy',
 ];
 
-router.get('/', authenticate, authorize('canViewIAR'), async (req, res) => {
-  const { data, pagination } = await paginateAndSearch(InspectionAcceptanceReport, req, {
-    baseFilter: { deleted: false },
-    searchFields: IAR_SEARCH_FIELDS,
-    populate: 'supplier',
-  });
-  return successResponse(res, 'IAR retrieved', { items: data, pagination });
+router.get('/', authenticate, authorize(['canViewIAR', 'canManageIAR']), async (req, res) => {
+  const iar = await listRecords(InspectionAcceptanceReport, req, { baseFilter: { deleted: false }, searchFields: IAR_SEARCH_FIELDS, populate: 'supplier' });
+  return successResponse(res, 'IAR retrieved', iar);
 });
 
 router.put('/:id', authenticate, authorize('canManageIAR'), async (req, res) => {

@@ -11,6 +11,12 @@ const { sendPasswordResetEmail, sendEmailChangeCode } = require('../utils/mailer
 const { authenticate } = require('../middlewares/auth');
 const router = express.Router();
 
+const publicUser = (user) => {
+  const data = user.toObject();
+  for (const field of ['password', 'refreshToken', 'resetToken', 'resetTokenExpiry', 'emailChangeCode', 'emailChangeExpiry']) delete data[field];
+  return data;
+};
+
 const hashSecret = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
@@ -35,8 +41,9 @@ router.post('/login', loginLimiter, [
     if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
     const { identifier, password, rememberMe } = req.body;
-    const user = await User.findOne({ $or: [{ email: identifier }, { username: identifier }] });
-    if (!user) return errorResponse(res, 'Invalid Credentials', [], 401);
+    const user = await User.findOne({ deleted: false, $or: [{ email: identifier }, { username: identifier }] });
+    if (!user) return errorResponse(res, 'Invalid credentials', [], 401);
+    if (user.locked) return errorResponse(res, 'This user account is temporarily locked', [], 423);
 
     if (user.lockUntil && user.lockUntil > new Date()) {
       return errorResponse(res, 'Too many login attempts', [{ lockUntil: user.lockUntil }], 423);
@@ -88,7 +95,7 @@ router.post('/login', loginLimiter, [
 
     await ActivityLog.create({ user: user._id, action: 'Login', ipAddress: req.ip, browser: req.get('user-agent') });
 
-    const safeUser = user.toObject();
+    const safeUser = publicUser(user);
     delete safeUser.password;
     delete safeUser.refreshToken;
     delete safeUser.resetToken;
@@ -122,7 +129,8 @@ router.get('/me', async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
     const user = await User.findById(decoded.id).select('-password');
-    return successResponse(res, 'User fetched', { user });
+    if (!user || user.deleted || user.status !== 'active') return errorResponse(res, 'Invalid user session', [], 401);
+    return successResponse(res, 'User fetched', { user: publicUser(user) });
   } catch (error) {
     return errorResponse(res, 'Invalid token', [], 401);
   }
@@ -230,7 +238,7 @@ router.put('/profile', authenticate, [
   });
 
   const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true }).select('-password');
-  return successResponse(res, 'Profile updated', { user });
+  return successResponse(res, 'Profile updated', { user: publicUser(user) });
 });
 
 router.post('/change-password', authenticate, [
@@ -321,7 +329,7 @@ router.post('/confirm-email-change', authenticate, [
     browser: req.get('user-agent'),
   });
 
-  const safeUser = user.toObject();
+  const safeUser = publicUser(user);
   delete safeUser.password;
   return successResponse(res, 'Email updated successfully', { user: safeUser });
 });

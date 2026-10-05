@@ -1,23 +1,24 @@
-import { useRef, useState } from 'react';
+import RecordActionButton from '../components/RecordActionButton';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import { SkeletonList } from '../components/Skeleton';
-import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
-import DownloadButton from '../components/DownloadButton';
-import { usePaginatedList } from '../hooks/usePaginatedList';
-import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import Pagination from '../components/Pagination';
+import { FileText, Printer } from 'lucide-react';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const FIXED_PURPOSES = ['Disposal', 'Repair', 'Returned To Stock'];
 
 const emptyItem = () => ({
+    ris: '',
+    risItem: '',
     quantity: '',
     unit: '',
     description: '',
@@ -39,6 +40,13 @@ const initial = {
     returnedTo: emptySignatory()
 };
 
+const newForm = () => ({
+    ...initial,
+    items: [emptyItem()],
+    returnedBy: getStickySignatory('returnedBy', emptySignatory()),
+    returnedTo: getStickySignatory('returnedTo', emptySignatory())
+});
+
 const toDateInputValue = (date) => {
     if (!date) return '';
     const parsed = new Date(date);
@@ -57,6 +65,8 @@ const toForm = (record) => ({
     purposeChoice: FIXED_PURPOSES.includes(record.purpose) ? record.purpose : 'Other',
     purposeOther: FIXED_PURPOSES.includes(record.purpose) ? '' : (record.purpose || ''),
     items: record.items && record.items.length ? record.items.map((item) => ({
+        ris: item.ris || '',
+        risItem: item.risItem || '',
         quantity: item.quantity ?? '',
         unit: item.unit || '',
         description: item.description || '',
@@ -71,19 +81,41 @@ const toForm = (record) => ({
 });
 
 export default function PrsPage() {
-    const { items: reports, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/prs', { limit: 5 });
-    const [form, setForm] = useState(initial);
+    const [reports, setReports] = useState([]);
+    const [processing, setProcessing] = useState('');
+    const [rejectionReasons, setRejectionReasons] = useState({});
+    const [issuedRecords, setIssuedRecords] = useState([]);
+    const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
-    const [saving, setSaving] = useState(false);
-    const formTitleRef = useRef(null);
-    const { getStatus, run } = useDownloadStatus();
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+
+    const load = async () => {
+        const { data } = await axios.get('/prs');
+        setReports(data.data || []);
+    };
+
+    useEffect(() => {
+        load();
+        axios.get('/ris').then(({ data }) => setIssuedRecords((data.data || []).filter(record => ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status)))).catch(() => toast.error('Unable to load issued items for return linking'));
+    }, []);
+    useEffect(() => {
+        const refresh = () => { if (!document.hidden) load().catch(() => {}); };
+        const timer = window.setInterval(refresh, 15000);
+        window.addEventListener('focus', refresh);
+        return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+    }, []);
+    const pageCount = Math.max(1, Math.ceil(reports.length / perPage));
+    const visibleReports = reports.slice((page - 1) * perPage, page * perPage);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-    const updateSignatory = (section, key, value) => setForm((prev) => ({
-        ...prev,
-        [section]: { ...prev[section], [key]: value }
-    }));
+    const updateSignatory = (section, key, value) => setForm((prev) => {
+        const signatory = { ...prev[section], [key]: value };
+        saveStickySignatory(section, signatory, key);
+        return { ...prev, [section]: signatory };
+    });
 
     const updateItem = (index, key, value) => setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? { ...item, [key]: value } : item);
@@ -100,13 +132,21 @@ export default function PrsPage() {
     const startEdit = (record) => {
         setEditingId(record._id);
         setForm(toForm(record));
-        formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const processReturn = async (record, action) => {
+        setProcessing(record._id);
+        try {
+            await axios.post(`/prs/${record._id}/${action}`, action === 'reject' ? { reason: rejectionReasons[record._id] } : {});
+            toast.success(action === 'confirm' ? 'Return confirmed and automatically recorded' : 'Return rejected');
+            await load();
+        } catch (error) { toast.error(error.response?.data?.message || 'Unable to process return'); }
+        finally { setProcessing(''); }
     };
 
     const cancelEdit = () => {
         setEditingId(null);
-        setForm(initial);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setForm(newForm());
     };
 
     const save = async (event) => {
@@ -124,22 +164,21 @@ export default function PrsPage() {
             returnedBy: form.returnedBy,
             returnedTo: form.returnedTo
         };
-        setSaving(true);
         try {
             if (editingId) {
                 await axios.put(`/prs/${editingId}`, payload);
                 toast.success('PRS updated');
+                markUpdated(editingId);
             } else {
                 await axios.post('/prs', payload);
                 toast.success('PRS created. Each item logged to Returned Supply.');
             }
             setEditingId(null);
-            setForm(initial);
-            await reload();
+            setForm(newForm());
+            load();
+            if (editingId) scrollToRecords();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Unable to save PRS');
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -304,7 +343,7 @@ export default function PrsPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("lguName").setText(String(data.lguName ?? ''));
+        form.getTextField("lguName").setText(String(data.lguName));
         form.getTextField("disposal").setText(String(data.purpose === "Disposal" ? "/":""));
         form.getTextField("repair").setText(String(data.purpose === "Repair" ? "/":""));
         form.getTextField("returnedToStock").setText(String(data.purpose === "Returned To Stock" ? "/":""));
@@ -315,30 +354,30 @@ export default function PrsPage() {
         const startRowNumber = 1; // Starting row for table data
         let totalAmount = 0;
         data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity ?? ''));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
-            form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber ?? ''));
-            form.getTextField(`mrNumber${index + 1}`).setText(String(item.mrNumber ?? ''));
-            form.getTextField(`endUser${index + 1}`).setText(String(data.returnedBy ?? ''));
-            form.getTextField(`unitValue${index + 1}`).setText(String(formatAmount(item.unitValue ?? '')));
-            form.getTextField(`totalValue${index + 1}`).setText(String(formatAmount(item.totalValue ?? '')));
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
+            form.getTextField(`description${index + 1}`).setText(String(item.description));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
+            form.getTextField(`mrNumber${index + 1}`).setText(String(item.mrNumber));
+            form.getTextField(`endUser${index + 1}`).setText(String(data.returnedBy));
+            form.getTextField(`unitValue${index + 1}`).setText(String(formatAmount(item.unitValue)));
+            form.getTextField(`totalValue${index + 1}`).setText(String(formatAmount(item.totalValue)));
             totalAmount += item.totalValue;
         });
         
-        form.getTextField("totalAmount").setText(String(formatAmount(totalAmount ?? '')));
-        form.getTextField("note").setText(String(data.note ?? ''));
+        form.getTextField("totalAmount").setText(String(formatAmount(totalAmount)));
+        form.getTextField("note").setText(String(data.note));
 
         // Returned to
-        form.getTextField("returnedToDate").setText(String(formatLegalDateString(data.returnedTo.date ?? '')));
-        form.getTextField("returnedToName1").setText(String(data.returnedTo.name ?? ''));
-        form.getTextField("returnedToDesignation1").setText(String(data.returnedTo.designation ?? ''));
-        form.getTextField("returnedToName2").setText(String(data.returnedTo.name ?? ''));
-        form.getTextField("returnedToDesignation2").setText(String(data.returnedTo.designation ?? ''));
+        form.getTextField("returnedToDate").setText(String(formatLegalDateString(data.returnedTo.date)));
+        form.getTextField("returnedToName1").setText(String(data.returnedTo.name));
+        form.getTextField("returnedToDesignation1").setText(String(data.returnedTo.designation));
+        form.getTextField("returnedToName2").setText(String(data.returnedTo.name));
+        form.getTextField("returnedToDesignation2").setText(String(data.returnedTo.designation));
         
         // Returned by
-        form.getTextField("returnedByDate").setText(String(formatLegalDateString(data.returnedBy.date ?? '')));
-        form.getTextField("returnedByName").setText(String(data.returnedBy.name ?? ''));
+        form.getTextField("returnedByDate").setText(String(formatLegalDateString(data.returnedBy.date)));
+        form.getTextField("returnedByName").setText(String(data.returnedBy.name));
 
         // Optional: prevent further editing
         form.flatten();
@@ -360,52 +399,40 @@ export default function PrsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold">Saved Reports</h2>
-                    <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
-                        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search LGU, purpose, note…" />
-                        <PageSizeSelect limit={limit} onChange={setLimit} />
-                    </div>
-                </div>
-                {loading ? (
-                    <SkeletonList count={3} actions={4} />
-                ) : (
-                    <>
-                        {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
-                        {reports.map((item) => (
-                            <div key={item._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
-                                <div>
-                                    <b>{item.lguName || 'No LGU'}</b>
-                                    <div className="text-sm text-slate-500">
-                                        {item.purpose || 'N/A'} · {item.items?.length || 0} item(s)
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <DownloadButton type="update" onClick={() => startEdit(item)} />
-                                    <DownloadButton type="excel" status={getStatus(`${item._id}-excel`)} onClick={() => run(`${item._id}-excel`, () => generateExcel(item))} />
-                                    {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                                    <DownloadButton type="pdf" status={getStatus(`${item._id}-pdf`)} onClick={() => run(`${item._id}-pdf`, () => generatePdf(item))} />
-                                    <DownloadButton type="print" status={getStatus(`${item._id}-print`)} onClick={() => run(`${item._id}-print`, () => generatePdf(item, true))} />
-                                </div>
+            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Return Slips &amp; User Returns</h2>
+                {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
+                {visibleReports.map((item) => (
+                    <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                        <div>
+                            <b>{item.lguName || 'No LGU'}</b>
+                            <div className="text-sm text-slate-500">
+                                {item.purpose || 'N/A'} · {item.items?.length || 0} item(s)
                             </div>
-                        ))}
-                    </>
-                )}
-                {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
+                            <div className="mt-1 text-sm font-semibold">{item.returnedBy?.name || 'Unnamed return'} · {item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</div>
+                            {item.submittedBy && <div className="mt-2 text-sm text-slate-600">{item.items.map((entry, index) => <div key={index}>{entry.description} · Qty {entry.quantity} · {entry.mrNumber}</div>)}</div>}
+                            {item.rejectionReason && <div className="text-sm text-rose-700">{item.rejectionReason}</div>}
+                        </div>
+                        <div className="flex gap-2">
+                            {!item.submittedBy && <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(item)} />}
+                            {item.status === 'PENDING' && <div className="flex flex-wrap items-center gap-2"><button type="button" disabled={!!processing} onClick={() => processReturn(item, 'confirm')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50">Confirm receipt</button><input aria-label="Return rejection reason" placeholder="Reason if rejected" value={rejectionReasons[item._id] || ''} onChange={event => setRejectionReasons(prev => ({ ...prev, [item._id]: event.target.value }))} className="rounded-lg border p-2 text-sm" /><button type="button" disabled={!!processing || !rejectionReasons[item._id]?.trim()} onClick={() => processReturn(item, 'reject')} className="rounded-lg bg-rose-100 px-3 py-2 text-sm text-rose-700 disabled:opacity-50">Reject</button></div>}
+                            {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                            <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
+                            <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(item, true)} />
+                        </div>
+                    </div>
+                ))}
+                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            <hr className="border-slate-300 border-2" />
-
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 ref={formTitleRef} className="text-3xl font-semibold">{editingId ? 'Update Property Return Slip' : 'Property Return Slip'}</h1>
-                    <p className="text-sm text-slate-500">Saving a PRS automatically logs each item individually to Returned Supply.</p>
+            <motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                <div className="form-title-row mb-5">
+                    <div>
+                        <h1 className="form-page-title">{editingId ? 'Update Property Return Slip' : 'Property Return Slip'}</h1>
+                        <p className="mt-2 text-sm text-slate-500">Saving a PRS automatically logs each item individually to Returned Supply.</p>
+                    </div>
+                    {editingId && <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>}
                 </div>
-                {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}
-            </div>
-
-            <motion.form initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-2">
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
@@ -443,6 +470,7 @@ export default function PrsPage() {
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-left">
+                                <th className="p-2">Issued item / User</th>
                                 <th className="p-2">Quantity</th>
                                 <th className="p-2">Unit</th>
                                 <th className="p-2">Description</th>
@@ -455,6 +483,17 @@ export default function PrsPage() {
                         <tbody>
                             {form.items.map((item, index) => (
                                 <tr key={index}>
+                                    <td className="p-2">
+                                        <select aria-label="Issued item to return" value={item.ris && item.risItem ? `${item.ris}:${item.risItem}` : ''} onChange={(e) => {
+                                            const [risId, itemId] = e.target.value.split(':');
+                                            const record = issuedRecords.find(row => row._id === risId);
+                                            const issued = record?.items.find(row => row._id === itemId);
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, name: record.receivedBy?.name || record.requestedBy?.name || '' } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '' } : {}) } : row) }));
+                                        }} className="w-64 rounded-xl border border-slate-200 px-2 py-2">
+                                            <option value="">Unlinked return (not shown to users)</option>
+                                            {issuedRecords.flatMap(record => record.items.filter(row => row.quantityIssued > 0).map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.receivedBy?.name || record.requestedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (issued {row.quantityIssued})</option>))}
+                                        </select>
+                                    </td>
                                     <td className="p-2">
                                         <input aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
@@ -501,9 +540,9 @@ export default function PrsPage() {
                     {signatoryFields('Returned To', 'returnedTo')}
                 </div>
 
-                <button type="submit" disabled={saving} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                    {saving ? <Spinner size={16} /> : <RotateCcw size={16} />}
-                    {saving ? 'Saving…' : (editingId ? 'Update PRS' : 'Create PRS')}
+                <button type="submit" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
+                    <RotateCcw size={16} />
+                    {editingId ? 'Update PRS' : 'Create PRS'}
                 </button>
             </motion.form>
         </div>

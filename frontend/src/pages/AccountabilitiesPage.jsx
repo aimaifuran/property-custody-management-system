@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import Pagination from '../components/Pagination';
 
 export default function AccountabilitiesPage({ title, description, formType }) {
   const [records, setRecords] = useState([]);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(5);
 
   const load = async () => {
     const { data } = await axios.get(`/accountabilities?formType=${formType}`);
@@ -13,6 +16,8 @@ export default function AccountabilitiesPage({ title, description, formType }) {
   useEffect(() => {
     load();
   }, [formType]);
+  const pageCount = Math.max(1, Math.ceil(records.length / perPage));
+  const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
 
   return (
     <div className="space-y-6">
@@ -27,7 +32,7 @@ export default function AccountabilitiesPage({ title, description, formType }) {
         className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
       >
         <div className="space-y-3">
-          {records.map((record) => (
+          {visibleRecords.map((record) => (
             <div key={record._id} className="rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -47,6 +52,7 @@ export default function AccountabilitiesPage({ title, description, formType }) {
               </div>
             </div>
           ))}
+          <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
         </div>
       </motion.div>
     </div>

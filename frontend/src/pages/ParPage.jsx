@@ -1,17 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import RecordActionButton from '../components/RecordActionButton';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import { SkeletonList } from '../components/Skeleton';
-import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
-import DownloadButton from '../components/DownloadButton';
-import { usePaginatedList } from '../hooks/usePaginatedList';
-import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import FundClusterField from '../components/FundClusterField';
+import Pagination from '../components/Pagination';
+import { FileText, Printer, RotateCcw } from 'lucide-react';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const emptyItem = () => ({
     quantity: '',
@@ -55,34 +55,48 @@ const toForm = (record) => ({
 });
 
 export default function ParPage() {
-    const { items: records, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/par', { limit: 5 });
+    const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
-    const [saving, setSaving] = useState(false);
-    const formTitleRef = useRef(null);
-    const { getStatus, run } = useDownloadStatus();
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
-    useEffect(() => {
-        if (editingId) formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, [editingId]);
+    const load = async () => {
+        const { data } = await axios.get('/par');
+        setRecords(data.data || []);
+    };
+
+    useEffect(() => { load(); }, []);
+    const pageCount = Math.max(1, Math.ceil(records.length / perPage));
+    const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
 
     const startEdit = (record) => {
         setEditingId(record._id);
-        setForm(toForm(record));
+        const nextForm = toForm(record);
+        nextForm.receivedBy = getStickySignatory('receivedBy', nextForm.receivedBy);
+        nextForm.issuedBy = getStickySignatory('issuedBy', nextForm.issuedBy);
+        if (nextForm.parNumber) {
+            setForm(nextForm);
+        } else {
+            axios.get('/document-numbers/PAR')
+                .then(({ data }) => setForm({ ...nextForm, parNumber: data.data.nextNumber }))
+                .catch(() => setForm(nextForm));
+        }
     };
 
     const cancelEdit = () => {
         setEditingId(null);
         setForm(null);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-    const updateSignatory = (section, key, value) => setForm((prev) => ({
-        ...prev,
-        [section]: { ...prev[section], [key]: value }
-    }));
+    const updateSignatory = (section, key, value) => setForm((prev) => {
+        const signatory = { ...prev[section], [key]: value };
+        saveStickySignatory(section, signatory, key);
+        return { ...prev, [section]: signatory };
+    });
 
     const updateItem = (index, key, value) => setForm((prev) => ({
         ...prev,
@@ -95,7 +109,6 @@ export default function ParPage() {
 
     const save = async (event) => {
         event.preventDefault();
-        setSaving(true);
         try {
             await axios.put(`/par/${editingId}`, {
                 ...form,
@@ -106,19 +119,19 @@ export default function ParPage() {
                 }))
             });
             toast.success('Property Acknowledgement Receipt updated');
+            markUpdated(editingId);
             cancelEdit();
-            await reload();
+            load();
+            scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save PAR');
-        } finally {
-            setSaving(false);
         }
     };
 
     const field = (label, key, type = 'text') => (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input type={type} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'parNumber' ? 'e.g., PAR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -252,34 +265,34 @@ export default function ParPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(String(data.entityName ?? ''));
-        form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
-        form.getTextField("parNumber").setText(String(data.parNumber ?? ''));
+        form.getTextField("entityName").setText(String(data.entityName));
+        form.getTextField("fundCluster").setText(String(data.fundCluster));
+        form.getTextField("parNumber").setText(String(data.parNumber));
 
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity ?? ''));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
-            form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber ?? ''));
-            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired ?? '')));
-            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount ?? '')));
+            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
+            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
+            form.getTextField(`description${index + 1}`).setText(String(item.description));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
+            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired)));
+            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
         });
 
         
-        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount ?? '')));
-        form.getTextField("remarks").setText(String(data.remarks ?? ''));
+        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
+        form.getTextField("remarks").setText(String(data.remarks));
 
         // Received by
         form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
         form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
-        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date ?? '')));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
         
         // Issued by
         form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
         form.getTextField("issuedByPosition").setText(String(data.issuedBy?.position || ''));
-        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date ?? '')));
+        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
 
         // Optional: prevent further editing
         form.flatten();
@@ -301,55 +314,40 @@ export default function ParPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-semibold">Property Acknowledgement Receipts</h1>
-                <p className="text-sm text-slate-500">Records here are created automatically from IAR items whose combined total cost is ₱50,000 or more.</p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold">Saved Records</h2>
-                    <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
-                        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, PAR no., remarks…" />
-                        <PageSizeSelect limit={limit} onChange={setLimit} />
-                    </div>
-                </div>
-                {loading ? (
-                    <SkeletonList count={3} actions={4} />
-                ) : (
-                    <>
-                        {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
-                        {records.map((record) => (
-                            <div key={record._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
-                                <div>
-                                    <b>{record.parNumber || 'Unassigned PAR No.'}</b>
-                                    <div className="text-sm text-slate-500">
-                                        {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <DownloadButton type="update" onClick={() => startEdit(record)} />
-                                    <DownloadButton type="excel" status={getStatus(`${record._id}-excel`)} onClick={() => run(`${record._id}-excel`, () => generateExcel(record))} />
-                                    {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                                    <DownloadButton type="pdf" status={getStatus(`${record._id}-pdf`)} onClick={() => run(`${record._id}-pdf`, () => generatePdf(record))} />
-                                    <DownloadButton type="print" status={getStatus(`${record._id}-print`)} onClick={() => run(`${record._id}-print`, () => generatePdf(record, true))} />
-                                </div>
+            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Saved Records</h2>
+                {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
+                {visibleRecords.map((record) => (
+                    <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                        <div>
+                            <b>{record.parNumber || 'Unassigned PAR No.'}</b>
+                            <div className="text-sm text-slate-500">
+                                {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </div>
-                        ))}
-                    </>
-                )}
-                {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
+                        </div>
+                        <div className="flex gap-2">
+                            <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(record)} />
+                            {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                            <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(record)} />
+                            <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(record, true)} />
+                        </div>
+                    </div>
+                ))}
+                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
             {form && (
-                <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <div className="mb-4 flex items-center justify-between">
-                        <h2 ref={formTitleRef} className="text-xl font-semibold">Edit Property Acknowledgement Receipt</h2>
-                        <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>
+                <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                    <div className="form-title-row mb-5">
+                        <div>
+                            <h1 className="form-page-title">Property Acknowledgement Receipt</h1>
+                            <p className="mt-2 text-sm text-slate-500">Records here are created automatically from IAR items whose combined total cost is ₱50,000 or more.</p>
+                        </div>
+                        <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>
                     </div>
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
-                        {field('Fund Cluster', 'fundCluster')}
+                        <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                         {field('PAR No.', 'parNumber')}
                     </div>
                     <div className="mt-6 overflow-x-auto">
@@ -410,10 +408,7 @@ export default function ParPage() {
                         {signatoryFields('Issued By', 'issuedBy')}
                     </div>
 
-                    <button type="submit" disabled={saving} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                        {saving && <Spinner size={16} />}
-                        {saving ? 'Saving…' : 'Save Changes'}
-                    </button>
+                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
                 </form>
             )}
         </div>

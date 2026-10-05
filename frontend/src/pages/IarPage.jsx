@@ -1,20 +1,20 @@
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import RecordActionButton from '../components/RecordActionButton';
 import {
-    useRef,
+    useEffect,
+    useMemo,
     useState
 } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import { SkeletonList } from '../components/Skeleton';
-import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
-import DownloadButton from '../components/DownloadButton';
-import { usePaginatedList } from '../hooks/usePaginatedList';
-import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import { ChevronLeft, ChevronRight, FileText, Printer, RotateCcw, Search } from 'lucide-react';
+import FundClusterField from '../components/FundClusterField';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const emptyItem = () => ({
     stockPropertyNumber: '',
@@ -43,6 +43,8 @@ const initial = {
     custodian: '',
     items: [emptyItem()]
 };
+
+const newForm = () => ({ ...initial, inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [emptyItem()] });
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -79,16 +81,17 @@ const toForm = (record) => ({
 });
 
 export default function IarPage() {
-    const { items: iar, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/iar', { limit: 5 });
-    const [form, setForm] = useState(initial);
+    const [iar, setIar] = useState([]);
+    const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
-    const [saving, setSaving] = useState(false);
-    const formTitleRef = useRef(null);
-    const { getStatus, run } = useDownloadStatus();
-    const update = (key, value) => setForm((prev) => ({
-        ...prev,
-        [key]: value
-    }));
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+    const update = (key, value) => {
+        if (['inspectedBy', 'custodian'].includes(key)) saveStickySignatory(key, { name: value }, 'name');
+        setForm(prev => ({ ...prev, [key]: value }));
+    };
     const updateItem = (index, key, value) => setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? {
             ...item,
@@ -100,16 +103,37 @@ export default function IarPage() {
             items
         };
     });
+    const load = async () => {
+        const {
+            data
+        } = await axios.get('/iar');
+        setIar(data.data || []);
+    };
+    // useEffect(() => {
+    //     load();
+    //     axios.get('/document-numbers/IAR')
+    //       .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
+    //       .catch(() => {});
+    // }, []);
+    const filteredReports = useMemo(() => {
+      const keyword = search.trim().toLowerCase();
+      return keyword ? iar.filter((report) => [report.iarNumber, report.entityName, report.supplierName, report.poNumber, report.invoiceNumber].some((value) => String(value || '').toLowerCase().includes(keyword))) : iar;
+    }, [iar, search]);
+    const totalPages = Math.max(1, Math.ceil(filteredReports.length / perPage));
+    const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
+    const updateSearch = (value) => { setSearch(value); setPage(1); };
+    const updatePerPage = (value) => { setPerPage(Number(value)); setPage(1); };
     const startEdit = (item) => {
         setEditingId(item._id);
         setForm(toForm(item));
-        formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const cancelEdit = () => {
         setEditingId(null);
-        setForm(initial);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setForm(newForm());
+        axios.get('/document-numbers/IAR')
+          .then(({ data }) => setForm((previous) => ({ ...previous, iarNumber: data.data.nextNumber })))
+          .catch(() => {});
     };
 
     const save = async (event) => {
@@ -122,25 +146,27 @@ export default function IarPage() {
                 unitCost: Number(item.unitCost || 0)
             }))
         };
-        setSaving(true);
         try {
             if (editingId) {
                 await axios.put(`/iar/${editingId}`, payload);
                 toast.success('IAR updated');
+              markUpdated(editingId);
             } else {
                 await axios.post('/iar', payload);
                 toast.success('IAR saved. Property Card, RIS draft, and ICS/PAR record created.');
             }
             setEditingId(null);
-            setForm(initial);
-            await reload();
+            setForm(newForm());
+            axios.get('/document-numbers/IAR')
+              .then(({ data }) => setForm((previous) => ({ ...previous, iarNumber: data.data.nextNumber })))
+              .catch(() => {});
+            load();
+            if (editingId) scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save IAR');
-        } finally {
-            setSaving(false);
         }
     };
-    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'iarNumber' ? 'e.g., IAR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
 
     const formatDate = (date) => {
       if (!date) return '';
@@ -249,33 +275,33 @@ export default function IarPage() {
 
       const form = pdfDoc.getForm();
 
-      form.getTextField("entityName").setText(String(data.entityName ?? ''));
-      form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
-      form.getTextField("supplierName").setText(String(data.supplierName ?? ''));
-      form.getTextField("poNumber").setText(String(data.poNumber ?? ''));
-      form.getTextField("reqOffice").setText(String(data.requisitioningOffice ?? ''));
-      form.getTextField("rcc").setText(String(data.responsibilityCenterCode ?? ''));
-      form.getTextField("iarNumber").setText(String(data.iarNumber ?? ''));
-      form.getTextField("iarDate").setText(String(formatDate(data.iarDate ?? '')));
-      form.getTextField("invoiceNumber").setText(String(data.invoiceNumber ?? ''));
-      form.getTextField("invoiceDate").setText(String(formatDate(data.invoiceDate ?? '')));
+      form.getTextField("entityName").setText(data.entityName);
+      form.getTextField("fundCluster").setText(data.fundCluster);
+      form.getTextField("supplierName").setText(data.supplierName);
+      form.getTextField("poNumber").setText(data.poNumber);
+      form.getTextField("reqOffice").setText(data.requisitioningOffice);
+      form.getTextField("rcc").setText(data.responsibilityCenterCode);
+      form.getTextField("iarNumber").setText(data.iarNumber);
+      form.getTextField("iarDate").setText(formatDate(data.iarDate));
+      form.getTextField("invoiceNumber").setText(data.invoiceNumber);
+      form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
 
       // Table data insertion
       const startRowNumber = 1; // Starting row for table data
       data.items.forEach((item, index) => {
-        form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber ?? ''));
-        form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
-        form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
-        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity ?? ''));
+        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
+        form.getTextField(`description${index + 1}`).setText(item.description);
+        form.getTextField(`unit${index + 1}`).setText(item.unit);
+        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
       });
 
       
-      form.getTextField("inspectionDate").setText(String(formatDate(data.inspectionDate ?? '')));
-      form.getTextField("inspectedBy").setText(String(data.inspectedBy ?? ''));
-      form.getTextField("acceptanceDate").setText(String(formatDate(data.acceptanceDate ?? '')));
-      form.getTextField("complete").setText(String(data.acceptanceStatus === "Complete" ? "/" : ""));
-      form.getTextField("partial").setText(String(data.acceptanceStatus === "Partial" ? "/" : ""));
-      form.getTextField("acceptedBy").setText(String(data.acceptedBy ?? ''));
+      form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
+      form.getTextField("inspectedBy").setText(data.inspectedBy);
+      form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
+      form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
+      form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
+      form.getTextField("acceptedBy").setText(data.acceptedBy);
 
       // Optional: prevent further editing
       form.flatten();
@@ -297,53 +323,44 @@ export default function IarPage() {
 
     return (
       <>
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold">Saved Reports</h2>
-            <div className="flex flex items-center justify-end gap-5 w-[500px]">
-              <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, supplier, IAR/PO/invoice no.…" />
-              <PageSizeSelect limit={limit} onChange={setLimit} />
+        <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h2 className="text-lg font-bold tracking-tight text-[#285943]">Saved Reports</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="relative min-w-[240px]"><Search size={16} className="absolute left-3 top-3 text-slate-400" /><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search reports" className="w-full rounded-lg border border-white bg-[#eef7f1] py-2 pl-9 pr-3 text-xs text-slate-700 shadow-inner" /></label>
+              <label className="flex items-center gap-2 whitespace-nowrap text-xs text-[#285943]">Per page <select value={perPage} onChange={(event) => updatePerPage(event.target.value)} className="rounded-lg border border-white bg-[#eef7f1] px-2 py-2 text-xs shadow-inner"><option value="5">5</option><option value="10">10</option><option value="20">20</option></select></label>
             </div>
           </div>
-          {loading ? (
-            <SkeletonList count={3} actions={4} />
-          ) : (
-            <>
-              {iar.length === 0 && <p className="mt-3 text-sm text-slate-500">No IAR records yet.</p>}
-              {iar.map((item) =>
-                <div key={item._id} className="mt-3 rounded-xl border p-3 flex justify-between items-center">
-                  <div>
-                    <b>{item.iarNumber}</b>
-                    <div className="text-sm text-slate-500">
-                      {item.entityName || 'No entity'} · linked records created
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <DownloadButton type="update" onClick={() => startEdit(item)} />
-                    <DownloadButton type="excel" status={getStatus(`${item._id}-excel`)} onClick={() => run(`${item._id}-excel`, () => generateExcel(item))} />
-                    {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                    <DownloadButton type="pdf" status={getStatus(`${item._id}-pdf`)} onClick={() => run(`${item._id}-pdf`, () => generatePdf(item))} />
-                    <DownloadButton type="print" status={getStatus(`${item._id}-print`)} onClick={() => run(`${item._id}-print`, () => generatePdf(item, true))} />
-                  </div>
+          {visibleReports.map((item) => 
+            <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}>
+              <div>
+                <b className="text-sm tracking-tight text-[#285943]">{item.iarNumber}</b>
+                <div className="mt-1 text-xs text-slate-500">
+                  {item.entityName || 'No entity'} · linked records created
                 </div>
-              )}
-              <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />
-            </>
+              </div>
+              <div className="flex items-center gap-3">
+                <RecordActionButton action="edit" title="Update report" onClick={() => startEdit(item)} />
+                {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
+                <RecordActionButton action="print" title="Print report" onClick={() => generatePdf(item, true)} />
+              </div>
+            </div>
           )}
         </div>
         <hr className="border-slate-300 border-2 my-8" />
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 ref={formTitleRef} className="text-3xl font-semibold">{editingId ? 'Update Inspection & Acceptance Report' : 'Inspection & Acceptance Report'}</h1>
-              <p className="text-sm text-slate-500">{editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR automatically creates its linked Property Card, RIS draft, and an Inventory Custodian (below ₱50,000) or Property Acknowledgement Receipt (₱50,000 and up) record.'}</p>
+          <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+            <div className="form-title-row mb-5">
+              <div>
+                <h1 className="form-page-title">{editingId ? 'Update Inspection & Acceptance Report' : 'Inspection & Acceptance Report'}</h1>
+                <p className="mt-2 text-sm text-slate-500">{editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR automatically creates its linked Property Card, RIS draft, and an Inventory Custodian (below ₱50,000) or Property Acknowledgement Receipt (₱50,000 and up) record.'}</p>
+              </div>
+              {editingId && <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>}
             </div>
-            {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}
-          </div>
-          <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
-              {field('Fund Cluster', 'fundCluster')}
+              <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
               {field('Supplier', 'supplierName')}
               {field('PO/JO No.', 'poNumber')}
               {field('PO/JO Date', 'poDate', 'date')}
@@ -405,10 +422,7 @@ export default function IarPage() {
               {field('Partial Quantity (if applicable)', 'acceptanceQuantity', 'number')}
               {field('Supply/Property Custodian', 'custodian')}
             </div>
-            <button type="submit" disabled={saving} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-              {saving && <Spinner size={16} />}
-              {saving ? 'Saving…' : (editingId ? 'Update IAR' : 'Save IAR')}
-            </button>
+            <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end">{editingId ? 'Update IAR' : 'Save IAR'}</button>
           </form>
         </div>
       </>

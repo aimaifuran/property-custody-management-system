@@ -1,19 +1,18 @@
+import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
+import { FileText, Printer, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import { SkeletonList } from '../components/Skeleton';
-import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
-import DownloadButton from '../components/DownloadButton';
-import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 import { useAuth } from '../contexts/AuthContext';
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import Pagination from '../components/Pagination';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const createRow = () => ({
   stockNumber: '',
@@ -45,6 +44,16 @@ const initialForm = {
   status: 'PENDING_APPROVAL',
   items: [createRow(), createRow(), createRow(), createRow(), createRow()],
 };
+
+const newForm = () => ({
+  ...initialForm,
+  date: new Date().toISOString().slice(0, 10),
+  items: [createRow(), createRow(), createRow(), createRow(), createRow()],
+  requestedBy: getStickySignatory('requestedBy', emptySignatory()),
+  approvedBy: getStickySignatory('approvedBy', emptySignatory()),
+  issuedBy: getStickySignatory('issuedBy', emptySignatory()),
+  receivedBy: getStickySignatory('receivedBy', emptySignatory()),
+});
 
 const toDateInputValue = (date) => {
   if (!date) return '';
@@ -386,91 +395,66 @@ const toFormSignatory = (signatory) => {
 //   return workbook;
 // };
 
-const DEFAULT_RIS_LIMIT = 5;
-const DEFAULT_RIS_PAGINATION = { page: 1, limit: DEFAULT_RIS_LIMIT, total: 0, totalPages: 1 };
-
 export default function RisPage() {
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(newForm);
   const [editingRis, setEditingRis] = useState(null);
+  const [creatingRis, setCreatingRis] = useState(false);
   const [issueErrors, setIssueErrors] = useState({});
-  const [issuingIds, setIssuingIds] = useState({});
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewDraft, setReviewDraft] = useState(null);
   const [stockLoadError, setStockLoadError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [reviewSaving, setReviewSaving] = useState(false);
   const [page, setPage] = useState(1);
-  const [limit, setLimitState] = useState(DEFAULT_RIS_LIMIT);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState(DEFAULT_RIS_PAGINATION);
-
-  const setLimit = (nextLimit) => {
-    setLimitState(nextLimit);
-    setPage(1);
-  };
+  const [perPage, setPerPage] = useState(5);
+  const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingRis?._id);
   const supplyReviewRef = useRef(null);
-  const editFormTitleRef = useRef(null);
-  const { getStatus, run } = useDownloadStatus();
   const { user } = useAuth();
   const isSupplyOfficeUser = (user?.office || '').toLowerCase().includes('supply');
   const canReviewRis = user?.role === 'admin' || isSupplyOfficeUser || user?.permissions?.includes('canReviewRIS');
   const canManage = canReviewRis;
   const canEditReview = canReviewRis;
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchInput.trim());
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
   const load = async () => {
     setStockLoadError('');
-    setLoading(true);
 
+    const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get('/items')]);
+
+    if (risResult.status === 'fulfilled') {
+      setRis(risResult.value.data.data || []);
+    } else {
+      setRis([]);
+    }
+
+    if (itemsResult.status === 'fulfilled') {
+      setItems(itemsResult.value.data.data || []);
+    } else {
+      setItems([]);
+      setStockLoadError('Unable to load stock list. Please refresh the page or check your account permissions.');
+    }
+  };
+
+  const assignNextNumber = async () => {
     try {
-      const [risResult, itemsResult] = await Promise.allSettled([
-        axios.get('/ris', { params: { page, limit, search: search || undefined } }),
-        axios.get('/items'),
-      ]);
-
-      if (risResult.status === 'fulfilled') {
-        setRis(risResult.value.data.data?.items || []);
-        setPagination(risResult.value.data.data?.pagination || { ...DEFAULT_RIS_PAGINATION, limit });
-      } else {
-        setRis([]);
-        setPagination({ ...DEFAULT_RIS_PAGINATION, limit });
-      }
-
-      if (itemsResult.status === 'fulfilled') {
-        setItems(itemsResult.value.data.data || []);
-      } else {
-        setItems([]);
-        setStockLoadError('Unable to load stock list. Please refresh the page or check your account permissions.');
-      }
-    } finally {
-      setLoading(false);
+      const { data } = await axios.get('/document-numbers/RIS');
+      setForm((previous) => previous.risNumber ? previous : { ...previous, risNumber: data.data.nextNumber });
+    } catch {
+      // A number can still be entered manually if the server is unavailable.
     }
   };
 
   useEffect(() => {
     load();
-  }, [page, limit, search]);
+    assignNextNumber();
+  }, []);
+  const pageCount = Math.max(1, Math.ceil(ris.length / perPage));
+  const visibleRis = ris.slice((page - 1) * perPage, page * perPage);
 
   useEffect(() => {
     if (!reviewTarget || !reviewDraft || !supplyReviewRef.current) return;
     supplyReviewRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     supplyReviewRef.current.focus({ preventScroll: true });
   }, [reviewTarget, reviewDraft]);
-
-  useEffect(() => {
-    if (editingRis) editFormTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [editingRis]);
 
   const completedRows = useMemo(
     () => form.items.filter((item) => item.stockNumber || item.unit || item.description),
@@ -484,10 +468,11 @@ export default function RisPage() {
 
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
-  const updateSignatory = (section, key, value) => setForm((prev) => ({
-    ...prev,
-    [section]: { ...prev[section], [key]: value },
-  }));
+  const updateSignatory = (section, key, value) => setForm((prev) => {
+    const signatory = { ...prev[section], [key]: value };
+    saveStickySignatory(section, signatory, key);
+    return { ...prev, [section]: signatory };
+  });
 
   const updateItem = (index, key, value) => {
     setForm((prev) => {
@@ -520,9 +505,10 @@ export default function RisPage() {
   };
 
   const resetForm = () => {
-    setForm(initialForm);
+    setForm(newForm());
     setEditingRis(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setCreatingRis(false);
+    assignNextNumber();
   };
 
   const save = async (e) => {
@@ -542,18 +528,21 @@ export default function RisPage() {
         })),
     };
 
-    if (!editingRis) return;
-    setSaving(true);
     try {
-      await axios.put(`/ris/${editingRis._id}`, payload);
-      toast.success('RIS updated');
+      if (editingRis) {
+        await axios.put(`/ris/${editingRis._id}`, payload);
+        toast.success('RIS updated');
+        markUpdated(editingRis._id);
+      } else if (creatingRis) {
+        await axios.post('/ris', payload);
+        toast.success('Request form added');
+      } else return;
       await load();
       resetForm();
+      scrollToRecords();
     } catch (error) {
       const message = error?.response?.data?.message || 'Unable to save RIS';
       toast.error(message);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -610,7 +599,6 @@ export default function RisPage() {
 
   const saveReview = async () => {
     if (!canEditReview || !reviewTarget || !reviewDraft) return;
-    setReviewSaving(true);
     try {
       await axios.post(`/ris/${reviewTarget._id}/review`, { items: reviewDraft.items });
       toast.success('RIS reviewed');
@@ -619,8 +607,6 @@ export default function RisPage() {
       await load();
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Unable to save review');
-    } finally {
-      setReviewSaving(false);
     }
   };
 
@@ -648,17 +634,14 @@ export default function RisPage() {
   };
 
   const issueRis = async (id) => {
-    setIssuingIds((prev) => ({ ...prev, [id]: true }));
     try {
       setIssueErrors((prev) => ({ ...prev, [id]: '' }));
       await axios.post(`/ris/${id}/issue`);
       toast.success('RIS issued and accountability locked');
-      await load();
+      load();
     } catch (error) {
       const message = error?.response?.data?.message || 'Unable to issue RIS';
       setIssueErrors((prev) => ({ ...prev, [id]: message }));
-    } finally {
-      setIssuingIds((prev) => ({ ...prev, [id]: false }));
     }
   };
 
@@ -762,10 +745,10 @@ export default function RisPage() {
     // Table data insertion
     const startRowNumber = 1; // Starting row for table data
     data.items.forEach((item, index) => {
-      form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber ?? ''));
-      form.getTextField(`unit${index + 1}`).setText(String(item.unit ?? ''));
-      form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
-      form.getTextField(`quantityRequested${index + 1}`).setText(String(item.quantityRequested ?? ''));
+      form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber));
+      form.getTextField(`unit${index + 1}`).setText(String(item.unit));
+      form.getTextField(`description${index + 1}`).setText(String(item.description));
+      form.getTextField(`quantityRequested${index + 1}`).setText(String(item.quantityRequested));
       form.getTextField(`yes${index + 1}`).setText(String(item.isAvailable ? '/' : ''));
       form.getTextField(`no${index + 1}`).setText(String(!item.isAvailable ? '/' : ''));
       form.getTextField(`quantityIssued${index + 1}`).setText(String(item.quantityIssued <= 0 ? '' : item.quantityIssued));
@@ -773,27 +756,27 @@ export default function RisPage() {
     });
 
     
-    form.getTextField("purpose").setText(String(data.purpose ?? ''));
+    form.getTextField("purpose").setText(String(data.purpose));
 
     // Requested by
     form.getTextField("requestedByName").setText(String(data.requestedBy?.name || ''));
     form.getTextField("requestedByDesignation").setText(String(data.requestedBy?.designation || ''));
-    form.getTextField("requestedByDate").setText(String(formatDate(data.requestedBy?.date ?? '')));
+    form.getTextField("requestedByDate").setText(String(formatDate(data.requestedBy?.date)));
 
     // Approved by
     form.getTextField("approvedByName").setText(String(data.approvedBy?.name || ''));
     form.getTextField("approvedByDesignation").setText(String(data.approvedBy?.designation || ''));
-    form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date ?? '')));
+    form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date)));
 
     // Issued by
     form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
     form.getTextField("issuedByDesignation").setText(String(data.issuedBy?.designation || ''));
-    form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date ?? '')));
+    form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
 
     // Received by
     form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
     form.getTextField("receivedByDesignation").setText(String(data.receivedBy?.designation || ''));
-    form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date ?? '')));
+    form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
 
     // Optional: prevent further editing
     form.flatten();
@@ -814,6 +797,7 @@ export default function RisPage() {
   };
 
   const editDraft = async (record) => {
+    setCreatingRis(false);
     setEditingRis(record);
     setForm({
       ...initialForm,
@@ -831,6 +815,7 @@ export default function RisPage() {
         quantityIssued: item.quantityIssued ?? '',
       })),
     });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
   const statusClasses = {
@@ -846,30 +831,23 @@ export default function RisPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold">Requisition & Issue Slip</h1>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Submitted RIS</h2>
-          <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
-            <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, division, office, purpose, signatories…" />
-            <PageSizeSelect limit={limit} onChange={setLimit} />
-          </div>
+          <button type="button" onClick={() => {
+            resetForm();
+            setCreatingRis(true);
+            requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          }} className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-800">Add +</button>
         </div>
         {stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {stockLoadError}
           </div>
         ) : null}
-        {loading ? <SkeletonList count={3} actions={4} /> : (
         <div className="mt-4 space-y-3">
-          {ris.length === 0 && <p className="text-sm text-slate-500">No RIS records yet.</p>}
-          {ris.map((item) => (
-            <div key={item._id} className="rounded-xl border border-slate-200 p-4">
+          {visibleRis.map((item) => (
+            <div key={item._id} className={`saved-record rounded-xl border p-4 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold">{item.risNumber}</div>
@@ -880,31 +858,29 @@ export default function RisPage() {
                   {item.status}
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-2 text-sm text-slate-600 sm:grid-cols-2">
+                <div className="min-w-0 space-y-2 break-words">
                 <div>Requested by: {item.requestedBy?.name || 'N/A'}</div>
                 <div>Approved by: {item.approvedBy?.name || 'Pending'}</div>
+                </div>
+                <div className="min-w-0 space-y-2 break-words">
                 <div>Issued by: {item.issuedBy?.name || 'Pending'}</div>
                 <div>Received by: {item.receivedBy?.name || 'N/A'}</div>
-                {item.rejectionReason ? <div className="md:col-span-2 text-rose-600">Rejection reason: {item.rejectionReason}</div> : null}
+                </div>
+                {item.rejectionReason ? <div className="break-words text-rose-600 sm:col-span-2">Rejection reason: {item.rejectionReason}</div> : null}
               </div>
               {canManage ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <DownloadButton type="update" onClick={() => editDraft(item)} />
-                <DownloadButton
-                  type="excel"
-                  status={getStatus(`${item._id}-excel`)}
-                  onClick={() => run(`${item._id}-excel`, () => generateExcel(item))}
-                />
-                <DownloadButton
-                  type="pdf"
-                  status={getStatus(`${item._id}-pdf`)}
-                  onClick={() => run(`${item._id}-pdf`, () => generatePdf(item))}
-                />
-                <DownloadButton
-                  type="print"
-                  status={getStatus(`${item._id}-print`)}
-                  onClick={() => run(`${item._id}-print`, () => generatePdf(item, true))}
-                />
+              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+                <RecordActionButton action="edit" title="Update record" onClick={() => editDraft(item)} />
+                <RecordActionButton action="pdf"
+                  onClick={() => generatePdf(item)}
+                  title="Download PDF"
+                 />
+                <RecordActionButton action="print"
+                  onClick={() => generatePdf(item, true)}
+                  title="Print record"
+                 />
                 {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
                   <button
                     type="button"
@@ -919,11 +895,10 @@ export default function RisPage() {
                     <button
                       type="button"
                       onClick={() => issueRis(item._id)}
-                      disabled={!!issuingIds[item._id]}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                     >
-                      {issuingIds[item._id] ? <Spinner size={16} /> : <Send size={16} />}
-                      {issuingIds[item._id] ? 'Issuing…' : 'Issue RIS'}
+                      <Send size={16} />
+                      Issue RIS
                     </button>
                   ) : null}
                   {item.status === 'ACCOUNTABILITY_LOCKED' ? (
@@ -934,6 +909,7 @@ export default function RisPage() {
                   ) : null}
                 </div>
               ) : null}
+              </div>
               {issueErrors[item._id] ? (
                 <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
                   {issueErrors[item._id]}
@@ -941,9 +917,8 @@ export default function RisPage() {
               ) : null}
             </div>
           ))}
+          <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
         </div>
-        )}
-        {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
       </div>
 
       {reviewTarget && reviewDraft ? (
@@ -973,20 +948,16 @@ export default function RisPage() {
                   <button
                     type="button"
                     onClick={saveReview}
-                    disabled={reviewSaving}
-                    className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-60"
+                    className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
                   >
-                    {reviewSaving && <Spinner size={14} />}
-                    {reviewSaving ? 'Saving…' : 'Save Review'}
+                    Save Review
                   </button>
                   <button
                     type="button"
                     onClick={() => issueRis(reviewTarget._id)}
-                    disabled={!!issuingIds[reviewTarget._id]}
-                    className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                   >
-                    {issuingIds[reviewTarget._id] && <Spinner size={14} />}
-                    {issuingIds[reviewTarget._id] ? 'Issuing…' : 'Issue RIS'}
+                    Issue RIS
                   </button>
                 </>
               ) : (
@@ -1065,34 +1036,21 @@ export default function RisPage() {
         </div>
       ) : null}
 
-      {editingRis ? (<>
-      <hr className="border-slate-300 border-2" />
-
-      <div ref={editFormTitleRef} className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold">Update Requisition & Issue Slip</h1>
-          <p className="text-sm text-slate-500">Edit the selected RIS draft and save the updated record.</p>
-          <p className="text-xs text-slate-400">RIS items and total cost remain linked to the originating IAR.</p>
-        </div>
-        <button
-          type="button"
-          onClick={resetForm}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-        >
-          <RotateCcw size={16} />
-                Close Editor
-        </button>
-      </div>
-      
+      {editingRis || creatingRis ? (<>
       <motion.form
+        ref={editorRef}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         onSubmit={save}
-        className="mx-auto max-w-6xl rounded-3xl border border-slate-300 bg-white p-4 shadow-xl"
+        className="form-document scroll-mt-6 mx-auto max-w-6xl p-4"
       >
         <div className="rounded-2xl border-2 border-slate-700 p-4 text-slate-900">
-          <div className="border-b border-slate-300 pb-3 text-center">
-            <h2 className="text-2xl font-black tracking-wide">REQUISITION AND ISSUE SLIP</h2>
+          <div className="form-title-row border-b border-slate-300 pb-3">
+            <h1 className="form-page-title">Requisition &amp; Issue Slip</h1>
+            <button type="button" onClick={resetForm} className="form-title-action inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+              <RotateCcw size={16} />
+              Close Editor
+            </button>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
@@ -1102,6 +1060,7 @@ export default function RisPage() {
                 <input
                   value={form.entityName}
                   onChange={(e) => updateForm({ entityName: e.target.value })}
+                  placeholder="e.g., Municipality of Carigara"
                   className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 font-semibold outline-none focus:border-slate-900"
                 />
               </label>
@@ -1111,6 +1070,7 @@ export default function RisPage() {
               <input
                 value={form.fundCluster}
                 onChange={(e) => updateForm({ fundCluster: e.target.value })}
+                placeholder="e.g., General Fund"
                 className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 text-center font-semibold outline-none focus:border-slate-900"
               />
             </label>
@@ -1349,11 +1309,10 @@ export default function RisPage() {
               </button>
               <button
                 type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                {saving ? <Spinner size={16} /> : <Save size={16} />}
-                {saving ? 'Updating…' : 'Update RIS'}
+                <Save size={16} />
+                {editingRis ? 'Update RIS' : 'Save Request'}
               </button>
             </div>
           </div>

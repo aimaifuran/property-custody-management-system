@@ -2,7 +2,7 @@ const express = require('express');
 const ReturnedSupply = require('../models/ReturnedSupply');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { paginateAndSearch } = require('../utils/paginate');
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
 
 const RETURNED_SUPPLY_SEARCH_FIELDS = [
@@ -11,13 +11,9 @@ const RETURNED_SUPPLY_SEARCH_FIELDS = [
   'returnedTo.name', 'returnedTo.designation',
 ];
 
-router.get('/', authenticate, authorize('canViewDashboard'), async (req, res) => {
-  const { data, pagination } = await paginateAndSearch(ReturnedSupply, req, {
-    baseFilter: { deleted: false },
-    searchFields: RETURNED_SUPPLY_SEARCH_FIELDS,
-    populate: 'prs',
-  });
-  return successResponse(res, 'Returned supply retrieved', { items: data, pagination });
+router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
+  const records = await listRecords(ReturnedSupply, req, { baseFilter: { deleted: false }, searchFields: RETURNED_SUPPLY_SEARCH_FIELDS, populate: 'prs' });
+  return successResponse(res, 'Returned supply retrieved', records);
 });
 
 router.put('/:id', authenticate, authorize('canManageInventory'), async (req, res) => {

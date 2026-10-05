@@ -1,19 +1,19 @@
-import { useRef, useState } from 'react';
+import RecordActionButton from '../components/RecordActionButton';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Send } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import { SkeletonList } from '../components/Skeleton';
-import { SearchInput, Pagination, PageSizeSelect } from '../components/Pagination';
-import DownloadButton from '../components/DownloadButton';
-import { usePaginatedList } from '../hooks/usePaginatedList';
-import { useDownloadStatus } from '../hooks/useDownloadStatus';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import FundClusterField from '../components/FundClusterField';
+import Pagination from '../components/Pagination';
+import { FileText, Printer, RotateCcw } from 'lucide-react';
+import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
 const FIXED_TRANSFER_TYPES = ['Donation', 'Reassignment', 'Relocation'];
 
@@ -43,6 +43,14 @@ const initial = {
     issuedBy: emptySignatory(),
     receivedBy: emptySignatory()
 };
+
+const newForm = () => ({
+    ...initial,
+    items: [emptyItem()],
+    approvedBy: getStickySignatory('approvedBy', emptySignatory()),
+    issuedBy: getStickySignatory('issuedBy', emptySignatory()),
+    receivedBy: getStickySignatory('receivedBy', emptySignatory())
+});
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -81,19 +89,41 @@ const toForm = (record) => ({
 });
 
 export default function PtrPage() {
-    const { items: reports, loading, setPage, limit, setLimit, searchInput, setSearchInput, pagination, reload } = usePaginatedList('/ptr', { limit: 5 });
-    const [form, setForm] = useState(initial);
+    const [reports, setReports] = useState([]);
+    const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
-    const [saving, setSaving] = useState(false);
-    const formTitleRef = useRef(null);
-    const { getStatus, run } = useDownloadStatus();
+    const [page, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+
+    const load = async () => {
+        const { data } = await axios.get('/ptr');
+        setReports(data.data || []);
+    };
+
+    const assignNextNumber = async () => {
+        try {
+            const { data } = await axios.get('/document-numbers/PTR');
+            setForm((previous) => previous.ptrNumber ? previous : { ...previous, ptrNumber: data.data.nextNumber });
+        } catch {
+            // Keep the input editable when a number cannot be retrieved.
+        }
+    };
+
+    useEffect(() => {
+        load();
+        assignNextNumber();
+    }, []);
+    const pageCount = Math.max(1, Math.ceil(reports.length / perPage));
+    const visibleReports = reports.slice((page - 1) * perPage, page * perPage);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-    const updateSignatory = (section, key, value) => setForm((prev) => ({
-        ...prev,
-        [section]: { ...prev[section], [key]: value }
-    }));
+    const updateSignatory = (section, key, value) => setForm((prev) => {
+        const signatory = { ...prev[section], [key]: value };
+        saveStickySignatory(section, signatory, key);
+        return { ...prev, [section]: signatory };
+    });
 
     const updateItem = (index, key, value) => setForm((prev) => ({
         ...prev,
@@ -105,13 +135,12 @@ export default function PtrPage() {
     const startEdit = (record) => {
         setEditingId(record._id);
         setForm(toForm(record));
-        formTitleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const cancelEdit = () => {
         setEditingId(null);
-        setForm(initial);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setForm(newForm());
+        assignNextNumber();
     };
 
     const save = async (event) => {
@@ -135,29 +164,29 @@ export default function PtrPage() {
             issuedBy: form.issuedBy,
             receivedBy: form.receivedBy
         };
-        setSaving(true);
         try {
             if (editingId) {
                 await axios.put(`/ptr/${editingId}`, payload);
                 toast.success('PTR updated');
+                markUpdated(editingId);
             } else {
                 await axios.post('/ptr', payload);
                 toast.success('PTR created');
             }
             setEditingId(null);
-            setForm(initial);
-            await reload();
+            setForm(newForm());
+            assignNextNumber();
+            load();
+            if (editingId) scrollToRecords();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Unable to save PTR');
-        } finally {
-            setSaving(false);
         }
     };
 
     const field = (label, key, type = 'text') => (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input type={type} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'e.g., PTR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -303,12 +332,12 @@ export default function PtrPage() {
 
         const form = pdfDoc.getForm();
 
-        form.getTextField("entityName").setText(String(data.entityName ?? ''));
-        form.getTextField("fundCluster").setText(String(data.fundCluster ?? ''));
-        form.getTextField("fromAccountableOfficer").setText(String(data.fromAccountableOfficer ?? ''));
-        form.getTextField("toAccountableOfficer").setText(String(data.toAccountableOfficer ?? ''));
-        form.getTextField("ptrNumber").setText(String(data.ptrNumber ?? ''));
-        form.getTextField("date").setText(String(formatDate(data.date ?? '')));
+        form.getTextField("entityName").setText(String(data.entityName));
+        form.getTextField("fundCluster").setText(String(data.fundCluster));
+        form.getTextField("fromAccountableOfficer").setText(String(data.fromAccountableOfficer));
+        form.getTextField("toAccountableOfficer").setText(String(data.toAccountableOfficer));
+        form.getTextField("ptrNumber").setText(String(data.ptrNumber));
+        form.getTextField("date").setText(String(formatDate(data.date)));
         form.getTextField("donation").setText(String(data.transferType === "Donation" ? "/" : ""));
         form.getTextField("reassignment").setText(String(data.transferType === "Reassignment" ? "/" : ""));
         form.getTextField("relocate").setText(String(data.transferType === "Relocate" ? "/" : ""));
@@ -318,30 +347,30 @@ export default function PtrPage() {
         // Table data insertion
         const startRowNumber = 1; // Starting row for table data
         data.items.forEach((item, index) => {
-            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired ?? '')));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber ?? ''));
-            form.getTextField(`description${index + 1}`).setText(String(item.description ?? ''));
-            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount ?? '')));
-            form.getTextField(`condition${index + 1}`).setText(String(item.condition ?? ''));
+            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired)));
+            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
+            form.getTextField(`description${index + 1}`).setText(String(item.description));
+            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
+            form.getTextField(`condition${index + 1}`).setText(String(item.condition));
         });
 
-        form.getTextField("remarks").setText(String(data.remarks ?? ''));
-        form.getTextField("reasonForTransfer").setText(String(data.reasonForTransfer ?? ''));
+        form.getTextField("remarks").setText(String(data.remarks));
+        form.getTextField("reasonForTransfer").setText(String(data.reasonForTransfer));
 
         // Approved by
         form.getTextField("approvedByName").setText(String(data.approvedBy?.name || ''));
         form.getTextField("approvedByDesignation").setText(String(data.approvedBy?.designation || ''));
-        form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date ?? '')));
+        form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date)));
 
         // Issued by
         form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
         form.getTextField("issuedByDesignation").setText(String(data.issuedBy?.designation || ''));
-        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date ?? '')));
+        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
 
         // Received by
         form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
         form.getTextField("receivedByDesignation").setText(String(data.receivedBy?.designation || ''));
-        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date ?? '')));
+        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
 
         // Optional: prevent further editing
         form.flatten();
@@ -363,55 +392,39 @@ export default function PtrPage() {
 
     return (
         <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold">Saved Reports</h2>
-                    <div className="flex flex-wrap items-center justify-end gap-5 w-[500px]">
-                        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search entity, officer, PTR no., transfer type…" />
-                        <PageSizeSelect limit={limit} onChange={setLimit} />
-                    </div>
-                </div>
-                {loading ? (
-                    <SkeletonList count={3} actions={4} />
-                ) : (
-                    <>
-                        {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
-                        {reports.map((item) => (
-                            <div key={item._id} className="mt-3 flex items-center justify-between rounded-xl border p-3">
-                                <div>
-                                    <b>{item.ptrNumber}</b>
-                                    <div className="text-sm text-slate-500">
-                                        {item.fromAccountableOfficer || 'N/A'} {'->'} {item.toAccountableOfficer || 'N/A'} · {item.transferType || 'N/A'}
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <DownloadButton type="update" onClick={() => startEdit(item)} />
-                                    <DownloadButton type="excel" status={getStatus(`${item._id}-excel`)} onClick={() => run(`${item._id}-excel`, () => generateExcel(item))} />
-                                    {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                                    <DownloadButton type="pdf" status={getStatus(`${item._id}-pdf`)} onClick={() => run(`${item._id}-pdf`, () => generatePdf(item))} />
-                                    <DownloadButton type="print" status={getStatus(`${item._id}-print`)} onClick={() => run(`${item._id}-print`, () => generatePdf(item, true))} />
-                                </div>
+            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-semibold">Saved Reports</h2>
+                {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
+                {visibleReports.map((item) => (
+                    <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                        <div>
+                            <b>{item.ptrNumber}</b>
+                            <div className="text-sm text-slate-500">
+                                {item.fromAccountableOfficer || 'N/A'} {'->'} {item.toAccountableOfficer || 'N/A'} · {item.transferType || 'N/A'}
                             </div>
-                        ))}
-                    </>
-                )}
-                {!loading && <Pagination page={pagination.page} totalPages={pagination.totalPages} total={pagination.total} onChange={setPage} />}
+                        </div>
+                        <div className="flex gap-2">
+                            <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(item)} />
+                            {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
+                            <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
+                            <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(item, true)} />
+                        </div>
+                    </div>
+                ))}
+                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            <hr className="border-slate-300 border-2" />
-
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 ref={formTitleRef} className="text-3xl font-semibold">{editingId ? 'Update Property Transfer Report' : 'Property Transfer Report'}</h1>
-                    <p className="text-sm text-slate-500">Transfer an accountable asset to another custodian.</p>
+            <motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                <div className="form-title-row mb-5">
+                    <div>
+                        <h1 className="form-page-title">{editingId ? 'Update Property Transfer Report' : 'Property Transfer Report'}</h1>
+                        <p className="mt-2 text-sm text-slate-500">Transfer an accountable asset to another custodian.</p>
+                    </div>
+                    {editingId && <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>}
                 </div>
-                {editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-3 py-2 text-sm">Cancel</button>}
-            </div>
-
-            <motion.form initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-3">
                     {field('Entity Name', 'entityName')}
-                    {field('Fund Cluster', 'fundCluster')}
+                    <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                     {field('PTR No.', 'ptrNumber')}
                     {field('From Accountable Officer', 'fromAccountableOfficer')}
                     {field('To Accountable Officer', 'toAccountableOfficer')}
@@ -497,9 +510,9 @@ export default function PtrPage() {
                     {signatoryFields('Received By', 'receivedBy')}
                 </div>
 
-                <button type="submit" disabled={saving} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                    {saving ? <Spinner size={16} /> : <Send size={16} />}
-                    {saving ? 'Saving…' : (editingId ? 'Update PTR' : 'Create PTR')}
+                <button type="submit" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
+                    <Send size={16} />
+                    {editingId ? 'Update PTR' : 'Create PTR'}
                 </button>
             </motion.form>
         </div>

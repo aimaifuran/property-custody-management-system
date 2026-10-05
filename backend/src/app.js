@@ -24,14 +24,13 @@ const parRoutes = require('./routes/par');
 const returnedSupplyRoutes = require('./routes/returnedSupply');
 const userRoutes = require('./routes/users');
 const reportRoutes = require('./routes/reports');
+const propertyRoutes = require('./routes/properties');
+const documentNumberRoutes = require('./routes/documentNumbers');
+const settingRoutes = require('./routes/settings');
 const mongoose = require('mongoose');
 
 const app = express();
-
-// Vercel puts exactly one reverse proxy hop in front of this app, which sets
-// X-Forwarded-For. Trusting only that one hop lets req.ip (and therefore
-// express-rate-limit's per-IP tracking) resolve the real client IP instead of
-// the proxy's, without blindly trusting an arbitrary number of hops.
+// Vercel forwards requests through one proxy hop.
 app.set('trust proxy', 1);
 
 app.use(helmet());
@@ -50,19 +49,22 @@ app.use((req, res, next) => {
   return next();
 });
 app.use(express.json());
+app.use(require('./utils/syncMonthlyItems').monthlyItemsMiddleware);
 app.use(cookieParser());
 app.use(compression());
 
 const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: '3.0.0',
-    info: { title: 'Property Accountability Information System API', version: '1.0.0' },
+    info: { title: 'Property Accountability Management System API', version: '1.0.0' },
   },
   apis: [path.join(__dirname, 'routes/*.js')],
 });
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+const { authenticate, adminOnly } = require('./middlewares/auth');
+app.use(['/api/suppliers', '/api/inventory', '/api/property-cards', '/api/items', '/api/iar', '/api/ptr', '/api/prs', '/api/accountabilities', '/api/ics', '/api/par', '/api/returned-supply', '/api/users', '/api/properties', '/api/document-numbers', '/api/settings'], authenticate, adminOnly);
 app.use('/api/auth', authRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/inventory', inventoryRoutes);
@@ -77,15 +79,19 @@ app.use('/api/ics', icsRoutes);
 app.use('/api/par', parRoutes);
 app.use('/api/returned-supply', returnedSupplyRoutes);
 app.use('/api/users', userRoutes);
-// Renamed from '/api/reports' — that exact path prefix was mysteriously
-// intercepted by Vercel's edge routing before reaching this app (returned a
-// platform-level 404 with no X-Vercel-Cache header, meaning the function was
-// never invoked), even though the code and deployment were verified correct.
+app.use('/api/reports', reportRoutes);
+// Keep both the current report URL and the URL used by the live deployment.
 app.use('/api/dashboard', reportRoutes);
+app.use('/api/ppe-lists', require('./routes/monthlyItemReports'));
+app.use('/api/monthly-item-reports', require('./routes/monthlyItemReports'));
+app.use('/api/ppe-station-reports', require('./routes/ppeStationReports'));
+app.use('/api/properties', propertyRoutes);
+app.use('/api/document-numbers', documentNumberRoutes);
+app.use('/api/settings', settingRoutes);
 
 const getHealthPayload = () => ({
   ok: true,
-  service: 'pais-backend',
+  service: 'pcms-backend',
   uptime: Math.round(process.uptime()),
   database: {
     connected: mongoose.connection.readyState === 1,

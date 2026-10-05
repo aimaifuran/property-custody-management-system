@@ -14,10 +14,10 @@ const paginateAndSearch = async (Model, req, { searchFields = [], baseFilter = {
   const filter = { ...baseFilter };
   if (search && searchFields.length) {
     const regex = new RegExp(escapeRegex(search), 'i');
-    filter.$or = searchFields.map((field) => ({ [field]: regex }));
+    filter.$and = [...(filter.$and || []), { $or: searchFields.map((field) => ({ [field]: regex })) }];
   }
 
-  let query = Model.find(filter).sort({ createdAt: -1 });
+  let query = Model.find(filter).sort({ updatedAt: -1, createdAt: -1 });
   if (populate) query = query.populate(populate);
 
   const [data, total] = await Promise.all([
@@ -31,4 +31,16 @@ const paginateAndSearch = async (Model, req, { searchFields = [], baseFilter = {
   };
 };
 
-module.exports = { paginateAndSearch };
+// Existing pages expect an array. Clients opt into the newer response by
+// sending pagination or search parameters.
+const listRecords = async (Model, req, options = {}) => {
+  if (['page', 'limit', 'search'].some(key => Object.hasOwn(req.query, key))) {
+    const { data, pagination } = await paginateAndSearch(Model, req, options);
+    return { items: data, pagination };
+  }
+  let query = Model.find(options.baseFilter || {}).sort({ updatedAt: -1, createdAt: -1 });
+  if (options.populate) query = query.populate(options.populate);
+  return query;
+};
+
+module.exports = { paginateAndSearch, listRecords };

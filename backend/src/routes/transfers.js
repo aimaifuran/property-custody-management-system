@@ -4,8 +4,8 @@ const PropertyTransferReport = require('../models/PropertyTransferReport');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { paginateAndSearch } = require('../utils/paginate');
 
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
 
 const PTR_SEARCH_FIELDS = [
@@ -16,12 +16,9 @@ const PTR_SEARCH_FIELDS = [
   'receivedBy.name', 'receivedBy.designation',
 ];
 
-router.get('/', authenticate, authorize('canViewDashboard'), async (req, res) => {
-  const { data, pagination } = await paginateAndSearch(PropertyTransferReport, req, {
-    baseFilter: { deleted: false },
-    searchFields: PTR_SEARCH_FIELDS,
-  });
-  return successResponse(res, 'PTR retrieved', { items: data, pagination });
+router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
+  const reports = await listRecords(PropertyTransferReport, req, { baseFilter: { deleted: false }, searchFields: PTR_SEARCH_FIELDS });
+  return successResponse(res, 'PTR retrieved', reports);
 });
 
 router.post('/', authenticate, authorize('canManageInventory'), [

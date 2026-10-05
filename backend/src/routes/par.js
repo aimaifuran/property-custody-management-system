@@ -2,7 +2,7 @@ const express = require('express');
 const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgementReceipt');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
-const { paginateAndSearch } = require('../utils/paginate');
+const { listRecords } = require('../utils/paginate');
 const router = express.Router();
 
 const PAR_SEARCH_FIELDS = [
@@ -11,13 +11,9 @@ const PAR_SEARCH_FIELDS = [
   'issuedBy.name', 'issuedBy.position',
 ];
 
-router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const { data, pagination } = await paginateAndSearch(PropertyAcknowledgementReceipt, req, {
-    baseFilter: { deleted: false },
-    searchFields: PAR_SEARCH_FIELDS,
-    populate: 'iar',
-  });
-  return successResponse(res, 'Property Acknowledgement Receipts retrieved', { items: data, pagination });
+router.get('/', authenticate, authorize(['canViewRIS', 'canManageRIS', 'canManageInventory']), async (req, res) => {
+  const records = await listRecords(PropertyAcknowledgementReceipt, req, { baseFilter: { deleted: false }, searchFields: PAR_SEARCH_FIELDS, populate: 'iar' });
+  return successResponse(res, 'Property Acknowledgement Receipts retrieved', records);
 });
 
 router.put('/:id', authenticate, authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
