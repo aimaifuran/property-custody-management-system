@@ -1,0 +1,51 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const User = require('../src/models/User');
+const router = require('../src/routes/ppeStationReports');
+
+test('PPE signatories persist independently of older saved report names', { timeout: 60000 }, async t => {
+  const database = await MongoMemoryServer.create({ binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
+  await mongoose.connect(database.getUri());
+  const app = express(); app.use(express.json()); app.use('/reports', router); app.use('/settings', require('../src/routes/settings')); app.use('/reports/monthly', require('../src/routes/monthlyItemReports')); app.use('/reports/annual', require('../src/routes/reports'));
+  const server = app.listen(0);
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); await mongoose.disconnect(); await database.stop(); });
+  const user = await User.create({ firstName: 'Test', lastName: 'Admin', username: 'admin', email: 'admin@example.test', password: 'test', office: 'Supply', division: 'Supply', role: 'admin' });
+  let token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'dev-secret');
+  const request = async (route = '', method = 'GET', body) => {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/reports${route}`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: response.status, data: await response.json() };
+  };
+  const signatoryRequest = async (method, body) => {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/settings/remembered-signatories`, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: response.status, data: await response.json() };
+  };
+  assert.equal((await signatoryRequest('PATCH', { role: 'issuedBy', field: 'name', value: 'Remembered Issuer' })).status, 200);
+  await signatoryRequest('PATCH', { role: 'issuedBy', field: 'position', value: 'Supply Officer' });
+  assert.equal((await signatoryRequest('PATCH', { role: 'issuedBy', field: 'date', value: '2026-01-01' })).status, 400);
+  const defaults = (await signatoryRequest('GET')).data.data;
+  assert.equal(defaults.issuedBy.name, 'Remembered Issuer');
+  assert.equal(defaults.issuedBy.designation, 'Supply Officer');
+  await signatoryRequest('PATCH', { role: 'issuedBy', field: 'name', value: '' });
+  assert.equal((await signatoryRequest('GET')).data.data.issuedBy.name, '');
+  assert.equal((await request('/signatories', 'PATCH', { preparedBy: 'Remembered Name', reviewedBy: '' })).status, 200);
+  const payload = { accountGroup: 'ACU', governmentUnit: 'LOCAL GOVERNMENT UNIT OF CARIGARA', date: '2026-10-05', preparedBy: 'Older Snapshot', rows: [{ article: 'ACU', description: 'Air conditioner' }] };
+  const saved = await request('', 'POST', payload);
+  assert.equal(saved.status, 201);
+  assert.equal((await request(`/${saved.data.data._id}`, 'PUT', payload)).status, 200);
+  const loaded = (await request()).data.data;
+  assert.equal(loaded.defaults.preparedBy, 'Remembered Name');
+  assert.equal(loaded.defaults.reviewedBy, '');
+  assert.equal(loaded.records[0].preparedBy, 'Older Snapshot');
+  assert.equal((await request('', 'POST', { ...payload, rows: [] })).status, 400);
+  const regularUser = await User.create({ firstName: 'Regular', lastName: 'User', username: 'user', email: 'user@example.test', password: 'test', office: 'Supply', division: 'Supply', role: 'user', permissions: ['canViewDashboard', 'canViewRIS'] });
+  token = jwt.sign({ id: regularUser._id }, process.env.JWT_SECRET || 'dev-secret');
+  assert.equal((await request()).status, 403);
+  assert.equal((await request('/monthly')).status, 403);
+  assert.equal((await request('/annual/inventory')).status, 403);
+  assert.equal((await request('/signatories', 'PATCH', { preparedBy: 'Unauthorized' })).status, 403);
+});

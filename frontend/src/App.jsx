@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
@@ -14,14 +14,19 @@ import UsersPage from './pages/UsersPage';
 import IcsPage from './pages/IcsPage';
 import ParPage from './pages/ParPage';
 import ReturnedSupplyPage from './pages/ReturnedSupplyPage';
-import SettingsPage from './pages/SettingsPage';
+import MyReturnsPage from './pages/MyReturnsPage';
 import MyIssuedItemsPage from './pages/MyIssuedItemsPage';
 import ReportsPage from './pages/ReportsPage';
+import MonthlyItemsReportPage from './pages/MonthlyItemsReportPage';
+import PpeStationReportPage from './pages/PpeStationReportPage';
+import HistoricalRecordsPage from './pages/HistoricalRecordsPage';
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
+  const { pathname } = useLocation();
   if (!authReady || loading) return <div className="flex min-h-screen items-center justify-center">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'admin' && !['/my-issued-items', '/my-returns'].includes(pathname)) return <Navigate to="/my-issued-items" replace />;
   if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
   const requiredPermissions = Array.isArray(permission) ? permission : [permission];
   if (permission && user.role !== 'admin' && !requiredPermissions.some((value) => user.permissions?.includes(value))) {
@@ -39,6 +44,8 @@ const permissionRoutes = {
   '/dashboard': 'canViewDashboard',
   '/reports/monthly': 'canViewDashboard',
   '/reports/annual': 'canViewDashboard',
+  '/reports/ppe-list': 'canViewDashboard',
+  '/historical-records': 'adminOnly',
   '/suppliers': ['canViewSuppliers', 'canManageSuppliers'],
   '/ris': 'adminOnly',
   '/iar': ['canViewIAR', 'canManageIAR'],
@@ -49,8 +56,7 @@ const permissionRoutes = {
   '/returns': ['canViewDashboard', 'canManageInventory'],
   '/returned-supply': ['canViewDashboard', 'canManageInventory'],
   '/users': 'canManageUsers',
-  '/settings': 'canManageSettings',
-  '/my-ris': 'canViewRIS',
+  '/my-returns': 'canViewRIS',
   '/my-issued-items': 'canViewRIS',
 };
 
@@ -60,12 +66,16 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/settings" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/my-ris" element={<Navigate to="/my-issued-items" replace />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           {Object.entries(permissionRoutes).map(([path, permission]) => {
             const pages = {
               '/dashboard': RoleDashboard,
-              '/reports/monthly': () => <ReportsPage mode="monthly" />,
+              '/reports/monthly': MonthlyItemsReportPage,
               '/reports/annual': () => <ReportsPage mode="annual" />,
+              '/reports/ppe-list': PpeStationReportPage,
+              '/historical-records': HistoricalRecordsPage,
               '/suppliers': SuppliersPage,
               '/ris': RisPage,
               '/iar': IarPage,
@@ -76,8 +86,7 @@ function AppRoutes() {
               '/returns': PrsPage,
               '/returned-supply': ReturnedSupplyPage,
               '/users': UsersPage,
-              '/settings': SettingsPage,
-              '/my-ris': MyIssuedItemsPage,
+              '/my-returns': MyReturnsPage,
               '/my-issued-items': MyIssuedItemsPage,
             };
             const Page = pages[path];

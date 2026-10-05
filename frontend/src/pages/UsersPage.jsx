@@ -1,3 +1,4 @@
+import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -5,7 +6,7 @@ import toast from 'react-hot-toast';
 
 const permissionOptions = [
   { key: 'canViewDashboard', label: 'View Dashboard' },
-  { key: 'canViewRIS', label: 'View My RIS' },
+  { key: 'canViewRIS', label: 'View own requests, issued items and returns' },
 ];
 
 export default function UsersPage() {
@@ -157,7 +158,7 @@ export default function UsersPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><div className="font-semibold">{user.firstName} {user.lastName}</div><div className="text-sm text-slate-500">{user.email} · {user.role}</div></div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => editUser(user)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">Edit Access</button>
+                  <RecordActionButton action="edit" onClick={() => editUser(user)} />
                   <button type="button" onClick={() => toggleLock(user)} className={`rounded-lg px-3 py-2 text-sm font-semibold text-white ${user.locked ? 'bg-emerald-600' : 'bg-rose-600'}`}>{user.locked ? 'Unlock' : 'Lock'}</button>
                 </div>
               </div>

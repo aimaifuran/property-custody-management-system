@@ -9,6 +9,7 @@ const LedgerTransaction = require('../models/LedgerTransaction');
 const PropertyAccountability = require('../models/PropertyAccountability');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
+const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
@@ -42,8 +43,8 @@ const ownRisFilter = (user) => ({
   $or: [
     { 'requestedBy.user': user._id },
     { 'receivedBy.user': user._id },
-    { 'requestedBy.name': { $in: [userLabel(user), user.username, user.email] } },
-    { 'receivedBy.name': { $in: [userLabel(user), user.username, user.email] } },
+    { 'requestedBy.user': null, 'requestedBy.name': { $in: [userLabel(user), user.username, user.email].filter(Boolean) } },
+    { 'receivedBy.user': null, 'receivedBy.name': { $in: [userLabel(user), user.username, user.email].filter(Boolean) } },
   ],
 });
 
@@ -73,6 +74,66 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canRevie
   if (req.user.role !== 'admin') Object.assign(query, ownRisFilter(req.user));
   const ris = await RequisitionIssueSlip.find(query).sort({ updatedAt: -1, createdAt: -1 });
   return successResponse(res, 'RIS retrieved', ris);
+});
+
+router.post('/my-requests', authenticate, async (req, res) => {
+  if (req.user.role !== 'user' || !req.user.permissions?.includes('canViewRIS')) return errorResponse(res, 'Forbidden', [], 403);
+  const { purpose, items } = req.body;
+  if (!String(purpose || '').trim() || !Array.isArray(items) || !items.length) return errorResponse(res, 'Purpose and requested items are required', [], 400);
+  const requestedItems = [];
+  for (const entry of items) {
+    if (requestedItems.some(item => item.stockNumber === entry.stockNumber)) return errorResponse(res, 'Select each stock item only once', [], 400);
+    const quantity = Number(entry.quantityRequested);
+    if (!Number.isInteger(quantity) || quantity <= 0) return errorResponse(res, 'Requested quantities must be positive whole numbers', [], 400);
+    const item = await Item.findOne({ stockNumber: entry.stockNumber, deleted: false });
+    if (!item) return errorResponse(res, 'Select a valid stock number', [], 400);
+    requestedItems.push({ stockNumber: item.stockNumber, description: item.description || item.name, unit: item.unit, quantityRequested: quantity, quantityIssued: 0 });
+  }
+  const person = { user: req.user._id, name: getUserLabel(req.user), designation: req.user.office, date: new Date() };
+  const ris = await RequisitionIssueSlip.create({ risNumber: `RIS-${new Date().getFullYear()}-${crypto.randomUUID()}`, entityName: 'LGU Carigara', division: req.user.division, office: req.user.office, purpose: String(purpose).trim(), requestedBy: person, receivedBy: person, items: requestedItems, status: 'PENDING_REVIEW' });
+  await ActivityLog.create({ user: req.user._id, action: 'RIS created', details: `RIS ${ris.risNumber} submitted by user for admin review`, ipAddress: req.ip, browser: req.get('user-agent') });
+  return successResponse(res, 'Request submitted for admin review', ris, 201);
+});
+
+router.get('/request-items', authenticate, authorize('canViewRIS'), async (req, res) => {
+  const items = await Item.find({ deleted: false }).select('stockNumber description name unit').sort({ stockNumber: 1 });
+  return successResponse(res, 'Requestable items retrieved', items);
+});
+
+router.get('/my-returns', authenticate, authorize('canViewRIS'), async (req, res) => {
+  const records = await RequisitionIssueSlip.find({ deleted: false, ...ownRisFilter(req.user), status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } });
+  const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': { $in: records.map(record => record._id) } }).sort({ createdAt: -1 });
+  const items = records.flatMap(ris => ris.items.filter(item => item.quantityIssued > 0).map(item => {
+    const returns = slips.flatMap(slip => slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: slip.prsNumber, status: slip.status || 'RETURNED', rejectionReason: slip.rejectionReason, date: slip.returnedTo?.date || slip.createdAt, receivedBy: slip.returnedTo?.name, note: slip.note })));
+    const quantityReturned = returns.filter(entry => entry.status === 'RETURNED').reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+    const pendingReturn = returns.some(entry => entry.status === 'PENDING');
+    return { risId: ris._id, itemId: item._id, risNumber: ris.risNumber, description: item.description, stockNumber: item.stockNumber, quantityIssued: item.quantityIssued, issuedAt: ris.issuedAt, quantityReturned, pendingReturn, quantityRemaining: Math.max(0, item.quantityIssued - quantityReturned), status: pendingReturn ? 'Awaiting admin confirmation' : quantityReturned >= item.quantityIssued ? 'Successfully returned' : quantityReturned > 0 ? 'Partially returned' : 'Not returned', returns };
+  }));
+  return successResponse(res, 'Your item return status retrieved', items);
+});
+
+router.post('/my-returns', authenticate, async (req, res) => {
+  if (req.user.role !== 'user' || !req.user.permissions?.includes('canViewRIS')) return errorResponse(res, 'Forbidden', [], 403);
+  if (!mongoose.isValidObjectId(req.body.risId) || !mongoose.isValidObjectId(req.body.itemId)) return errorResponse(res, 'Select an issued item', [], 400);
+  const ris = await RequisitionIssueSlip.findOne({ _id: req.body.risId, deleted: false, ...ownRisFilter(req.user), status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } });
+  const item = ris?.items.id(req.body.itemId);
+  if (!item || !(item.quantityIssued > 0)) return errorResponse(res, 'Issued item not found under your account', [], 404);
+  const quantity = Number(req.body.quantity);
+  if (!Number.isInteger(quantity) || quantity <= 0) return errorResponse(res, 'Return quantity must be a positive whole number', [], 400);
+  const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': ris._id });
+  const returned = slips.filter(slip => !slip.status || slip.status === 'RETURNED').reduce((sum, slip) => sum + slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).reduce((count, entry) => count + Number(entry.quantity || 0), 0), 0);
+  if (quantity > item.quantityIssued - returned) return errorResponse(res, 'Return quantity exceeds the remaining issued quantity', [], 400);
+  const stock = await Item.findOne({ stockNumber: item.stockNumber, deleted: false });
+  const inventory = stock ? await Inventory.findOne({ item: stock._id, deleted: false }).sort({ createdAt: -1 }) : null;
+  const unitValue = Number(inventory?.unitCost ?? stock?.cost ?? 0);
+  try {
+    const report = await PropertyReturnSlip.create({ prsNumber: `PRS-${new Date().getFullYear()}-${crypto.randomUUID()}`, lguName: ris.entityName || 'LGU Carigara', purpose: 'Returned To Stock', submittedBy: req.user._id, status: 'PENDING', pendingKey: `${ris._id}:${item._id}`, items: [{ ris: ris._id, risItem: item._id, quantity, unit: item.unit, description: item.description, propertyNumber: inventory?.propertyNumber || '', mrNumber: ris.risNumber, unitValue, totalValue: quantity * unitValue }], returnedBy: { name: getUserLabel(req.user), designation: req.user.office, date: new Date() } });
+    await ActivityLog.create({ user: req.user._id, action: 'Return submitted', details: `Return ${report.prsNumber} submitted for admin confirmation`, ipAddress: req.ip, browser: req.get('user-agent') });
+    return successResponse(res, 'Return slip sent to admin', report, 201);
+  } catch (error) {
+    if (error.code === 11000) return errorResponse(res, 'This item already has a return awaiting admin confirmation', [], 409);
+    throw error;
+  }
 });
 
 router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
@@ -239,13 +300,14 @@ router.post('/:id/issue', authenticate, async (req, res) => {
 
     for (const entry of ris.items) {
       const quantityRequested = Number(entry.quantityRequested || 0);
-      const quantityIssued = Number(entry.quantityIssued || quantityRequested);
+      const quantityIssued = Number(entry.quantityIssued ?? quantityRequested);
       if (quantityIssued < 0) {
         return errorResponse(res, `Invalid quantity for ${entry.stockNumber || entry.description || 'item'}`, [], 400);
       }
       if (quantityIssued === 0) {
         continue;
       }
+      entry.quantityIssued = quantityIssued;
 
       const item = await Item.findOne({ stockNumber: entry.stockNumber, deleted: false });
       if (!item) {

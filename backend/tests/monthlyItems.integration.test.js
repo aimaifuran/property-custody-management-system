@@ -1,0 +1,47 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const IAR = require('../src/models/InspectionAcceptanceReport');
+const RIS = require('../src/models/RequisitionIssueSlip');
+const ICS = require('../src/models/InventoryCustodianSlip');
+const PpeList = require('../src/models/PpeList');
+const Item = require('../src/models/Item');
+const { syncMonthlyItems, monthlyItemsMiddleware } = require('../src/utils/syncMonthlyItems');
+
+test('source saves persist monthly reports, refresh quantities, and retain header details', { timeout: 60000 }, async t => {
+  const server = await MongoMemoryServer.create({ binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
+  t.after(async () => { await mongoose.disconnect(); await server.stop(); });
+  await mongoose.connect(server.getUri());
+  await PpeList.init();
+  const createdAt = new Date('2026-10-05T00:00:00Z');
+  const iar = await IAR.create({ iarNumber: 'IAR-TEST', createdAt, items: [{ description: 'Printer', stockNumber: 'P1', unit: 'UNIT', quantity: 2, unitCost: 100 }] });
+  await RIS.create({ iar: iar._id, risNumber: 'RIS-TEST', createdAt, items: [{ description: 'Printer', stockNumber: 'P1', unit: 'UNIT', quantityRequested: 2 }] });
+  await ICS.create({ iar: iar._id, createdAt, items: [{ description: 'Printer', unit: 'UNIT', quantity: 2 }] });
+  let reports = await syncMonthlyItems('2026-10');
+  let report = reports.find(entry => entry.month === '2026-10');
+  assert.equal(report.rows.length, 1);
+  assert.equal(report.recapitulation[0].totalCost, 200);
+  await PpeList.updateOne({ _id: report._id }, { $set: { custodian: 'Saved Custodian', fund: 'General Fund' } });
+  await IAR.updateOne({ _id: iar._id }, { $set: { 'items.0.quantity': 5 } });
+  reports = await syncMonthlyItems('2026-10');
+  report = reports.find(entry => entry.month === '2026-10');
+  assert.equal(report.rows.length, 1);
+  assert.equal(report.rows[0].quantity, 5);
+  assert.equal(report.custodian, 'Saved Custodian');
+  assert.equal(report.fund, 'General Fund');
+  assert.equal(await PpeList.countDocuments({ automatic: true, month: '2026-10' }), 1);
+
+  await Item.create({ stockNumber: 'P2', description: 'New pen', unit: 'PC', quantityOnHand: 3, cost: 10, createdAt });
+  const response = { statusCode: 201, json: body => body };
+  monthlyItemsMiddleware({ method: 'POST', path: '/api/items' }, response, () => {});
+  await response.json({ success: true });
+  report = await PpeList.findOne({ automatic: true, month: '2026-10' }).lean();
+  assert.equal(report.rows.length, 2);
+  assert.equal(report.rows.find(row => row.item === 'New pen').quantity, 3);
+  await Item.updateOne({ stockNumber: 'P2' }, { $set: { deleted: true } });
+  await syncMonthlyItems('2026-10');
+  report = await PpeList.findOne({ automatic: true, month: '2026-10' }).lean();
+  assert.equal(report.rows.length, 1);
+});

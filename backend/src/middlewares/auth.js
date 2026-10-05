@@ -28,4 +28,6 @@ const authorize = (permission) => (req, res, next) => {
   return errorResponse(res, 'Forbidden', [], 403);
 };
 
-module.exports = { authenticate, authorize };
+const adminOnly = (req, res, next) => req.user?.role === 'admin' ? next() : errorResponse(res, 'Only administrators can access these records', [], 403);
+
+module.exports = { authenticate, authorize, adminOnly };

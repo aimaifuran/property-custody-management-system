@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
+import { loadStickySignatories } from '../utils/stickySignatories';
+
 const AuthContext = createContext(null);
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 axios.defaults.withCredentials = true;
@@ -31,6 +33,7 @@ export const AuthProvider = ({ children }) => {
     const fetchUser = async () => {
       try {
         const { data } = await axios.get('/auth/me');
+        if (data.data?.user?.role === 'admin') await loadStickySignatories().catch(() => {});
         setUser(data.data?.user || null);
       } catch {
         setUser(null);
@@ -51,6 +54,7 @@ export const AuthProvider = ({ children }) => {
       setAuthToken(accessToken);
     }
 
+    if (data.data?.user?.role === 'admin') await loadStickySignatories().catch(() => {});
     setUser(data.data?.user || null);
     toast.success(data.message || 'Welcome back');
     return data;

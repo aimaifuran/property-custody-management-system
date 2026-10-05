@@ -1,3 +1,4 @@
+import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -93,7 +94,7 @@ export default function ParPage() {
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
         const signatory = { ...prev[section], [key]: value };
-        saveStickySignatory(section, signatory);
+        saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
 
@@ -325,10 +326,10 @@ export default function ParPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button type="button" title="Update record" onClick={() => startEdit(record)} className="grid h-11 w-16 place-items-center rounded-2xl border border-teal-200 bg-teal-50 hover:bg-teal-100"><img src="/update.png" alt="" className="h-7 w-7 object-contain" /></button>
+                            <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(record)} />
                             {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                            <button type="button" title="Download PDF" onClick={() => generatePdf(record)} className="grid h-11 w-16 place-items-center rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100"><img src="/pdf.png" alt="" className="h-7 w-7 object-contain" /></button>
-                            <button type="button" title="Print record" onClick={() => generatePdf(record, true)} className="grid h-11 w-16 place-items-center rounded-2xl border border-slate-300 bg-slate-100 hover:bg-slate-200"><img src="/print.png" alt="" className="h-7 w-7 object-contain" /></button>
+                            <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(record)} />
+                            <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(record, true)} />
                         </div>
                     </div>
                 ))}

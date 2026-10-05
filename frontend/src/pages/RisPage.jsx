@@ -1,3 +1,4 @@
+import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -399,6 +400,7 @@ export default function RisPage() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(newForm);
   const [editingRis, setEditingRis] = useState(null);
+  const [creatingRis, setCreatingRis] = useState(false);
   const [issueErrors, setIssueErrors] = useState({});
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewDraft, setReviewDraft] = useState(null);
@@ -468,7 +470,7 @@ export default function RisPage() {
 
   const updateSignatory = (section, key, value) => setForm((prev) => {
     const signatory = { ...prev[section], [key]: value };
-    saveStickySignatory(section, signatory);
+    saveStickySignatory(section, signatory, key);
     return { ...prev, [section]: signatory };
   });
 
@@ -505,6 +507,7 @@ export default function RisPage() {
   const resetForm = () => {
     setForm(newForm());
     setEditingRis(null);
+    setCreatingRis(false);
     assignNextNumber();
   };
 
@@ -526,10 +529,14 @@ export default function RisPage() {
     };
 
     try {
-      if (!editingRis) return;
-      await axios.put(`/ris/${editingRis._id}`, payload);
-      toast.success('RIS updated');
-      markUpdated(editingRis._id);
+      if (editingRis) {
+        await axios.put(`/ris/${editingRis._id}`, payload);
+        toast.success('RIS updated');
+        markUpdated(editingRis._id);
+      } else if (creatingRis) {
+        await axios.post('/ris', payload);
+        toast.success('Request form added');
+      } else return;
       await load();
       resetForm();
       scrollToRecords();
@@ -790,6 +797,7 @@ export default function RisPage() {
   };
 
   const editDraft = async (record) => {
+    setCreatingRis(false);
     setEditingRis(record);
     setForm({
       ...initialForm,
@@ -824,7 +832,14 @@ export default function RisPage() {
   return (
     <div className="space-y-6">
       <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold">Submitted RIS</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">Submitted RIS</h2>
+          <button type="button" onClick={() => {
+            resetForm();
+            setCreatingRis(true);
+            requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          }} className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-800">Add +</button>
+        </div>
         {stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {stockLoadError}
@@ -843,32 +858,29 @@ export default function RisPage() {
                   {item.status}
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-2 text-sm text-slate-600 sm:grid-cols-2">
+                <div className="min-w-0 space-y-2 break-words">
                 <div>Requested by: {item.requestedBy?.name || 'N/A'}</div>
                 <div>Approved by: {item.approvedBy?.name || 'Pending'}</div>
+                </div>
+                <div className="min-w-0 space-y-2 break-words">
                 <div>Issued by: {item.issuedBy?.name || 'Pending'}</div>
                 <div>Received by: {item.receivedBy?.name || 'N/A'}</div>
-                {item.rejectionReason ? <div className="md:col-span-2 text-rose-600">Rejection reason: {item.rejectionReason}</div> : null}
+                </div>
+                {item.rejectionReason ? <div className="break-words text-rose-600 sm:col-span-2">Rejection reason: {item.rejectionReason}</div> : null}
               </div>
               {canManage ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" title="Update record" onClick={() => editDraft(item)} className="grid h-11 w-16 place-items-center rounded-2xl border border-teal-200 bg-teal-50 hover:bg-teal-100"><img src="/update.png" alt="" className="h-7 w-7 object-contain" /></button>
-                <button
-                  type="button"
+              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+                <RecordActionButton action="edit" title="Update record" onClick={() => editDraft(item)} />
+                <RecordActionButton action="pdf"
                   onClick={() => generatePdf(item)}
                   title="Download PDF"
-                  className="grid h-11 w-16 place-items-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                >
-                  <img src="/pdf.png" alt="" className="h-7 w-7 object-contain" />
-                </button>
-                <button
-                  type="button"
+                 />
+                <RecordActionButton action="print"
                   onClick={() => generatePdf(item, true)}
                   title="Print record"
-                  className="grid h-11 w-16 place-items-center rounded-2xl border border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-200"
-                >
-                  <img src="/print.png" alt="" className="h-7 w-7 object-contain" />
-                </button>
+                 />
                 {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
                   <button
                     type="button"
@@ -897,6 +909,7 @@ export default function RisPage() {
                   ) : null}
                 </div>
               ) : null}
+              </div>
               {issueErrors[item._id] ? (
                 <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
                   {issueErrors[item._id]}
@@ -1023,7 +1036,7 @@ export default function RisPage() {
         </div>
       ) : null}
 
-      {editingRis ? (<>
+      {editingRis || creatingRis ? (<>
       <motion.form
         ref={editorRef}
         initial={{ opacity: 0, y: 12 }}
@@ -1299,7 +1312,7 @@ export default function RisPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 <Save size={16} />
-                Update RIS
+                {editingRis ? 'Update RIS' : 'Save Request'}
               </button>
             </div>
           </div>

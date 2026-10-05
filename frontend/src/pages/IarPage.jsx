@@ -1,3 +1,5 @@
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import RecordActionButton from '../components/RecordActionButton';
 import {
     useEffect,
     useMemo,
@@ -42,7 +44,7 @@ const initial = {
     items: [emptyItem()]
 };
 
-const newForm = () => ({ ...initial, items: [emptyItem()] });
+const newForm = () => ({ ...initial, inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [emptyItem()] });
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -86,10 +88,10 @@ export default function IarPage() {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
-    const update = (key, value) => setForm((prev) => ({
-        ...prev,
-        [key]: value
-    }));
+    const update = (key, value) => {
+        if (['inspectedBy', 'custodian'].includes(key)) saveStickySignatory(key, { name: value }, 'name');
+        setForm(prev => ({ ...prev, [key]: value }));
+    };
     const updateItem = (index, key, value) => setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? {
             ...item,
@@ -107,12 +109,12 @@ export default function IarPage() {
         } = await axios.get('/iar');
         setIar(data.data || []);
     };
-    useEffect(() => {
-        load();
-        axios.get('/document-numbers/IAR')
-          .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
-          .catch(() => {});
-    }, []);
+    // useEffect(() => {
+    //     load();
+    //     axios.get('/document-numbers/IAR')
+    //       .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
+    //       .catch(() => {});
+    // }, []);
     const filteredReports = useMemo(() => {
       const keyword = search.trim().toLowerCase();
       return keyword ? iar.filter((report) => [report.iarNumber, report.entityName, report.supplierName, report.poNumber, report.invoiceNumber].some((value) => String(value || '').toLowerCase().includes(keyword))) : iar;
@@ -338,10 +340,10 @@ export default function IarPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" title="Update report" onClick={() => startEdit(item)} className="grid h-9 w-12 place-items-center rounded-lg border border-white bg-[#eef7f1] shadow-[3px_3px_7px_rgba(47,90,66,0.12),-3px_-3px_7px_rgba(255,255,255,0.85)]"><img src="/update.png" alt="" className="h-6 w-6 object-contain" /></button>
+                <RecordActionButton action="edit" title="Update report" onClick={() => startEdit(item)} />
                 {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                <button type="button" title="Download PDF" onClick={() => generatePdf(item)} className="grid h-9 w-12 place-items-center rounded-lg border border-white bg-[#eef7f1] shadow-[3px_3px_7px_rgba(47,90,66,0.12),-3px_-3px_7px_rgba(255,255,255,0.85)]"><img src="/pdf.png" alt="" className="h-6 w-6 object-contain" /></button>
-                <button type="button" title="Print report" onClick={() => generatePdf(item, true)} className="grid h-9 w-12 place-items-center rounded-lg border border-white bg-[#eef7f1] shadow-[3px_3px_7px_rgba(47,90,66,0.12),-3px_-3px_7px_rgba(255,255,255,0.85)]"><img src="/print.png" alt="" className="h-6 w-6 object-contain" /></button>
+                <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
+                <RecordActionButton action="print" title="Print report" onClick={() => generatePdf(item, true)} />
               </div>
             </div>
           )}

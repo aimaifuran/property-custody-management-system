@@ -47,6 +47,7 @@ app.use((req, res, next) => {
   return next();
 });
 app.use(express.json());
+app.use(require('./utils/syncMonthlyItems').monthlyItemsMiddleware);
 app.use(cookieParser());
 app.use(compression());
 
@@ -60,6 +61,8 @@ const swaggerSpec = swaggerJsdoc({
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+const { authenticate, adminOnly } = require('./middlewares/auth');
+app.use(['/api/suppliers', '/api/inventory', '/api/property-cards', '/api/items', '/api/iar', '/api/ptr', '/api/prs', '/api/accountabilities', '/api/ics', '/api/par', '/api/returned-supply', '/api/users', '/api/properties', '/api/document-numbers', '/api/settings'], authenticate, adminOnly);
 app.use('/api/auth', authRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/inventory', inventoryRoutes);
@@ -75,6 +78,9 @@ app.use('/api/par', parRoutes);
 app.use('/api/returned-supply', returnedSupplyRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/ppe-lists', require('./routes/monthlyItemReports'));
+app.use('/api/monthly-item-reports', require('./routes/monthlyItemReports'));
+app.use('/api/ppe-station-reports', require('./routes/ppeStationReports'));
 app.use('/api/properties', propertyRoutes);
 app.use('/api/document-numbers', documentNumberRoutes);
 app.use('/api/settings', settingRoutes);

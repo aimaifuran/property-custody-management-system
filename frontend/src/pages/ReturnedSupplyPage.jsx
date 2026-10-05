@@ -1,3 +1,5 @@
+import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -29,8 +31,8 @@ const toForm = (record) => ({
     unitValue: record.unitValue ?? '',
     totalValue: record.totalValue ?? 0,
     note: record.note || '',
-    returnedBy: toFormSignatory(record.returnedBy),
-    returnedTo: toFormSignatory(record.returnedTo)
+    returnedBy: getStickySignatory('returnedBy', toFormSignatory(record.returnedBy)),
+    returnedTo: getStickySignatory('returnedTo', toFormSignatory(record.returnedTo))
 });
 
 export default function ReturnedSupplyPage() {
@@ -46,7 +48,13 @@ export default function ReturnedSupplyPage() {
         setRecords(data.data || []);
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        const controller = new AbortController();
+        axios.get('/returned-supply', { signal: controller.signal })
+            .then(({ data }) => setRecords(data.data || []))
+            .catch(() => { if (!controller.signal.aborted) toast.error('Unable to load returned supply records'); });
+        return () => controller.abort();
+    }, []);
     const pageCount = Math.max(1, Math.ceil(records.length / perPage));
     const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
 
@@ -62,10 +70,11 @@ export default function ReturnedSupplyPage() {
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-    const updateSignatory = (section, key, value) => setForm((prev) => ({
-        ...prev,
-        [section]: { ...prev[section], [key]: value }
-    }));
+    const updateSignatory = (section, key, value) => setForm(prev => {
+        const signatory = { ...prev[section], [key]: value };
+        saveStickySignatory(section, signatory, key);
+        return { ...prev, [section]: signatory };
+    });
 
     const updateValue = (key, value) => setForm((prev) => {
         const next = { ...prev, [key]: value };
@@ -126,7 +135,7 @@ export default function ReturnedSupplyPage() {
                                     <div className="font-semibold">{record.description || 'Untitled item'}</div>
                                     <div className="text-sm text-slate-500">{record.lguName || 'No LGU'} · {record.purpose || 'N/A'}</div>
                                 </div>
-                                <button type="button" onClick={() => startEdit(record)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Update</button>
+                                <RecordActionButton action="edit" onClick={() => startEdit(record)} />
                             </div>
                             <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
                                 <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>

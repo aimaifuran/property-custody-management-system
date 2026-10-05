@@ -1,3 +1,4 @@
+import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -16,6 +17,8 @@ import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 const FIXED_PURPOSES = ['Disposal', 'Repair', 'Returned To Stock'];
 
 const emptyItem = () => ({
+    ris: '',
+    risItem: '',
     quantity: '',
     unit: '',
     description: '',
@@ -62,6 +65,8 @@ const toForm = (record) => ({
     purposeChoice: FIXED_PURPOSES.includes(record.purpose) ? record.purpose : 'Other',
     purposeOther: FIXED_PURPOSES.includes(record.purpose) ? '' : (record.purpose || ''),
     items: record.items && record.items.length ? record.items.map((item) => ({
+        ris: item.ris || '',
+        risItem: item.risItem || '',
         quantity: item.quantity ?? '',
         unit: item.unit || '',
         description: item.description || '',
@@ -77,6 +82,9 @@ const toForm = (record) => ({
 
 export default function PrsPage() {
     const [reports, setReports] = useState([]);
+    const [processing, setProcessing] = useState('');
+    const [rejectionReasons, setRejectionReasons] = useState({});
+    const [issuedRecords, setIssuedRecords] = useState([]);
     const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
     const [page, setPage] = useState(1);
@@ -90,6 +98,13 @@ export default function PrsPage() {
 
     useEffect(() => {
         load();
+        axios.get('/ris').then(({ data }) => setIssuedRecords((data.data || []).filter(record => ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status)))).catch(() => toast.error('Unable to load issued items for return linking'));
+    }, []);
+    useEffect(() => {
+        const refresh = () => { if (!document.hidden) load().catch(() => {}); };
+        const timer = window.setInterval(refresh, 15000);
+        window.addEventListener('focus', refresh);
+        return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
     }, []);
     const pageCount = Math.max(1, Math.ceil(reports.length / perPage));
     const visibleReports = reports.slice((page - 1) * perPage, page * perPage);
@@ -98,7 +113,7 @@ export default function PrsPage() {
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
         const signatory = { ...prev[section], [key]: value };
-        saveStickySignatory(section, signatory);
+        saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
 
@@ -117,6 +132,16 @@ export default function PrsPage() {
     const startEdit = (record) => {
         setEditingId(record._id);
         setForm(toForm(record));
+    };
+
+    const processReturn = async (record, action) => {
+        setProcessing(record._id);
+        try {
+            await axios.post(`/prs/${record._id}/${action}`, action === 'reject' ? { reason: rejectionReasons[record._id] } : {});
+            toast.success(action === 'confirm' ? 'Return confirmed and automatically recorded' : 'Return rejected');
+            await load();
+        } catch (error) { toast.error(error.response?.data?.message || 'Unable to process return'); }
+        finally { setProcessing(''); }
     };
 
     const cancelEdit = () => {
@@ -375,7 +400,7 @@ export default function PrsPage() {
     return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Saved Reports</h2>
+                <h2 className="text-xl font-semibold">Return Slips &amp; User Returns</h2>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -384,12 +409,16 @@ export default function PrsPage() {
                             <div className="text-sm text-slate-500">
                                 {item.purpose || 'N/A'} · {item.items?.length || 0} item(s)
                             </div>
+                            <div className="mt-1 text-sm font-semibold">{item.returnedBy?.name || 'Unnamed return'} · {item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</div>
+                            {item.submittedBy && <div className="mt-2 text-sm text-slate-600">{item.items.map((entry, index) => <div key={index}>{entry.description} · Qty {entry.quantity} · {entry.mrNumber}</div>)}</div>}
+                            {item.rejectionReason && <div className="text-sm text-rose-700">{item.rejectionReason}</div>}
                         </div>
                         <div className="flex gap-2">
-                            <button type="button" title="Update record" onClick={() => startEdit(item)} className="grid h-11 w-16 place-items-center rounded-2xl border border-teal-200 bg-teal-50 hover:bg-teal-100"><img src="/update.png" alt="" className="h-7 w-7 object-contain" /></button>
+                            {!item.submittedBy && <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(item)} />}
+                            {item.status === 'PENDING' && <div className="flex flex-wrap items-center gap-2"><button type="button" disabled={!!processing} onClick={() => processReturn(item, 'confirm')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50">Confirm receipt</button><input aria-label="Return rejection reason" placeholder="Reason if rejected" value={rejectionReasons[item._id] || ''} onChange={event => setRejectionReasons(prev => ({ ...prev, [item._id]: event.target.value }))} className="rounded-lg border p-2 text-sm" /><button type="button" disabled={!!processing || !rejectionReasons[item._id]?.trim()} onClick={() => processReturn(item, 'reject')} className="rounded-lg bg-rose-100 px-3 py-2 text-sm text-rose-700 disabled:opacity-50">Reject</button></div>}
                             {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                            <button type="button" title="Download PDF" onClick={() => generatePdf(item)} className="grid h-11 w-16 place-items-center rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100"><img src="/pdf.png" alt="" className="h-7 w-7 object-contain" /></button>
-                            <button type="button" title="Print record" onClick={() => generatePdf(item, true)} className="grid h-11 w-16 place-items-center rounded-2xl border border-slate-300 bg-slate-100 hover:bg-slate-200"><img src="/print.png" alt="" className="h-7 w-7 object-contain" /></button>
+                            <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
+                            <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(item, true)} />
                         </div>
                     </div>
                 ))}
@@ -441,6 +470,7 @@ export default function PrsPage() {
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-left">
+                                <th className="p-2">Issued item / User</th>
                                 <th className="p-2">Quantity</th>
                                 <th className="p-2">Unit</th>
                                 <th className="p-2">Description</th>
@@ -453,6 +483,17 @@ export default function PrsPage() {
                         <tbody>
                             {form.items.map((item, index) => (
                                 <tr key={index}>
+                                    <td className="p-2">
+                                        <select aria-label="Issued item to return" value={item.ris && item.risItem ? `${item.ris}:${item.risItem}` : ''} onChange={(e) => {
+                                            const [risId, itemId] = e.target.value.split(':');
+                                            const record = issuedRecords.find(row => row._id === risId);
+                                            const issued = record?.items.find(row => row._id === itemId);
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, name: record.receivedBy?.name || record.requestedBy?.name || '' } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '' } : {}) } : row) }));
+                                        }} className="w-64 rounded-xl border border-slate-200 px-2 py-2">
+                                            <option value="">Unlinked return (not shown to users)</option>
+                                            {issuedRecords.flatMap(record => record.items.filter(row => row.quantityIssued > 0).map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.receivedBy?.name || record.requestedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (issued {row.quantityIssued})</option>))}
+                                        </select>
+                                    </td>
                                     <td className="p-2">
                                         <input aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
