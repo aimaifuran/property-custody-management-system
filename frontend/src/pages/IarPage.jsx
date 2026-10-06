@@ -1,3 +1,6 @@
+import FormEditorHeader from '../components/FormEditorHeader';
+import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
+import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
@@ -14,7 +17,6 @@ import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 import { ChevronLeft, ChevronRight, FileText, Printer, RotateCcw } from 'lucide-react';
 import FundClusterField from '../components/FundClusterField';
@@ -91,6 +93,7 @@ export default function IarPage() {
     const [iar, setIar] = useState([]);
     const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
+    const [editorOpen, setEditorOpen] = useState(true);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
@@ -143,6 +146,7 @@ export default function IarPage() {
     const updateSearch = (value) => { setSearch(value); setPage(1); };
     const updatePerPage = (value) => { setPerPage(Number(value)); setPage(1); };
     const startEdit = (item) => {
+        setEditorOpen(true);
         setEditingId(item._id);
         setForm(toForm(item));
     };
@@ -151,7 +155,7 @@ export default function IarPage() {
         setEditingId(null);
         setForm(newForm());
         axios.get('/document-numbers/IAR')
-          .then(({ data }) => setForm((previous) => ({ ...previous, iarNumber: data.data.nextNumber })))
+          .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
           .catch(() => {});
     };
 
@@ -177,7 +181,7 @@ export default function IarPage() {
             setEditingId(null);
             setForm(newForm());
             axios.get('/document-numbers/IAR')
-              .then(({ data }) => setForm((previous) => ({ ...previous, iarNumber: data.data.nextNumber })))
+              .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
               .catch(() => {});
             load();
             if (editingId) scrollToRecords();
@@ -185,7 +189,7 @@ export default function IarPage() {
             toast.error(error.response?.data?.message || 'Unable to save IAR');
         }
     };
-    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'iarNumber' ? 'e.g., IAR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'iarNumber' ? 'e.g., 2026-10-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
 
     const formatDate = (date) => {
       if (!date) return '';
@@ -286,58 +290,7 @@ export default function IarPage() {
     };
 
     async function generatePdf(data, print = false) {
-      const existingPdfBytes = await fetch("/forms/templates/iar-template.pdf").then(res =>
-          res.arrayBuffer()
-      );
-
-      const pdfDoc = await PDFDocument.load(existingPdfBytes);
-
-      const form = pdfDoc.getForm();
-
-      form.getTextField("entityName").setText(data.entityName);
-      form.getTextField("fundCluster").setText(data.fundCluster);
-      form.getTextField("supplierName").setText(data.supplierName);
-      form.getTextField("poNumber").setText(data.poNumber);
-      form.getTextField("reqOffice").setText(data.requisitioningOffice);
-      form.getTextField("rcc").setText(data.responsibilityCenterCode);
-      form.getTextField("iarNumber").setText(data.iarNumber);
-      form.getTextField("iarDate").setText(formatDate(data.iarDate));
-      form.getTextField("invoiceNumber").setText(data.invoiceNumber);
-      form.getTextField("invoiceDate").setText(formatDate(data.invoiceDate));
-
-      // Table data insertion
-      const startRowNumber = 1; // Starting row for table data
-      data.items.forEach((item, index) => {
-        form.getTextField(`stockNumber${index + 1}`).setText(item.stockNumber);
-        form.getTextField(`description${index + 1}`).setText(item.description);
-        form.getTextField(`unit${index + 1}`).setText(item.unit);
-        form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
-      });
-
-
-      form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
-      form.getTextField("inspectedBy").setText(data.inspectedBy);
-      form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
-      form.getTextField("complete").setText(data.acceptanceStatus === "Complete" ? "/" : "");
-      form.getTextField("partial").setText(data.acceptanceStatus === "Partial" ? "/" : "");
-      form.getTextField("acceptedBy").setText(data.acceptedBy);
-
-      // Optional: prevent further editing
-      form.flatten();
-
-      const pdfBytes = await pdfDoc.save();
-
-      if (print) {
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, "_blank");
-        printWindow.print();
-      } else {
-        saveAs(
-          new Blob([pdfBytes], { type: "application/pdf" }),
-          "IAR.pdf"
-        );
-      }
+      await exportOfficialFormPdf('IAR', data, print);
     };
 
     if (pageLoading) return <PageSkeleton />;
@@ -345,7 +298,7 @@ export default function IarPage() {
  return (
       <>
         <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
-          <SavedReportsHeader search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></SavedReportsHeader>
+          <SavedReportsHeader search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
           {visibleReports.map((item) =>
             <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}>
               <div>
@@ -365,14 +318,8 @@ export default function IarPage() {
         </div>
         <hr className="border-slate-300 border-2 my-8" />
         <div className="space-y-6">
-          <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-            <div className="form-title-row mb-5">
-              <div>
-                <h1 className="form-page-title">{editingId ? 'Update Inspection & Acceptance Report' : 'Inspection & Acceptance Report'}</h1>
-                <p className="mt-2 text-sm text-slate-500">{editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR automatically creates its linked Property Card, RIS draft, and an Inventory Custodian (below ₱50,000) or Property Acknowledgement Receipt (₱50,000 and up) record.'}</p>
-              </div>
-              {editingId && <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>}
-            </div>
+          {editorOpen && (<form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+            <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR automatically creates its linked Property Card, RIS draft, and an Inventory Custodian Slip (below ₱50,000) or Property Acknowledgement Receipt (₱50,000 and up) record.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
               <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
@@ -393,8 +340,6 @@ export default function IarPage() {
                     <th className="p-2">Description</th>
                     <th className="p-2">Unit</th>
                     <th className="p-2">Quantity</th>
-                    <th className="p-2">Unit Cost</th>
-                    <th className="p-2">Total Cost</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -408,12 +353,6 @@ export default function IarPage() {
                       )}
                       <td className="p-2">
                         <input aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                      </td>
-                      <td className="p-2">
-                        <input aria-label="Unit Cost" type="number" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                      </td>
-                      <td className="p-2">
-                        <input aria-label="Total Cost" readOnly value={item.totalCost} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                       </td>
                     </tr>
                   )}
@@ -438,7 +377,7 @@ export default function IarPage() {
               {field('Supply/Property Custodian', 'custodian')}
             </div>
             <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end">{editingId ? 'Update IAR' : 'Save IAR'}</button>
-          </form>
+          </form>)}
         </div>
       </>
     )

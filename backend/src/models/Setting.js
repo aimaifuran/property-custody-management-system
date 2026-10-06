@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const settingSchema = new mongoose.Schema({
+  entityName: { type: String, default: '', maxlength: 300 },
   organizationName: { type: String, default: 'Supply Office' },
   officeLogo: { type: String },
   governmentAgency: { type: String, default: 'Government Agency' },

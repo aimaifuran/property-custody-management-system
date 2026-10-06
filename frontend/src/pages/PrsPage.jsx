@@ -1,3 +1,5 @@
+import FormEditorHeader from '../components/FormEditorHeader';
+import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
@@ -13,7 +15,6 @@ import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import Pagination from '../components/Pagination';
@@ -97,6 +98,7 @@ export default function PrsPage() {
     const [issuedRecords, setIssuedRecords] = useState([]);
     const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
+    const [editorOpen, setEditorOpen] = useState(true);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
@@ -152,6 +154,7 @@ export default function PrsPage() {
     const total = form.items.reduce((sum, item) => sum + Number(item.totalValue || 0), 0);
 
     const startEdit = (record) => {
+        setEditorOpen(true);
         setEditingId(record._id);
         setForm(toForm(record));
     };
@@ -357,66 +360,7 @@ export default function PrsPage() {
     };
 
     async function generatePdf(data, print = false) {
-        const existingPdfBytes = await fetch("/forms/templates/prs-template.pdf").then(res =>
-            res.arrayBuffer()
-        );
-
-        const pdfDoc = await PDFDocument.load(existingPdfBytes);
-
-        const form = pdfDoc.getForm();
-
-        form.getTextField("lguName").setText(String(data.lguName));
-        form.getTextField("disposal").setText(String(data.purpose === "Disposal" ? "/":""));
-        form.getTextField("repair").setText(String(data.purpose === "Repair" ? "/":""));
-        form.getTextField("returnedToStock").setText(String(data.purpose === "Returned To Stock" ? "/":""));
-        form.getTextField("other").setText(String(data.purpose && !["Disposal","Repair","Returned To Stock"].includes(data.purpose) ? "/":""));
-        form.getTextField("purpose").setText(String(data.purpose && !["Disposal","Repair","Returned To Stock"].includes(data.purpose) ? data.purpose:""));
-
-        // Table data insertion
-        const startRowNumber = 1; // Starting row for table data
-        let totalAmount = 0;
-        data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-            form.getTextField(`description${index + 1}`).setText(String(item.description));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
-            form.getTextField(`mrNumber${index + 1}`).setText(String(item.mrNumber));
-            form.getTextField(`endUser${index + 1}`).setText(String(data.returnedBy));
-            form.getTextField(`unitValue${index + 1}`).setText(String(formatAmount(item.unitValue)));
-            form.getTextField(`totalValue${index + 1}`).setText(String(formatAmount(item.totalValue)));
-            totalAmount += item.totalValue;
-        });
-
-        form.getTextField("totalAmount").setText(String(formatAmount(totalAmount)));
-        form.getTextField("note").setText(String(data.note));
-
-        // Returned to
-        form.getTextField("returnedToDate").setText(String(formatLegalDateString(data.returnedTo.date)));
-        form.getTextField("returnedToName1").setText(String(data.returnedTo.name));
-        form.getTextField("returnedToDesignation1").setText(String(data.returnedTo.designation));
-        form.getTextField("returnedToName2").setText(String(data.returnedTo.name));
-        form.getTextField("returnedToDesignation2").setText(String(data.returnedTo.designation));
-
-        // Returned by
-        form.getTextField("returnedByDate").setText(String(formatLegalDateString(data.returnedBy.date)));
-        form.getTextField("returnedByName").setText(String(data.returnedBy.name));
-
-        // Optional: prevent further editing
-        form.flatten();
-
-        const pdfBytes = await pdfDoc.save();
-
-        if (print) {
-            const blob = new Blob([pdfBytes], { type: "application/pdf" });
-            const url = URL.createObjectURL(blob);
-            const printWindow = window.open(url, "_blank");
-            printWindow.print();
-        } else {
-        saveAs(
-            new Blob([pdfBytes], { type: "application/pdf" }),
-            "PRS.pdf"
-        );
-        }
+      await exportOfficialFormPdf('PRS', data, print);
     };
 
     if (pageLoading) return <PageSkeleton />;
@@ -424,7 +368,7 @@ export default function PrsPage() {
  return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></SavedReportsHeader>
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -449,14 +393,8 @@ export default function PrsPage() {
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            <motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-                <div className="form-title-row mb-5">
-                    <div>
-                        <h1 className="form-page-title">{editingId ? 'Update Property Return Slip' : 'Property Return Slip'}</h1>
-                        <p className="mt-2 text-sm text-slate-500">Saving a PRS automatically logs each item individually to Returned Supply.</p>
-                    </div>
-                    {editingId && <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>}
-                </div>
+            {editorOpen && (<motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                <FormEditorHeader title="Property Return Slip" description="Saving a PRS automatically logs each item individually to Returned Supply." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
                 <div className="grid gap-3 md:grid-cols-2">
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
@@ -568,7 +506,7 @@ export default function PrsPage() {
                     <RotateCcw size={16} />
                     {editingId ? 'Update PRS' : 'Create PRS'}
                 </button>
-            </motion.form>
+            </motion.form>)}
         </div>
     );
 }

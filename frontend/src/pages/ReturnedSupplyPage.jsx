@@ -1,3 +1,4 @@
+import FormEditorHeader from '../components/FormEditorHeader';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
@@ -176,13 +177,7 @@ export default function ReturnedSupplyPage() {
 
             {form && (
                 <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-                    <div className="form-title-row mb-5">
-                        <div>
-                            <h1 className="form-page-title">Returned Supply</h1>
-                            <p className="mt-2 text-sm text-slate-500">Each item on a saved Property Return Slip is logged here individually.</p>
-                        </div>
-                        <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>
-                    </div>
+                    <FormEditorHeader title="Returned Supply" description="Each item on a saved Property Return Slip is logged here individually." onClose={cancelEdit} />
                     <label className="mb-4 block"><span className="mb-1 block font-semibold">Issued item to return</span><select aria-label="Issued item to return" value={form.ris && form.risItem ? `${form.ris}:${form.risItem}` : ''} onChange={event => {
                         const [risId, itemId] = event.target.value.split(':');
                         const record = issuedRecords.find(entry => entry._id === risId);

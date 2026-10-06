@@ -1,3 +1,6 @@
+import FormEditorHeader from '../components/FormEditorHeader';
+import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
+import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
@@ -9,7 +12,6 @@ import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import FundClusterField from '../components/FundClusterField';
@@ -163,10 +165,10 @@ export default function IcsPage() {
         }
     };
 
-    const field = (label, key, type = 'text') => (
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'e.g., ICS-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'e.g., 2026-10-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -293,59 +295,7 @@ export default function IcsPage() {
     };
 
     async function generatePdf(data, print = false) {
-        const existingPdfBytes = await fetch("/forms/templates/ics-template.pdf").then(res =>
-            res.arrayBuffer()
-        );
-
-        const pdfDoc = await PDFDocument.load(existingPdfBytes);
-
-        const form = pdfDoc.getForm();
-
-        form.getTextField("entityName").setText(String(data.entityName));
-        form.getTextField("fundCluster").setText(String(data.fundCluster));
-        form.getTextField("icsNumber").setText(String(data.icsNumber));
-
-        // Table data insertion
-        const startRowNumber = 1; // Starting row for table data
-        data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-            form.getTextField(`unitCost${index + 1}`).setText(String(formatAmount(item.unitCost)));
-            form.getTextField(`totalCost${index + 1}`).setText(String(formatAmount(item.totalCost)));
-            form.getTextField(`description${index + 1}`).setText(String(item.description));
-            form.getTextField(`inventoryItemNo${index + 1}`).setText(String(item.inventoryItemNo));
-            form.getTextField(`estimatedUsefulLife${index + 1}`).setText(String(item.estimatedUsefulLife));
-        });
-
-        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
-        form.getTextField("remarks").setText(String(data.remarks));
-
-        // Received from
-        form.getTextField("receivedFromName").setText(String(data.receivedFrom?.name || ''));
-        form.getTextField("receivedFromPosition").setText(String(data.receivedFrom?.position || ''));
-        form.getTextField("receivedFromDate").setText(String(formatDate(data.receivedFrom?.date)));
-
-        // Received by
-        form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
-        form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
-        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
-
-        // Optional: prevent further editing
-        form.flatten();
-
-        const pdfBytes = await pdfDoc.save();
-
-        if (print) {
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, "_blank");
-        printWindow.print();
-        } else {
-        saveAs(
-            new Blob([pdfBytes], { type: "application/pdf" }),
-            "ICS.pdf"
-        );
-        }
+      await exportOfficialFormPdf('ICS', data, print);
     };
 
     if (pageLoading) return <PageSkeleton />;
@@ -354,7 +304,7 @@ export default function IcsPage() {
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={createNew} editorRef={editorRef} /></SavedReportsHeader>
-                {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian records yet.</p>}
+                {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian Slip records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
                         <div>
@@ -376,13 +326,7 @@ export default function IcsPage() {
 
             {form && (
                 <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-                    <div className="form-title-row mb-5">
-                        <div>
-                            <h1 className="form-page-title">Inventory Custodian Slip</h1>
-                            <p className="mt-2 text-sm text-slate-500">Records here are created automatically from IAR items whose combined total cost is below ₱50,000.</p>
-                        </div>
-                        <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>
-                    </div>
+                    <FormEditorHeader title="Inventory Custodian Slip" description="Records here are created automatically from IAR items whose combined total cost is below ₱50,000." onClose={cancelEdit} />
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />

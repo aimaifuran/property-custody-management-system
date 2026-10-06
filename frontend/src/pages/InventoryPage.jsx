@@ -1,3 +1,6 @@
+import FormEditorHeader from '../components/FormEditorHeader';
+import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
+import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
@@ -12,7 +15,6 @@ import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 import FundClusterField from '../components/FundClusterField';
 import Pagination from '../components/Pagination';
@@ -135,7 +137,7 @@ export default function InventoryPage() {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
         }
     };
-    const field = (label, key, type = 'text') => <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     const itemLabels = ['Property No.', 'Description', 'S/N', 'Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
     const itemFields = [
         ['propertyNumber', 'text'],
@@ -245,52 +247,7 @@ export default function InventoryPage() {
     };
 
     async function generatePdf(data, print = false) {
-      const existingPdfBytes = await fetch("/forms/templates/pc-template.pdf").then(res =>
-          res.arrayBuffer()
-      );
-
-      const pdfDoc = await PDFDocument.load(existingPdfBytes);
-
-      const form = pdfDoc.getForm();
-
-      form.getTextField("month").setText(String(formatDate(data.month)));
-      form.getTextField("poNumber").setText(String(data.poNumber));
-      form.getTextField("entityName").setText(String(data.entityName));
-      form.getTextField("fundCluster").setText(String(data.fundCluster));
-      form.getTextField("propertyPlantAndEquipment").setText(String(data.propertyPlantAndEquipment));
-      form.getTextField("description").setText(String(data.description));
-      form.getTextField("propertyNumber").setText(String(data.propertyNumber));
-      form.getTextField("serialNumber").setText(String(data.serialNumber));
-
-      // Table data insertion
-      const startRowNumber = 1; // Starting row for table data
-      data.items.forEach((item, index) => {
-        form.getTextField(`date${index + 1}`).setText(String(formatDate(item.date)));
-        form.getTextField(`referenceParNo${index + 1}`).setText(String(item.referenceParNo ?? ''));
-        form.getTextField(`receiptQuantity${index + 1}`).setText(String(item.receiptQuantity ?? ''));
-        form.getTextField(`itdQuantity${index + 1}`).setText(String(item.itdQuantity ?? ''));
-        form.getTextField(`itdOfficeOfficer${index + 1}`).setText(String(item.itdOfficeOfficer ?? ''));
-        form.getTextField(`balanceQuantity${index + 1}`).setText(String(item.balanceQuantity ?? ''));
-        form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
-        form.getTextField(`remarks${index + 1}`).setText(String(item.remarks ?? ''));
-      });
-
-      // Optional: prevent further editing
-      form.flatten();
-
-      const pdfBytes = await pdfDoc.save();
-
-      if (print) {
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, "_blank");
-        printWindow.print();
-      } else {
-        saveAs(
-          new Blob([pdfBytes], { type: "application/pdf" }),
-          "PC.pdf"
-        );
-      }
+      await exportOfficialFormPdf('PROPERTY CARD', data, print);
     };
 
     if (pageLoading) return <PageSkeleton />;
@@ -329,12 +286,8 @@ export default function InventoryPage() {
           </div>
           {editingCard ? (
             <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
-              <div className="rounded-2xl border-2 border-slate-700 p-5 text-slate-900">
-                <div className="form-title-row border-b border-slate-300 pb-3">
-                  <h1 className="form-page-title">Property Card</h1>
-                  <p className="mt-2 text-sm text-slate-500">Record property items here. Cards linked to an Inspection &amp; Acceptance Report are also created automatically.</p>
-                  <button type="button" onClick={closeEditor} className="form-title-action rounded-xl border px-4 py-2 text-sm">Close Editor</button>
-                </div>
+              <div className="min-w-0 text-slate-900">
+                <FormEditorHeader title="Property Card" description="Record property items here. Cards linked to an Inspection and Acceptance Report are also created automatically." onClose={closeEditor} />
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                   {field('Month','month')}
                   {field('PO No.','poNumber')}

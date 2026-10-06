@@ -21,16 +21,9 @@ router.get('/:type', authenticate, authorize(['canViewDashboard', 'canViewRIS', 
   const document = documents[type];
   if (!document) return errorResponse(res, 'Unsupported document type', [], 400);
 
-  const year = Number(req.query.year) || new Date().getFullYear();
-  const values = await document.Model.find({ deleted: false, [document.field]: new RegExp(`^${type}-${year}-`, 'i') })
-    .select(document.field)
-    .lean();
-  const lastSequence = values.reduce((highest, record) => {
-    const match = String(record[document.field] || '').match(/(\d+)$/);
-    return Math.max(highest, match ? Number(match[1]) : 0);
-  }, 0);
-  const nextNumber = `${type}-${year}-${String(lastSequence + 1).padStart(4, '0')}`;
-  return successResponse(res, 'Next document number generated', { type, year, nextNumber });
+  const nextNumber = await require('../utils/documentNumber').nextDocumentNumber(document.Model, document.field);
+  const [year, month] = nextNumber.split('-').map(Number);
+  return successResponse(res, 'Next document number generated', { type, year, month, nextNumber });
 });
 
 module.exports = router;
