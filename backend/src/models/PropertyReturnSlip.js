@@ -23,6 +23,7 @@ const propertyReturnSlipSchema = new mongoose.Schema({
   }],
   note: { type: String },
   returnedBy: {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     date: { type: Date },
     name: { type: String, trim: true },
     designation: { type: String, trim: true },

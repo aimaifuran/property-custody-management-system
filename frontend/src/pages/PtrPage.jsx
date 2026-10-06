@@ -1,3 +1,4 @@
+import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -100,6 +101,8 @@ export default function PtrPage() {
     const [editingId, setEditingId] = useState(null);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState('');
+  const filteredReports = filterReports(reports, search);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
@@ -130,8 +133,8 @@ export default function PtrPage() {
         load();
         assignNextNumber();
     }, []);
-    const pageCount = Math.max(1, Math.ceil(reports.length / perPage));
-    const visibleReports = reports.slice((page - 1) * perPage, page * perPage);
+    const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
+    const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -411,7 +414,7 @@ export default function PtrPage() {
  return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Saved Reports</h2><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></div>
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -429,7 +432,7 @@ export default function PtrPage() {
                         </div>
                     </div>
                 ))}
-                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+                <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
             <motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">

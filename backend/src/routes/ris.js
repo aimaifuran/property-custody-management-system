@@ -10,6 +10,7 @@ const PropertyAccountability = require('../models/PropertyAccountability');
 const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
 const PropertyReturnSlip = require('../models/PropertyReturnSlip');
+const ReturnedSupply = require('../models/ReturnedSupply');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
@@ -33,31 +34,8 @@ const getUserLabel = (user) => {
 
 const createSignatureHash = (payload) => crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 
-const userLabel = (user) => [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ').trim();
-
-const resolvePersonUser = async (person) => {
-  if (!person || person.user) return person;
-  const name = String(person.name || '').trim();
-  if (!name) return person;
-  const user = await User.findOne({
-    deleted: false,
-    $or: [
-      { username: name },
-      { email: name.toLowerCase() },
-      { firstName: name.split(/\s+/)[0], lastName: name.split(/\s+/).slice(-1)[0] },
-    ],
-  }).select('_id');
-  return user ? { ...person, user: user._id } : person;
-};
-
-const ownRisFilter = (user) => ({
-  $or: [
-    { 'requestedBy.user': user._id },
-    { 'receivedBy.user': user._id },
-    { 'requestedBy.user': null, 'requestedBy.name': { $in: [userLabel(user), user.username, user.email].filter(Boolean) } },
-    { 'receivedBy.user': null, 'receivedBy.name': { $in: [userLabel(user), user.username, user.email].filter(Boolean) } },
-  ],
-});
+const { resolveAccount: resolvePersonUser, linkLegacyRequests, ownerFilter: ownRisFilterById } = require('../utils/accountLinks');
+const ownRisFilter = user => ownRisFilterById(user._id);
 
 const canReviewRis = (user) => (
   user?.role === 'admin'
@@ -81,6 +59,7 @@ const getDocumentNumber = async (formType, createdAt, cache) => {
 };
 
 router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS']), async (req, res) => {
+  await linkLegacyRequests();
   const query = { deleted: false };
   if (req.user.role !== 'admin') Object.assign(query, ownRisFilter(req.user));
   const ris = await listRecords(RequisitionIssueSlip, req, { baseFilter: query, searchFields: RIS_SEARCH_FIELDS });
@@ -112,10 +91,13 @@ router.get('/request-items', authenticate, authorize('canViewRIS'), async (req, 
 });
 
 router.get('/my-returns', authenticate, authorize('canViewRIS'), async (req, res) => {
+  await linkLegacyRequests();
   const records = await RequisitionIssueSlip.find({ deleted: false, ...ownRisFilter(req.user), status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } });
   const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': { $in: records.map(record => record._id) } }).sort({ createdAt: -1 });
+  const directReturns = await ReturnedSupply.find({ deleted: false, prs: null, ris: { $in: records.map(record => record._id) } });
   const items = records.flatMap(ris => ris.items.filter(item => item.quantityIssued > 0).map(item => {
     const returns = slips.flatMap(slip => slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: slip.prsNumber, status: slip.status || 'RETURNED', rejectionReason: slip.rejectionReason, date: slip.returnedTo?.date || slip.createdAt, receivedBy: slip.returnedTo?.name, note: slip.note })));
+    returns.push(...directReturns.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: 'Returned Supply', status: 'RETURNED', date: entry.returnedTo?.date || entry.createdAt, receivedBy: entry.returnedTo?.name, note: entry.note })));
     const quantityReturned = returns.filter(entry => entry.status === 'RETURNED').reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
     const pendingReturn = returns.some(entry => entry.status === 'PENDING');
     return { risId: ris._id, itemId: item._id, risNumber: ris.risNumber, description: item.description, stockNumber: item.stockNumber, quantityIssued: item.quantityIssued, issuedAt: ris.issuedAt, quantityReturned, pendingReturn, quantityRemaining: Math.max(0, item.quantityIssued - quantityReturned), status: pendingReturn ? 'Awaiting admin confirmation' : quantityReturned >= item.quantityIssued ? 'Successfully returned' : quantityReturned > 0 ? 'Partially returned' : 'Not returned', returns };
@@ -133,7 +115,8 @@ router.post('/my-returns', authenticate, async (req, res) => {
   if (!Number.isInteger(quantity) || quantity <= 0) return errorResponse(res, 'Return quantity must be a positive whole number', [], 400);
   const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': ris._id });
   const returned = slips.filter(slip => !slip.status || slip.status === 'RETURNED').reduce((sum, slip) => sum + slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).reduce((count, entry) => count + Number(entry.quantity || 0), 0), 0);
-  if (quantity > item.quantityIssued - returned) return errorResponse(res, 'Return quantity exceeds the remaining issued quantity', [], 400);
+  const directReturned = (await ReturnedSupply.find({ deleted: false, prs: null, ris: ris._id, risItem: item._id })).reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+  if (quantity > item.quantityIssued - returned - directReturned) return errorResponse(res, 'Return quantity exceeds the remaining issued quantity', [], 400);
   const stock = await Item.findOne({ stockNumber: item.stockNumber, deleted: false });
   const inventory = stock ? await Inventory.findOne({ item: stock._id, deleted: false }).sort({ createdAt: -1 }) : null;
   const unitValue = Number(inventory?.unitCost ?? stock?.cost ?? 0);
@@ -161,8 +144,10 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
   if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
   const payload = { ...req.body };
-  payload.requestedBy = await resolvePersonUser(payload.requestedBy);
-  payload.receivedBy = await resolvePersonUser(payload.receivedBy);
+  try {
+    payload.requestedBy = await resolvePersonUser(payload.requestedBy);
+    payload.receivedBy = await resolvePersonUser(payload.receivedBy);
+  } catch (error) { return errorResponse(res, error.message, [], 400); }
   const ris = await RequisitionIssueSlip.create({
     ...payload,
     status: 'PENDING_REVIEW',
@@ -181,8 +166,10 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
 
 router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), async (req, res) => {
   const updates = { ...req.body };
-  updates.requestedBy = await resolvePersonUser(updates.requestedBy);
-  updates.receivedBy = await resolvePersonUser(updates.receivedBy);
+  try {
+    if (updates.requestedBy) updates.requestedBy = await resolvePersonUser(updates.requestedBy);
+    if (updates.receivedBy) updates.receivedBy = await resolvePersonUser(updates.receivedBy);
+  } catch (error) { return errorResponse(res, error.message, [], 400); }
   if (updates.items) updates.items = updates.items.map((entry) => ({ ...entry, totalCost: entry.totalCost ?? null }));
   const ris = await RequisitionIssueSlip.findOneAndUpdate({ _id: req.params.id, deleted: false }, updates, { new: true, runValidators: true });
   if (!ris) return errorResponse(res, 'RIS not found', [], 404);

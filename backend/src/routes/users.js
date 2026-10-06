@@ -8,6 +8,7 @@ const { sendPasswordResetEmail } = require('../utils/mailer');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize, adminOnly } = require('../middlewares/auth');
 const router = express.Router();
+const { linkLegacyRequests } = require('../utils/accountLinks');
 
 router.get('/password-reset-requests', authenticate, adminOnly, async (req, res) => {
   await PasswordResetRequest.updateMany({ status: 'APPROVED', expiresAt: { $lte: new Date() } }, { $set: { status: 'EXPIRED' }, $unset: { activeKey: 1, tokenHash: 1 } });
@@ -47,7 +48,7 @@ router.post('/password-reset-requests/:id/reject', authenticate, adminOnly, asyn
 });
 
 router.get('/', authenticate, authorize('canManageUsers'), async (req, res) => {
-  const users = await User.find({ deleted: false }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry').sort({ createdAt: -1 });
+  const users = await User.find({ deleted: false }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry').populate('createdBy', 'firstName middleName lastName username').sort({ createdAt: -1 });
   return successResponse(res, 'Users retrieved', users);
 });
 
@@ -56,12 +57,19 @@ router.post('/', authenticate, authorize('canManageUsers'), async (req, res) => 
   if (exists) return errorResponse(res, 'User already exists', [], 409);
 
   const hashed = await bcrypt.hash(req.body.password || 'Password123!', 10);
-  const user = await User.create({ ...req.body, password: hashed });
+  const payload = { ...req.body, password: hashed, createdBy: req.user._id };
+  if ((payload.role || 'user') === 'user') payload.permissions = [...new Set([...(payload.permissions || []), 'canViewRIS'])];
+  const user = await User.create(payload);
+  await linkLegacyRequests();
   return successResponse(res, 'User created', { ...user.toObject(), password: undefined }, 201);
 });
 
 router.put('/:id', authenticate, authorize('canManageUsers'), async (req, res) => {
+  await linkLegacyRequests();
   if (req.body.password) req.body.password = await bcrypt.hash(req.body.password, 10);
+  delete req.body.createdBy;
+  const existing = await User.findById(req.params.id);
+  if ((req.body.role || existing?.role) === 'user' && req.body.permissions) req.body.permissions = [...new Set([...req.body.permissions, 'canViewRIS'])];
   const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry');
   return successResponse(res, 'User updated', user);
 });

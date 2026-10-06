@@ -1,3 +1,4 @@
+import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
@@ -29,6 +30,8 @@ export default function PpeStationReportPage() {
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState('');
+  const filteredReports = filterReports(records, search);
   const dirtySignatories = useRef({});
   const rememberQueue = useRef(Promise.resolve());
   const editor = useRef(null);
@@ -92,10 +95,10 @@ export default function PpeStationReportPage() {
     finally { setExporting(false); }
   };
   const field = (key, label, type = 'text', required = false) => <label className="block text-sm"><span className="mb-1 block font-semibold">{label}</span><input type={type} required={required} value={form[key]} maxLength={key === 'governmentUnit' ? 300 : 200} onChange={event => update(key, event.target.value)} onBlur={signatoryFields.includes(key) ? () => { if (Object.hasOwn(dirtySignatories.current, key)) remember({ [key]: dirtySignatories.current[key] }).catch(() => toast.error('Unable to remember signatory. Save the report to retry.')); } : undefined} className="w-full border px-2 py-1" /></label>;
-  const pageCount = Math.max(1, Math.ceil(records.length / perPage));
+  const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
   if (loading) return <PageSkeleton />;
  return <div className="space-y-6">
-    <div><h1 className="text-2xl font-semibold">List of PPEs</h1>{canEdit && <div className="mt-2"><NewFormButton onNew={reset} editorRef={editor} /></div>}<p className="mt-1 text-sm text-slate-600">List of PPEs Found at Station. Print on A4 paper in landscape orientation.</p></div>
+    <div><h1 className="text-2xl font-semibold">List of PPEs</h1><p className="mt-1 text-sm text-slate-600">List of PPEs Found at Station. Print on A4 paper in landscape orientation.</p></div>
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
     {loading ? <Skeleton className="h-4 w-20" /> : canEdit && !error && <form ref={editor} onSubmit={save} className="form-document form-frame ppe-station-form">
       <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-semibold">{editingId ? 'Edit List of PPEs' : 'New List of PPEs'}</h2><button type="button" onClick={reset} className="rounded-lg border px-3 py-1 text-sm">{editingId ? 'Cancel Edit' : 'Clear Form'}</button></div>
@@ -107,7 +110,7 @@ export default function PpeStationReportPage() {
       <p className="mt-2 text-xs text-slate-500">Signatory changes are remembered automatically for new reports.</p>
       <div className="mt-5 flex flex-wrap justify-end gap-3"><button type="button" disabled={exporting} onClick={() => exportRecord(form, 'preview')} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">{exporting ? <Skeleton className="h-4 w-24" /> : <><Eye size={16} /> Print Preview</>}</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-white"><Save size={16} />{saving ? <Skeleton className="h-4 w-20" /> : 'Save List of PPEs'}</button></div>
     </form>}
-    <section className="saved-records rounded-2xl border bg-white p-5"><h2 className="text-xl font-semibold">Saved Lists of PPEs</h2><div className="mt-4 space-y-3">{!loading && records.length === 0 && <p className="text-sm text-slate-500">No PPE lists saved yet.</p>}{records.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div><div className="font-semibold">{record.accountGroup}</div><div className="text-xs text-slate-600">{stationDate(record.date)} | {record.rows.length} PPE rows</div></div><div className="flex gap-2">{canEdit && <RecordActionButton action="edit" onClick={() => edit(record)} />}<RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>
+    <section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}>{canEdit && <NewFormButton onNew={reset} editorRef={editor} />}</SavedReportsHeader><div className="mt-4 space-y-3">{!loading && records.length === 0 && <p className="text-sm text-slate-500">No PPE lists saved yet.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div><div className="font-semibold">{record.accountGroup}</div><div className="text-xs text-slate-600">{stationDate(record.date)} | {record.rows.length} PPE rows</div></div><div className="flex gap-2">{canEdit && <RecordActionButton action="edit" onClick={() => edit(record)} />}<RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>
     {preview && <div className="fixed inset-0 z-[60] flex flex-col bg-slate-900/70 p-3" role="dialog" aria-modal="true" aria-label="List of PPEs print preview"><div className="flex items-center justify-between rounded-t-lg bg-white p-3"><span className="font-semibold">Print Preview - A4 landscape</span><button type="button" aria-label="Close PPE preview" onClick={() => setPreview('')}><X size={20} /></button></div><iframe src={preview} title="List of PPEs PDF preview" className="min-h-0 flex-1 bg-white" /></div>}
   </div>;
 }

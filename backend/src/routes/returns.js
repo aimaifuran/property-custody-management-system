@@ -2,7 +2,6 @@ const express = require('express');
 const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const ReturnedSupply = require('../models/ReturnedSupply');
 const ActivityLog = require('../models/ActivityLog');
-const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
@@ -17,23 +16,7 @@ const PRS_SEARCH_FIELDS = [
 
 const logReturnedSupply = (report) => ReturnedSupply.insertMany(report.items.map(entry => ({ prs: report._id, lguName: report.lguName, purpose: report.purpose, quantity: entry.quantity, unit: entry.unit, description: entry.description, propertyNumber: entry.propertyNumber, mrNumber: entry.mrNumber, unitValue: entry.unitValue, totalValue: entry.totalValue, note: report.note, returnedBy: report.returnedBy, returnedTo: report.returnedTo })));
 
-// Explicit item references prevent returns from being assigned by description or name.
-const validateLinks = async (items, excludeId) => {
-  const totals = new Map();
-  for (const entry of items || []) {
-    if (!entry.ris && !entry.risItem) continue;
-    const ris = await RequisitionIssueSlip.findOne({ _id: entry.ris, deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } });
-    const item = ris?.items.id(entry.risItem);
-    if (!item || !(item.quantityIssued > 0)) throw new Error('Select a valid issued RIS item');
-    const quantity = Number(entry.quantity);
-    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Returned quantity must be greater than zero');
-    const key = `${entry.ris}:${entry.risItem}`;
-    totals.set(key, (totals.get(key) || 0) + quantity);
-    const previous = await PropertyReturnSlip.find({ deleted: false, $or: [{ status: 'RETURNED' }, { status: { $exists: false } }], ...(excludeId ? { _id: { $ne: excludeId } } : {}), 'items.ris': entry.ris });
-    const returned = previous.reduce((sum, slip) => sum + slip.items.filter(row => String(row.ris) === String(entry.ris) && String(row.risItem) === String(entry.risItem)).reduce((count, row) => count + Number(row.quantity || 0), 0), 0);
-    if (returned + totals.get(key) > item.quantityIssued) throw new Error(`Returned quantity exceeds issued quantity for ${item.description || item.stockNumber}`);
-  }
-};
+const { linkReturnItems, validateLinks } = require('../utils/returnLinks');
 
 router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
   const reports = await listRecords(PropertyReturnSlip, req, { baseFilter: { deleted: false }, searchFields: PRS_SEARCH_FIELDS });
@@ -45,7 +28,7 @@ router.post('/', authenticate, authorize('canManageInventory'), async (req, res)
   payload.status = 'RETURNED';
   delete payload.pendingKey;
   delete payload.submittedBy;
-  try { await validateLinks(payload.items); } catch (error) { return errorResponse(res, error.message, [], 400); }
+  try { await linkReturnItems(payload); await validateLinks(payload.items); } catch (error) { return errorResponse(res, error.message, [], 400); }
   payload.items = (payload.items || []).map((entry) => ({
     ...entry,
     totalValue: Number(entry.quantity || 0) * Number(entry.unitValue || 0),
@@ -109,7 +92,7 @@ router.put('/:id', authenticate, authorize('canManageInventory'), async (req, re
   delete payload.status;
   delete payload.pendingKey;
   delete payload.submittedBy;
-  try { await validateLinks(payload.items, req.params.id); } catch (error) { return errorResponse(res, error.message, [], 400); }
+  try { await linkReturnItems(payload); await validateLinks(payload.items, req.params.id); } catch (error) { return errorResponse(res, error.message, [], 400); }
   if (payload.items) {
     payload.items = payload.items.map((entry) => ({
       ...entry,
@@ -122,6 +105,9 @@ router.put('/:id', authenticate, authorize('canManageInventory'), async (req, re
     { new: true, runValidators: true },
   );
   if (!report) return errorResponse(res, 'PRS not found', [], 404);
+
+  await ReturnedSupply.deleteMany({ prs: report._id });
+  await logReturnedSupply(report);
 
   await ActivityLog.create({
     user: req.user._id,

@@ -1,3 +1,4 @@
+import SavedReportsHeader from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -15,7 +16,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
-import { ChevronLeft, ChevronRight, FileText, Printer, RotateCcw, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Printer, RotateCcw } from 'lucide-react';
 import FundClusterField from '../components/FundClusterField';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
@@ -344,13 +345,7 @@ export default function IarPage() {
  return (
       <>
         <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold tracking-tight text-[#285943]">Saved Reports</h2><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></div>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="relative min-w-[240px]"><Search size={16} className="absolute left-3 top-3 text-slate-400" /><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search reports" className="w-full rounded-lg border border-white bg-[#eef7f1] py-2 pl-9 pr-3 text-xs text-slate-700 shadow-inner" /></label>
-              <label className="flex items-center gap-2 whitespace-nowrap text-xs text-[#285943]">Per page <select value={perPage} onChange={(event) => updatePerPage(event.target.value)} className="rounded-lg border border-white bg-[#eef7f1] px-2 py-2 text-xs shadow-inner"><option value="5">5</option><option value="10">10</option><option value="20">20</option></select></label>
-            </div>
-          </div>
+          <SavedReportsHeader search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></SavedReportsHeader>
           {visibleReports.map((item) =>
             <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}>
               <div>

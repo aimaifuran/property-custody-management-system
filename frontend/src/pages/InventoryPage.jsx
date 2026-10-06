@@ -1,3 +1,4 @@
+import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -53,6 +54,8 @@ export default function InventoryPage() {
     const [form, setForm] = useState(initialForm);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState('');
+  const filteredReports = filterReports(cards, search);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
     const load = async () => {
       setPageLoading(true);
@@ -73,8 +76,8 @@ export default function InventoryPage() {
     useEffect(() => {
         load();
     }, []);
-    const pageCount = Math.max(1, Math.ceil(cards.length / perPage));
-    const visibleCards = cards.slice((page - 1) * perPage, page * perPage);
+    const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
+    const visibleCards = filteredReports.slice((page - 1) * perPage, page * perPage);
 
     const edit = (card) => {
         const items = card.items?.length ? card.items : (card.entries || []).map((entry) => ({
@@ -296,7 +299,7 @@ export default function InventoryPage() {
       <>
         <div className="space-y-6">
           <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Submitted Property Cards</h2><NewFormButton onNew={() => { setEditingCard({}); setForm({ ...initialForm, items: [emptyItem()] }); }} editorRef={editorRef} /></div>
+            <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { setEditingCard({}); setForm({ ...initialForm, items: [emptyItem()] }); }} editorRef={editorRef} /></SavedReportsHeader>
             <div className="mt-4 space-y-3">
               {visibleCards.map((card) => (
                 <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -316,7 +319,7 @@ export default function InventoryPage() {
                   </div>
                 </div>
               ))}
-              <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+              <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
               {!cards.length && (
                 <p className="py-4 text-slate-500">
                   No Property Cards yet. Select New Form or save an IAR to create one.

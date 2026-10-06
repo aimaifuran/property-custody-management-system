@@ -129,7 +129,7 @@ samp {
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background: #edf3e8;
 }
@@ -1226,9 +1226,9 @@ body { font-size: var(--app-text-size); }
 .app-shell main button.account-lock {
   position: relative;
   flex-shrink: 0;
-  width: 32px !important;
-  height: 32px !important;
-  min-height: 32px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
   padding: 0 !important;
   border: 0;
   border-radius: 50% !important;
@@ -1237,7 +1237,7 @@ body { font-size: var(--app-text-size); }
   -webkit-tap-highlight-color: transparent;
   transition: background-color .3s ease;
 }
-.app-shell main button.account-lock > svg { width: 22px; height: 24px; fill: none; transform: translate3d(0, 0, 0); }
+.app-shell main button.account-lock > svg { width: 18px; height: 20px; fill: none; transform: translate3d(0, 0, 0); }
 .account-lock__bling {
   stroke: #fff;
   stroke-width: 2.5;
@@ -1273,4 +1273,93 @@ body { font-size: var(--app-text-size); }
 @media (prefers-reduced-motion: reduce) {
   .account-lock, .account-lock__bling, .account-lock__shackle, .account-lock__body { transition: none !important; animation: none !important; }
   .account-lock[aria-checked="true"] .account-lock__bling { stroke-dashoffset: 9; }
+}
+
+/* Shared saved-form toolbar, including narrow screens. */
+.saved-reports-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
+.saved-reports-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.saved-reports-heading h2 { color: #285943; font-weight: 700; margin: 0; }
+.saved-reports-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; max-width: 100%; }
+.saved-reports-search { position: relative; flex: 1 1 200px; width: 280px; min-width: 0; max-width: 100%; }
+.saved-reports-search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+.saved-reports-search input { width: 100%; min-width: 0; border: 1px solid white; border-radius: 10px; background: #eef7f1; padding: 10px 12px 10px 36px; box-shadow: inset 2px 2px 5px rgb(47 90 66 / 8%); }
+.saved-reports-page-size { display: flex; align-items: center; gap: 10px; white-space: nowrap; color: #285943; }
+.saved-reports-page-size select { border: 1px solid white; border-radius: 10px; background: #eef7f1; padding: 9px 12px; }
+@media (max-width: 640px) {
+  .saved-reports-header { gap: 12px; }
+  .saved-reports-controls { width: 100%; gap: 8px; }
+  .saved-reports-search { width: auto; flex-basis: 160px; }
+}
+
+/* Give the annual chart the full card width and a definite responsive height. */
+.dashboard-annual .annual-report-body { grid-template-columns: minmax(0, 1fr); align-items: start; flex: none; min-width: 0; gap: 12px; }
+.dashboard-annual .annual-bar-chart { width: 100%; min-width: 0; height: clamp(160px, 22vw, 220px); min-height: 160px; }
+.dashboard-annual .annual-report-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.dashboard-annual .annual-report-totals > * + * { margin-top: 0; }
+.dashboard-annual .annual-report-highlights { grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr)); }
+
+.dashboard-annual .annual-report-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 12px; color: #285943; }
+.annual-report-year { padding: 6px 10px; border-radius: 8px; background: #fef3c7; color: #b45309; font-weight: 700; }
+.annual-report-summary-label { text-align: center; font-weight: 600; }
+.annual-report-count { display: inline-flex; justify-content: center; align-items: center; min-width: 32px; padding: 6px 8px; border: 1px solid #d5e4d9; border-radius: 8px; background: #f8fafc; }
+
+/* Reflow to the CSS viewport as browser zoom changes the available space. */
+.app-shell, .login-page, #root { min-width: 0; max-width: 100%; }
+.app-shell main :where(.grid, .flex) > *, .login-page :where(.grid, .flex) > * { min-width: 0; }
+.app-shell :where(h1, h2, h3, p, label, a), .login-page :where(h1, h2, h3, p, label, a) { overflow-wrap: anywhere; }
+.app-shell main :where(input, select, textarea):not(.table-scroll *), .login-page :where(input, select, textarea) { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.app-shell .title-bar { flex-shrink: 0; }
+.app-shell .title-bar > .flex { gap: 6px; }
+.dashboard-container, .dashboard-page { height: auto; }
+.dashboard-page { grid-template-rows: auto; }
+.dashboard-page .dashboard-results { grid-template-rows: auto; }
+.dashboard-page .dashboard-activity > .overflow-y-auto { max-height: 300px; }
+@media (max-width: 320px) {
+  .app-shell main { padding: 6px; }
+  .app-shell .title-bar { padding: 8px 6px; }
+  .app-shell .title-bar > .flex { flex-wrap: wrap; }
+  .app-shell .title-bar > .flex > .flex { flex-basis: 100%; }
+  .app-shell .sidebar-shell { max-width: 100%; }
+  .dashboard-other > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-breakdowns { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-users { grid-row: auto; }
+  .saved-reports-controls { flex-direction: column; align-items: stretch; }
+  .saved-reports-search { width: 100%; flex: auto; }
+  .saved-reports-page-size { flex-wrap: wrap; white-space: normal; }
+  .annual-report-summary { gap: 6px; }
+}
+
+.auth-page { min-width: 0; overflow-wrap: anywhere; }
+.auth-page > div { min-width: 0; max-width: 100%; padding: clamp(12px, 4vw, 32px); }
+.auth-page :where(form, label, input, select, textarea, button) { min-width: 0; max-width: 100%; }
+.auth-page :where(input, select, textarea) { box-sizing: border-box; }
+
+/* Keep dashboard account totals compact and aligned with the return cards. */
+.dashboard-page .dashboard-breakdowns { align-items: stretch; height: auto; }
+.dashboard-page .dashboard-breakdowns > .minimal-surface { height: 100%; min-width: 0; }
+.dashboard-users .dashboard-user-pictorial { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; overflow: visible; align-items: center; }
+.dashboard-users .user-pictorial-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.dashboard-users .user-pictorial-icons { flex: 0 0 auto; }
+.dashboard-users .user-pictorial-icon { width: 24px; height: 28px; }
+.dashboard-users .user-pictorial-icon svg { width: 100%; height: 100%; }
+.dashboard-users .user-pictorial-heading { flex-wrap: wrap; align-items: center; margin-top: 0; gap: 4px; min-width: 0; }
+
+/* Stretch the monthly graph to the report card without clipping its axes. */
+.dashboard-reports > .dashboard-monthly { display: flex; flex-direction: column; min-width: 0; }
+.dashboard-monthly > h2, .dashboard-monthly > p { flex-shrink: 0; }
+.dashboard-monthly .monthly-report-chart { flex: 1 1 auto; width: 100%; min-width: 0; height: clamp(160px, 22vw, 220px); min-height: 160px; }
+
+/* Consistent document grids and fields; wide columns stay inside TableScroll. */
+.form-document table { border-collapse: collapse; border: 1px solid #94a3b8; }
+.form-document table :is(th, td) { border: 1px solid #94a3b8; padding: 6px 8px; vertical-align: top; line-height: 1.4; }
+.form-document table :is(input, select, textarea) { box-sizing: border-box; width: 100%; line-height: 1.4; }
+.form-document input:not([type='checkbox']):not([type='radio']), .form-document select { min-height: 36px; }
+.form-document textarea { min-height: 48px; resize: vertical; }
+.saved-record { align-items: center; }
+.saved-record > :first-child:not(button) { flex: 1 1 180px; }
+.saved-record > .flex:last-child, .record-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.saved-record > .flex:last-child { flex: 0 1 auto; margin-left: auto; }
+.app-shell main .saved-record button.account-lock, .app-shell main button.account-lock { flex: 0 0 28px; width: 28px !important; min-width: 28px; max-width: 28px; height: 28px !important; min-height: 28px !important; padding: 0 !important; }
+@media (max-width: 767px) {
+  .form-document input:not([type='checkbox']):not([type='radio']), .form-document select { min-height: 40px; }
 }

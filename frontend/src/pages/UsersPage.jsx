@@ -197,7 +197,8 @@ export default function UsersPage() {
               <label key={permission.key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
                 <input
                   type="checkbox"
-                  checked={form.permissions.includes(permission.key)}
+                  disabled={form.role === 'user' && permission.key === 'canViewRIS'}
+                  checked={form.role === 'user' && permission.key === 'canViewRIS' || form.permissions.includes(permission.key)}
                   onChange={(e) => {
                     setForm((prev) => ({
                       ...prev,
@@ -218,10 +219,10 @@ export default function UsersPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="space-y-3">
           {pagedUsers.map((user) => (
-            <div key={user._id} className="rounded-xl border border-slate-200 p-4">
+            <div key={user._id} className="user-account-record rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><div className="font-semibold">{user.firstName} {user.lastName}</div><div className="text-sm text-slate-500">{user.email} · {user.role}</div></div>
-                <div className="flex gap-2">
+                <div className="record-actions">
                   <RecordActionButton action="edit" onClick={() => editUser(user)} />
                   <AccountLockButton locked={user.locked} username={user.username || user.email} busy={lockingUser === user._id} disabled={!!lockingUser} onClick={() => toggleLock(user)} />
                 </div>

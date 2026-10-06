@@ -110,7 +110,6 @@ export default function DashboardPage() {
     };
   }, [annualReportData]);
 
-  const annualHighlights = useMemo(() => annualReportData.slice(-2).reverse(), [annualReportData]);
   const annualChartData = useMemo(() => {
     const examples = [{ year: '2024', reports: 6, example: true }, { year: '2025', reports: 9, example: true }];
     return [...annualReportData, ...examples.filter((example) => !annualReportData.some((entry) => entry.year === example.year))]
@@ -146,6 +145,7 @@ export default function DashboardPage() {
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-3">
             <div className="dashboard-return-summary minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="65%" label>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
+            <div className="dashboard-return-summary minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2>{chartData.returnedSupply.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
             <div className="dashboard-users minimal-surface h-fit p-4">
               <h2 className="text-sm font-semibold">User Management</h2>
               <div className="dashboard-user-pictorial">
@@ -162,28 +162,24 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-            <div className="dashboard-return-summary minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2>{chartData.returnedSupply.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
           </div>
 
           <div className="dashboard-reports grid gap-4 sm:grid-cols-2">
             <div className="dashboard-monthly minimal-surface p-4">
               <h2 className="text-sm font-semibold">Monthly Reports</h2>
               <p className="text-xs text-slate-500">Issued reports this year</p>
-              <div className="mt-2 h-48"><ResponsiveContainer width="100%" height="100%"><LineChart data={monthlyReportData}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 9 }} height={22} minTickGap={8} /><YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} /><Tooltip /><Line type="monotone" dataKey="reports" name="Reports" stroke="#2f6f68" strokeWidth={2} dot={{ r: 2 }} /></LineChart></ResponsiveContainer></div>
+              <div className="monthly-report-chart mt-2"><ResponsiveContainer width="100%" height="100%"><LineChart data={monthlyReportData} margin={{ top: 12, right: 12, bottom: 8, left: 4 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 9 }} height={26} minTickGap={8} padding={{ left: 6, right: 6 }} /><YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} /><Tooltip /><Line type="monotone" dataKey="reports" name="Reports" stroke="#2f6f68" strokeWidth={2} dot={{ r: 2 }} /></LineChart></ResponsiveContainer></div>
             </div>
             <div className="dashboard-annual minimal-surface p-4">
               <h2 className="text-sm font-semibold">Annual Reports</h2>
               <p className="text-xs text-slate-500">Issued reports by year{annualChartData.some((entry) => entry.example) ? " · Gold bars are examples" : ""}</p>
               <div className="annual-report-body">
-                <div className="annual-bar-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={annualChartData} maxBarSize={30} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} /><XAxis dataKey="year" tick={{ fontSize: 9 }} height={22} /><YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={24} /><Tooltip formatter={(value, name, item) => [value, item.payload.example ? "Example reports" : "Reports"]} /><Bar dataKey="reports" name="Reports" fill="#55c5cf" radius={[3, 3, 0, 0]}>{annualChartData.map((entry) => <Cell key={entry.year} fill={entry.example ? "#b49a5a" : "#55c5cf"} />)}</Bar></BarChart></ResponsiveContainer></div>
-                <div className="annual-report-totals space-y-3">
-                  <div><div className="text-xs text-slate-500">{annualProgress.currentYear} reports</div><div className="text-2xl font-semibold text-slate-900">{annualProgress.currentYearReports}</div></div>
-                  <div><div className="text-xs text-slate-500">All recorded reports</div><div className="text-2xl font-semibold text-slate-900">{issuedReports.length}</div></div>
-                </div>
+                <div className="annual-bar-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={annualChartData} maxBarSize={56} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} /><XAxis dataKey="year" tick={{ fontSize: 9 }} height={22} /><YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={24} /><Tooltip formatter={(value, name, item) => [value, item.payload.example ? "Example reports" : "Reports"]} /><Bar dataKey="reports" name="Reports" fill="#55c5cf" radius={[3, 3, 0, 0]}>{annualChartData.map((entry) => <Cell key={entry.year} fill={entry.example ? "#b49a5a" : "#55c5cf"} />)}</Bar></BarChart></ResponsiveContainer></div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {annualHighlights.map((entry, index) => <div key={entry.year} className="rounded-lg border border-slate-100 bg-slate-50 p-2"><div className={`mb-1 inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold ${index === 0 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>{entry.year}</div><div className="text-lg font-semibold text-slate-900">{entry.reports}</div><div className="text-[10px] text-slate-500">Total reports</div></div>)}
-                {annualHighlights.length === 0 && <div className="col-span-2 rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs text-slate-500">No annual report records yet.</div>}
+              <div className="annual-report-summary">
+                <span className="annual-report-year">{annualProgress.currentYear}</span>
+                <span className="annual-report-summary-label">Total reports</span>
+                <strong className="annual-report-count">{annualProgress.currentYearReports}</strong>
               </div>
             </div>
           </div>

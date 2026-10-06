@@ -1,3 +1,5 @@
+import UserAccountSelect from '../components/UserAccountSelect';
+import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
@@ -59,6 +61,7 @@ const toDateInputValue = (date) => {
 };
 
 const toFormSignatory = (signatory = {}) => ({
+    user: signatory.user?._id || signatory.user || undefined,
     date: toDateInputValue(signatory.date),
     name: signatory.name || '',
     designation: signatory.designation || ''
@@ -96,6 +99,8 @@ export default function PrsPage() {
     const [editingId, setEditingId] = useState(null);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState('');
+  const filteredReports = filterReports(reports, search);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
@@ -123,13 +128,13 @@ export default function PrsPage() {
         window.addEventListener('focus', refresh);
         return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
     }, []);
-    const pageCount = Math.max(1, Math.ceil(reports.length / perPage));
-    const visibleReports = reports.slice((page - 1) * perPage, page * perPage);
+    const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
+    const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
-        const signatory = { ...prev[section], [key]: value };
+        const signatory = { ...prev[section], [key]: value, ...(key === 'name' ? { user: undefined } : {}) };
         saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
@@ -419,7 +424,7 @@ export default function PrsPage() {
  return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Return Slips &amp; User Returns</h2><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></div>
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -441,7 +446,7 @@ export default function PrsPage() {
                         </div>
                     </div>
                 ))}
-                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+                <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
             <motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
@@ -507,10 +512,10 @@ export default function PrsPage() {
                                             const [risId, itemId] = e.target.value.split(':');
                                             const record = issuedRecords.find(row => row._id === risId);
                                             const issued = record?.items.find(row => row._id === itemId);
-                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, name: record.receivedBy?.name || record.requestedBy?.name || '' } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '' } : {}) } : row) }));
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name || '' } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '' } : {}) } : row) }));
                                         }} className="w-64 rounded-xl border border-slate-200 px-2 py-2">
                                             <option value="">Unlinked return (not shown to users)</option>
-                                            {issuedRecords.flatMap(record => record.items.filter(row => row.quantityIssued > 0).map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.receivedBy?.name || record.requestedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (issued {row.quantityIssued})</option>))}
+                                            {issuedRecords.filter(record => !form.returnedBy.user || String(record.requestedBy?.user || record.receivedBy?.user) === String(form.returnedBy.user)).flatMap(record => record.items.filter(row => row.quantityIssued > 0).map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.requestedBy?.name || record.receivedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (issued {row.quantityIssued})</option>))}
                                         </select>
                                     </td>
                                     <td className="p-2">
@@ -555,7 +560,7 @@ export default function PrsPage() {
                 </div>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    {signatoryFields('Returned By', 'returnedBy')}
+                    <div><UserAccountSelect person={form.returnedBy} onChange={person => setForm(prev => ({ ...prev, returnedBy: person, items: [emptyItem()] }))} />{signatoryFields('Returned By', 'returnedBy')}</div>
                     {signatoryFields('Returned To', 'returnedTo')}
                 </div>
 
