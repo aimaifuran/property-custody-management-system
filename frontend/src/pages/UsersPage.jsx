@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -10,14 +11,27 @@ const permissionOptions = [
 ];
 
 export default function UsersPage() {
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoadError, setPageLoadError] = useState('');
+
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState(1);
   const [editingUser, setEditingUser] = useState(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', role: 'user', permissions: ['canViewRIS', 'canCreateRIS'] });
 
   const load = async () => {
+    setPageLoading(true);
+    setPageLoadError('');
+    try {
+
     const { data } = await axios.get('/users');
     setUsers(data.data || []);
+
+    } catch (error) {
+      setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+    } finally {
+      setPageLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -78,7 +92,9 @@ export default function UsersPage() {
   const pagedUsers = users.slice((page - 1) * pageSize, page * pageSize);
   const pageCount = Math.max(1, Math.ceil(users.length / pageSize));
 
-  return (
+  if (pageLoading) return <PageSkeleton />;
+  if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold">User Management</h1>

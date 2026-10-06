@@ -1,3 +1,5 @@
+import { PageSkeleton } from '../components/Skeleton';
+import Skeleton from '../components/Skeleton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -13,11 +15,12 @@ const emptySettings = {
 };
 
 export default function SettingsPage() {
+  const [pageLoading, setPageLoading] = useState(true);
   const [settings, setSettings] = useState(emptySettings);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    axios.get('/settings').then(({ data }) => setSettings((previous) => ({ ...previous, ...data.data, signatories: { ...previous.signatories, ...data.data.signatories } }))).catch(() => toast.error('Unable to load system settings'));
+    axios.get('/settings').then(({ data }) => setSettings((previous) => ({ ...previous, ...data.data, signatories: { ...previous.signatories, ...data.data.signatories } }))).catch(() => toast.error('Unable to load system settings')).finally(() => setPageLoading(false));
   }, []);
 
   const update = (key, value) => setSettings((previous) => ({ ...previous, [key]: value }));
@@ -28,6 +31,7 @@ export default function SettingsPage() {
     try { await axios.put('/settings', settings); toast.success('System settings saved'); } catch (error) { toast.error(error.response?.data?.message || 'Unable to save settings'); } finally { setSaving(false); }
   };
 
+  if (pageLoading) return <PageSkeleton />;
   return <form onSubmit={save} className="space-y-6">
     <div><h1 className="text-3xl font-semibold">System Settings</h1><p className="text-sm text-slate-500">Manage the names and designations used by generated forms.</p></div>
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -43,6 +47,6 @@ export default function SettingsPage() {
         {Object.entries(settings.signatories).map(([key, signatory]) => <div key={key} className="rounded-xl border border-slate-200 p-4"><div className="mb-3 font-semibold capitalize">{key.replace(/([A-Z])/g, ' $1')}</div><input aria-label={`${key} name`} value={signatory.name || ''} readOnly={signatory.fixed} onChange={(event) => updateSignatory(key, 'name', event.target.value)} className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-2 read-only:bg-slate-100" placeholder="Printed name" /><input aria-label={`${key} designation`} value={signatory.designation || ''} readOnly={signatory.fixed} onChange={(event) => updateSignatory(key, 'designation', event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 read-only:bg-slate-100" placeholder="Designation" /><label className="mt-3 flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={Boolean(signatory.fixed)} onChange={(event) => updateSignatory(key, 'fixed', event.target.checked)} /> Fixed in forms</label></div>)}
       </div>
     </section>
-    <button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2 font-semibold text-white disabled:opacity-50">{saving ? 'Saving...' : 'Save Settings'}</button>
+    <button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2 font-semibold text-white disabled:opacity-50">{saving ? <Skeleton className="h-4 w-20" /> : 'Save Settings'}</button>
   </form>;
 }

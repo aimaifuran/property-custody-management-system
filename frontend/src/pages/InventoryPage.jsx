@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import {
@@ -43,6 +44,9 @@ const initialForm = {
 const inputDate = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
 
 export default function InventoryPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [cards, setCards] = useState([]);
     const [editingCard, setEditingCard] = useState(null);
     const [form, setForm] = useState(initialForm);
@@ -50,10 +54,20 @@ export default function InventoryPage() {
     const [perPage, setPerPage] = useState(5);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const {
             data
         } = await axios.get('/property-cards');
         setCards(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
     useEffect(() => {
         load();
@@ -141,9 +155,9 @@ export default function InventoryPage() {
     };
 
     const formatAmount = (amount) => {
-      return amount.toLocaleString('en-US', { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
+      return amount.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
       });
     };
 
@@ -275,7 +289,9 @@ export default function InventoryPage() {
       }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
       <>
         <div className="space-y-6">
           <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

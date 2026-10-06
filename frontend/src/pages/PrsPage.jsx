@@ -1,3 +1,5 @@
+import Skeleton from '../components/Skeleton';
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
@@ -82,6 +84,9 @@ const toForm = (record) => ({
 });
 
 export default function PrsPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [reports, setReports] = useState([]);
     const [processing, setProcessing] = useState('');
     const [rejectionReasons, setRejectionReasons] = useState({});
@@ -93,8 +98,18 @@ export default function PrsPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/prs');
         setReports(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
     useEffect(() => {
@@ -209,23 +224,23 @@ export default function PrsPage() {
         if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
         return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear()}`;
     };
-        
+
     const formatAmount = (amount) => {
-        return amount.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+        return amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
     };
 
     function formatLegalDateString(dateStr) {
         // Parse the ISO string into a local Date object
         const date = new Date(dateStr);
-        
+
         // Use UTC methods to avoid time zone shifts
         const day = date.getUTCDate();
         const year = date.getUTCFullYear();
         const month = date.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }).toUpperCase();
-        
+
         // Determine the ordinal suffix (ST, ND, RD, TH)
         const getOrdinal = (n) => {
             if (n >= 11 && n <= 13) return "TH";
@@ -235,7 +250,7 @@ export default function PrsPage() {
             if (lastDigit === 3) return "RD";
             return "TH";
         };
-        
+
         const dayWithSuffix = `${day}${getOrdinal(day)}`;
         return `${dayWithSuffix} DAY OF ${month} ${year}`;
     }
@@ -289,7 +304,7 @@ export default function PrsPage() {
         // Returned from
         worksheet.getCell("M39").value = formatLegalDateString(data.returnedBy.date);
         worksheet.getCell("N42").value = data.returnedBy.name;
-        
+
 
         // Generate the modified Excel file
         const buffer = await workbook.xlsx.writeBuffer();
@@ -365,7 +380,7 @@ export default function PrsPage() {
             form.getTextField(`totalValue${index + 1}`).setText(String(formatAmount(item.totalValue)));
             totalAmount += item.totalValue;
         });
-        
+
         form.getTextField("totalAmount").setText(String(formatAmount(totalAmount)));
         form.getTextField("note").setText(String(data.note));
 
@@ -375,7 +390,7 @@ export default function PrsPage() {
         form.getTextField("returnedToDesignation1").setText(String(data.returnedTo.designation));
         form.getTextField("returnedToName2").setText(String(data.returnedTo.name));
         form.getTextField("returnedToDesignation2").setText(String(data.returnedTo.designation));
-        
+
         // Returned by
         form.getTextField("returnedByDate").setText(String(formatLegalDateString(data.returnedBy.date)));
         form.getTextField("returnedByName").setText(String(data.returnedBy.name));
@@ -398,7 +413,9 @@ export default function PrsPage() {
         }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Return Slips &amp; User Returns</h2>
@@ -416,7 +433,7 @@ export default function PrsPage() {
                         </div>
                         <div className="flex gap-2">
                             {!item.submittedBy && <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(item)} />}
-                            {item.status === 'PENDING' && <div className="flex flex-wrap items-center gap-2"><button type="button" disabled={!!processing} onClick={() => processReturn(item, 'confirm')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50">Confirm receipt</button><input aria-label="Return rejection reason" placeholder="Reason if rejected" value={rejectionReasons[item._id] || ''} onChange={event => setRejectionReasons(prev => ({ ...prev, [item._id]: event.target.value }))} className="rounded-lg border p-2 text-sm" /><button type="button" disabled={!!processing || !rejectionReasons[item._id]?.trim()} onClick={() => processReturn(item, 'reject')} className="rounded-lg bg-rose-100 px-3 py-2 text-sm text-rose-700 disabled:opacity-50">Reject</button></div>}
+                            {item.status === 'PENDING' && <div className="flex flex-wrap items-center gap-2"><button type="button" disabled={!!processing} onClick={() => processReturn(item, 'confirm')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50">{processing === item._id ? <Skeleton className="h-4 w-24" /> : 'Confirm receipt'}</button><input aria-label="Return rejection reason" placeholder="Reason if rejected" value={rejectionReasons[item._id] || ''} onChange={event => setRejectionReasons(prev => ({ ...prev, [item._id]: event.target.value }))} className="rounded-lg border p-2 text-sm" /><button type="button" disabled={!!processing || !rejectionReasons[item._id]?.trim()} onClick={() => processReturn(item, 'reject')} className="rounded-lg bg-rose-100 px-3 py-2 text-sm text-rose-700 disabled:opacity-50">{processing === item._id ? <Skeleton className="h-4 w-12" /> : 'Reject'}</button></div>}
                             {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
                             <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(item, true)} />

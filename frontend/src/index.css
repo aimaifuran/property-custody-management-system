@@ -277,7 +277,7 @@ body {
   .login-illustration #svg-global {
     zoom: 1;
     width: auto;
-    height: 100px;
+    height: 80px;
   }
 }
 
@@ -1085,9 +1085,8 @@ button.record-action:disabled { opacity: .5; cursor: not-allowed; }
   .form-title-action { position: static; align-self: flex-end; max-width: 100%; flex-wrap: wrap; }
   .app-shell button:not(.record-action) { font-size: 12px; }
   button.record-action { width: 70px; height: 36px; }
-  .dashboard-issue > .grid, .dashboard-other > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dashboard-issue > .grid > :last-child:nth-child(odd),
-  .dashboard-other > .grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .dashboard-issue > .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .dashboard-other > .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .dashboard-breakdowns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-users { grid-column: 1 / -1; grid-row: 2; }
   .dashboard-users .dashboard-user-pictorial { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); }
@@ -1100,3 +1099,83 @@ button.record-action:disabled { opacity: .5; cursor: not-allowed; }
   .dashboard-issue .p-2\.5 { padding: 6px; }
   .dashboard-issue svg { width: 18px; height: 18px; }
 }
+
+/* Compact summary rows use every column even on a narrow phone. */
+.dashboard-issue > .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.dashboard-other > .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1099px) {
+  .dashboard-issue > .grid, .dashboard-other > .grid { gap: 6px; }
+  .dashboard-issue .minimal-surface, .dashboard-other .minimal-surface { padding: 8px; }
+  .dashboard-issue .minimal-surface > .flex,
+  .dashboard-other .minimal-surface > div > .flex { flex-direction: column; align-items: flex-start; gap: 5px; }
+  .dashboard-issue .minimal-surface > .flex > :last-child { order: -1; }
+  .dashboard-issue .dashboard-card-label, .dashboard-other .dashboard-card-label {
+    font-size: clamp(9px, 1.4vw, 11px) !important;
+    line-height: 1.25;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .dashboard-issue .mt-4, .dashboard-other .mt-2 { margin-top: 5px; font-size: 18px !important; line-height: 1.2; }
+  .dashboard-issue .p-2\.5, .dashboard-other .p-1\.5 { padding: 4px; }
+  .dashboard-issue svg, .dashboard-other svg { width: 15px; height: 15px; }
+}
+@media (max-width: 400px) {
+  .dashboard-issue > .grid, .dashboard-other > .grid { gap: 4px; }
+  .dashboard-issue .minimal-surface, .dashboard-other .minimal-surface { padding: 6px; }
+}
+
+.skeleton {
+  max-width: 100%;
+  vertical-align: middle;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #dbe6df 25%, #edf3ee 50%, #dbe6df 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+@media (max-width: 1099px), (max-height: 699px) {
+  .dashboard-breakdowns > .dashboard-return-summary { height: auto; padding: 8px; }
+  .dashboard-breakdowns .dashboard-return-chart { height: 88px; margin-top: 4px; }
+  .dashboard-return-summary h2 { font-size: 11px !important; line-height: 1.3; }
+  .dashboard-return-empty { margin-top: 6px; font-size: 11px; line-height: 1.4; }
+}
+
+/* Match action controls to the compact Add button throughout the app. */
+:is(.app-shell main, .login-page, form) button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px !important;
+  height: auto !important;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  line-height: 16px !important;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.app-shell main .saved-record button:not(.record-action),
+.app-shell main button.record-action {
+  width: auto !important;
+  height: auto !important;
+  min-height: 28px !important;
+  min-width: 0;
+}
+:is(.app-shell main, .login-page, form) button > svg { width: 13px; height: 13px; flex-shrink: 0; }
+.app-shell main button > img { width: auto; height: 16px; object-fit: contain; }
+.app-shell main button.record-action { box-shadow: 1px 1px 0 var(--action-shadow); }
+.app-shell main .record-action__icon {
+  position: static;
+  width: 13px;
+  height: 13px;
+  transform: none;
+}
+.app-shell main .record-action:hover:not(:disabled) .record-action__label,
+.app-shell main .record-action:focus-visible .record-action__label { opacity: 1; }
+.app-shell main .record-action:hover:not(:disabled) .record-action__icon,
+.app-shell main .record-action:focus-visible .record-action__icon { transform: none; }

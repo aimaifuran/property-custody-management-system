@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import RecordActionButton from '../components/RecordActionButton';
@@ -37,6 +38,9 @@ const toForm = (record) => ({
 });
 
 export default function ReturnedSupplyPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
@@ -45,8 +49,18 @@ export default function ReturnedSupplyPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/returned-supply');
         setRecords(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
     useEffect(() => {
@@ -123,7 +137,9 @@ export default function ReturnedSupplyPage() {
         </div>
     );
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <motion.div ref={recordsRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Returned Items</h2>

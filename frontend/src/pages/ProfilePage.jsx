@@ -1,9 +1,10 @@
+import Skeleton from '../components/Skeleton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import Spinner from '../components/Spinner';
+
 
 const emptyProfileForm = () => ({
     firstName: '',
@@ -164,8 +165,7 @@ export default function ProfilePage() {
                     </label>
                 </div>
                 <button type="submit" disabled={savingProfile} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                    {savingProfile && <Spinner size={16} />}
-                    {savingProfile ? 'Saving…' : 'Save Changes'}
+                    {savingProfile ? <Skeleton className="h-4 w-20" /> : 'Save Changes'}
                 </button>
             </motion.form>
 
@@ -186,8 +186,7 @@ export default function ProfilePage() {
                     </label>
                 </div>
                 <button type="submit" disabled={savingPassword} className="mt-5 flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                    {savingPassword && <Spinner size={16} />}
-                    {savingPassword ? 'Updating…' : 'Update Password'}
+                    {savingPassword ? <Skeleton className="h-4 w-20" /> : 'Update Password'}
                 </button>
             </motion.form>
 
@@ -202,8 +201,7 @@ export default function ProfilePage() {
                             <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="new.email@example.com" className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                         </label>
                         <button type="submit" disabled={sendingCode} className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                            {sendingCode && <Spinner size={16} />}
-                            {sendingCode ? 'Sending…' : 'Send Verification Code'}
+                            {sendingCode ? <Skeleton className="h-4 w-20" /> : 'Send Verification Code'}
                         </button>
                     </form>
                 ) : (
@@ -217,8 +215,7 @@ export default function ProfilePage() {
                                 <input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="6-digit code" className="w-full rounded-xl border border-slate-200 px-3 py-2 md:w-48" />
                             </label>
                             <button type="submit" disabled={confirmingCode} className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-60">
-                                {confirmingCode && <Spinner size={16} />}
-                                {confirmingCode ? 'Confirming…' : 'Confirm'}
+                                {confirmingCode ? <Skeleton className="h-4 w-20" /> : 'Confirm'}
                             </button>
                             <button type="button" onClick={cancelEmailChange} className="rounded-xl border px-4 py-2 text-sm">Cancel</button>
                         </div>

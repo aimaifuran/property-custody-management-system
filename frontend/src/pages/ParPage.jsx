@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
@@ -56,6 +57,9 @@ const toForm = (record) => ({
 });
 
 export default function ParPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
@@ -64,8 +68,18 @@ export default function ParPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/par');
         setRecords(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
     useEffect(() => { load(); }, []);
@@ -164,12 +178,12 @@ export default function ParPage() {
     };
 
     const formatAmount = (amount) => {
-        return amount.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+        return amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
     };
-        
+
     async function generateExcel(data) {
         console.log('Generating Excel for PAR:', data);
 
@@ -211,7 +225,7 @@ export default function ParPage() {
         worksheet.getCell("G45").value = data.issuedBy.name;
         worksheet.getCell("G47").value = data.issuedBy.position;
         worksheet.getCell("G49").value = formatDate(data.issuedBy.date);
-        
+
 
         // Generate the modified Excel file
         const buffer = await workbook.xlsx.writeBuffer();
@@ -281,7 +295,7 @@ export default function ParPage() {
             form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
         });
 
-        
+
         form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
         form.getTextField("remarks").setText(String(data.remarks));
 
@@ -289,7 +303,7 @@ export default function ParPage() {
         form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
         form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
         form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
-        
+
         // Issued by
         form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
         form.getTextField("issuedByPosition").setText(String(data.issuedBy?.position || ''));
@@ -313,7 +327,9 @@ export default function ParPage() {
         }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Saved Records</h2>

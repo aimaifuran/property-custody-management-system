@@ -1,3 +1,4 @@
+import Skeleton from '../components/Skeleton';
 import { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
@@ -52,7 +53,7 @@ export default function ForgotPasswordPage() {
               />
             </label>
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white disabled:opacity-60">
-              {loading ? 'Sending…' : 'Send reset link'}
+              {loading ? <Skeleton className="h-4 w-20" /> : 'Send reset link'}
             </button>
           </form>
         )}

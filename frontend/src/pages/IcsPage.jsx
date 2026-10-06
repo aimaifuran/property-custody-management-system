@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
@@ -58,6 +59,9 @@ const toForm = (record) => ({
 });
 
 export default function IcsPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
@@ -66,8 +70,18 @@ export default function IcsPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/ics');
         setRecords(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
     useEffect(() => { load(); }, []);
@@ -169,12 +183,12 @@ export default function IcsPage() {
     };
 
     const formatAmount = (amount) => {
-        return amount.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+        return amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
     };
-    
+
     async function generateExcel(data) {
         console.log('Generating Excel for ICS:', data);
 
@@ -217,7 +231,7 @@ export default function IcsPage() {
         worksheet.getCell("G47").value = data.receivedBy.name;
         worksheet.getCell("G49").value = data.receivedBy.position;
         worksheet.getCell("G51").value = formatDate(data.receivedBy.date);
-        
+
 
         // Generate the modified Excel file
         const buffer = await workbook.xlsx.writeBuffer();
@@ -287,7 +301,7 @@ export default function IcsPage() {
             form.getTextField(`inventoryItemNo${index + 1}`).setText(String(item.inventoryItemNo));
             form.getTextField(`estimatedUsefulLife${index + 1}`).setText(String(item.estimatedUsefulLife));
         });
-        
+
         form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
         form.getTextField("remarks").setText(String(data.remarks));
 
@@ -319,7 +333,9 @@ export default function IcsPage() {
         }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Saved Records</h2>

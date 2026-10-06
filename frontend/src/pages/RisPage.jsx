@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -342,7 +343,7 @@ const toFormSignatory = (signatory) => {
 //     }
 //   });
 
-  
+
 //   const signatureLabels = [
 //     ['C35', 'Requested by:'],
 //     ['D35', 'Approved by:'],
@@ -397,6 +398,9 @@ const toFormSignatory = (signatory) => {
 // };
 
 export default function RisPage() {
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoadError, setPageLoadError] = useState('');
+
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(newForm);
@@ -417,6 +421,10 @@ export default function RisPage() {
   const canEditReview = canReviewRis;
 
   const load = async () => {
+    setPageLoading(true);
+    setPageLoadError('');
+    try {
+
     setStockLoadError('');
 
     const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get('/items')]);
@@ -432,6 +440,12 @@ export default function RisPage() {
     } else {
       setItems([]);
       setStockLoadError('Unable to load stock list. Please refresh the page or check your account permissions.');
+    }
+
+    } catch (error) {
+      setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -654,9 +668,9 @@ export default function RisPage() {
   };
 
   const formatAmount = (amount) => {
-    return amount.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+    return amount.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     });
   }
 
@@ -714,7 +728,7 @@ export default function RisPage() {
     worksheet.getCell("H37").value = data.receivedBy?.name;
     worksheet.getCell("H38").value = data.receivedBy?.designation;
     worksheet.getCell("H39").value = formatDate(data.receivedBy?.date);
-    
+
 
     // Generate the modified Excel file
     const buffer = await workbook.xlsx.writeBuffer();
@@ -756,7 +770,7 @@ export default function RisPage() {
       form.getTextField(`remarks${index + 1}`).setText(String(item.remarks || ''));
     });
 
-    
+
     form.getTextField("purpose").setText(String(data.purpose));
 
     // Requested by
@@ -830,7 +844,9 @@ export default function RisPage() {
     DRAFT: 'bg-slate-100 text-slate-700',
   };
 
-  return (
+  if (pageLoading) return <PageSkeleton />;
+  if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
     <div className="space-y-6">
       <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">

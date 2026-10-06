@@ -1,3 +1,4 @@
+import Skeleton from '../components/Skeleton';
 import { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -74,7 +75,7 @@ export default function ResetPasswordPage() {
               />
             </label>
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white disabled:opacity-60">
-              {loading ? 'Updating…' : 'Update password'}
+              {loading ? <Skeleton className="h-4 w-20" /> : 'Update password'}
             </button>
           </form>
         )}

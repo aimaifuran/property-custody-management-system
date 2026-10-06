@@ -1,3 +1,4 @@
+import { PageSkeleton } from './components/Skeleton';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -27,7 +28,7 @@ import ProfilePage from './pages/ProfilePage';
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
   const { pathname } = useLocation();
-  if (!authReady || loading) return <div className="flex min-h-screen items-center justify-center">Loading…</div>;
+  if (!authReady || loading) return <PageSkeleton fullScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'admin' && !['/my-issued-items', '/my-returns'].includes(pathname)) return <Navigate to="/my-issued-items" replace />;
   if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/dashboard" replace />;

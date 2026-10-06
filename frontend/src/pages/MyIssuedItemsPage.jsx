@@ -1,3 +1,5 @@
+import Skeleton from '../components/Skeleton';
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -25,7 +27,8 @@ export default function MyIssuedItemsPage() {
     return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, []);
 
-  return <div className="space-y-6">
+  if (loading) return <PageSkeleton />;
+ return <div className="space-y-6">
     <section className="minimal-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -36,7 +39,7 @@ export default function MyIssuedItemsPage() {
       </div>
     </section>
     {error && <div role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">{error}</div>}
-    {loading ? <p className="text-sm text-slate-500">Loading your issued items...</p> : !error && <section className="minimal-surface p-6">
+    {loading ? <Skeleton className="h-4 w-20" /> : !error && <section className="minimal-surface p-6">
       {items.length === 0 ? <p className="text-sm text-slate-500">No items have been issued to your account yet.</p> : <TableScroll className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">
           <thead><tr className="border-b text-slate-500">{['Property / Item', 'Stock No.', 'Quantity Issued', 'RIS No.', 'Date Issued', 'Return Status'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>

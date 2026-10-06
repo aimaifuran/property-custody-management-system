@@ -1,3 +1,5 @@
+import Skeleton from '../components/Skeleton';
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useState } from 'react';
@@ -31,6 +33,7 @@ const formatDate = (value) => {
 export default function ReportsPage({ mode }) {
   const currentYear = new Date().getFullYear();
   const [records, setRecords] = useState([]);
+  const [summaryLoading, setSummaryLoading] = useState(mode === 'annual');
   const [annualSummary, setAnnualSummary] = useState(null);
   const [form, setForm] = useState('ALL');
   const [year, setYear] = useState(currentYear);
@@ -55,11 +58,14 @@ export default function ReportsPage({ mode }) {
   useEffect(() => {
     if (mode !== 'annual') return undefined;
     const loadSummary = async () => {
+      setSummaryLoading(true);
       try {
         const { data } = await axios.get('/reports/annual-summary', { params: { year } });
         setAnnualSummary(data.data || null);
       } catch (requestError) {
         setError(requestError.response?.data?.message || 'Unable to load annual summary');
+      } finally {
+        setSummaryLoading(false);
       }
     };
     loadSummary();
@@ -271,7 +277,8 @@ export default function ReportsPage({ mode }) {
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
-  return (
+  if (loading || (mode === 'annual' && summaryLoading)) return <PageSkeleton />;
+ return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -316,7 +323,7 @@ export default function ReportsPage({ mode }) {
       <div className="minimal-surface overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><FileText size={18} className="text-emerald-700" /> {selectedFormLabel} results</div>
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{loading ? 'Loading…' : `${visibleRecords.length} report${visibleRecords.length === 1 ? '' : 's'}`}</span>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{loading ? <Skeleton className="h-4 w-20" /> : `${visibleRecords.length} report${visibleRecords.length === 1 ? '' : 's'}`}</span>
         </div>
         <TableScroll className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">

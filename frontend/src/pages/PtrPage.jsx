@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
@@ -90,6 +91,9 @@ const toForm = (record) => ({
 });
 
 export default function PtrPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [reports, setReports] = useState([]);
     const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
@@ -98,8 +102,18 @@ export default function PtrPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/ptr');
         setReports(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
     const assignNextNumber = async () => {
@@ -219,12 +233,12 @@ export default function PtrPage() {
     };
 
     const formatAmount = (amount) => {
-        return amount.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+        return amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
     };
-        
+
     async function generateExcel(data) {
         console.log('Generating Excel for PTR:', data);
 
@@ -260,7 +274,7 @@ export default function PtrPage() {
             worksheet.getCell(`I${startRow + index}`).value = formatAmount(item.amount);
             worksheet.getCell(`J${startRow + index}`).value = item.condition;
         });
-        
+
         worksheet.getCell("B43").value = data.remarks;
         worksheet.getCell("C44").value = data.reasonForTransfer;
 
@@ -278,7 +292,7 @@ export default function PtrPage() {
         worksheet.getCell("I50").value = data.receivedBy.name;
         worksheet.getCell("I51").value = data.receivedBy.designation;
         worksheet.getCell("I52").value = formatDate(data.receivedBy.date);
-        
+
 
         // Generate the modified Excel file
         const buffer = await workbook.xlsx.writeBuffer();
@@ -391,7 +405,9 @@ export default function PtrPage() {
         }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-semibold">Saved Reports</h2>
