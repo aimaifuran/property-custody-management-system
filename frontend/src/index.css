@@ -1186,7 +1186,7 @@ button.record-action:disabled { opacity: .5; cursor: not-allowed; }
 
 /* One shared text scale for pages, controls, and compact dashboard cards. */
 :root {
-  --app-card-label-size: 11px;
+  --app-card-label-size: 12px;
   --app-text-size: var(--app-card-label-size);
   --app-count-size: var(--app-card-label-size);
   --app-heading-size: var(--app-card-label-size);
