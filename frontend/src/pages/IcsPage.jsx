@@ -1,3 +1,4 @@
+import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -69,6 +70,8 @@ export default function IcsPage() {
     const [form, setForm] = useState(null);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState('');
+  const filteredReports = filterReports(records, search);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
@@ -87,8 +90,8 @@ export default function IcsPage() {
     };
 
     useEffect(() => { load(); }, []);
-    const pageCount = Math.max(1, Math.ceil(records.length / perPage));
-    const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
+    const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
+    const visibleRecords = filteredReports.slice((page - 1) * perPage, page * perPage);
 
     const startEdit = (record) => {
         setEditingId(record._id);
@@ -350,7 +353,7 @@ export default function IcsPage() {
  return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Saved Records</h2><NewFormButton onNew={createNew} editorRef={editorRef} /></div>
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={createNew} editorRef={editorRef} /></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -368,7 +371,7 @@ export default function IcsPage() {
                         </div>
                     </div>
                 ))}
-                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+                <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
             {form && (

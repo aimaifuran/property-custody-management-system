@@ -1,3 +1,5 @@
+import UserAccountSelect from '../components/UserAccountSelect';
+import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -70,6 +72,7 @@ const toDateInputValue = (date) => {
 const toFormSignatory = (signatory) => {
   if (signatory && typeof signatory === 'object') {
     return {
+      user: signatory.user?._id || signatory.user || undefined,
       name: signatory.name || '',
       designation: signatory.designation || '',
       date: toDateInputValue(signatory.date),
@@ -413,6 +416,8 @@ export default function RisPage() {
   const [stockLoadError, setStockLoadError] = useState('');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState('');
+  const filteredReports = filterReports(ris, search);
   const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingRis?._id);
   const supplyReviewRef = useRef(null);
   const { user } = useAuth();
@@ -463,8 +468,8 @@ export default function RisPage() {
     load();
     assignNextNumber();
   }, []);
-  const pageCount = Math.max(1, Math.ceil(ris.length / perPage));
-  const visibleRis = ris.slice((page - 1) * perPage, page * perPage);
+  const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
+  const visibleRis = filteredReports.slice((page - 1) * perPage, page * perPage);
 
   useEffect(() => {
     if (!reviewTarget || !reviewDraft || !supplyReviewRef.current) return;
@@ -485,7 +490,7 @@ export default function RisPage() {
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
   const updateSignatory = (section, key, value) => setForm((prev) => {
-    const signatory = { ...prev[section], [key]: value };
+    const signatory = { ...prev[section], [key]: value, ...(key === 'name' ? { user: undefined } : {}) };
     saveStickySignatory(section, signatory, key);
     return { ...prev, [section]: signatory };
   });
@@ -850,10 +855,7 @@ export default function RisPage() {
  return (
     <div className="space-y-6">
       <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Submitted RIS</h2>
-          <NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} />
-        </div>
+        <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} /></SavedReportsHeader>
         {stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {stockLoadError}
@@ -931,7 +933,7 @@ export default function RisPage() {
               ) : null}
             </div>
           ))}
-          <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+          <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
         </div>
       </div>
 
@@ -1269,6 +1271,7 @@ export default function RisPage() {
             ].map(([label, section]) => (
               <div key={section} className="rounded-xl border border-slate-700 p-4">
                 <h3 className="mb-3 text-sm font-semibold">{label}</h3>
+                {user?.role === 'admin' && ['requestedBy', 'receivedBy'].includes(section) && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, ...(section === 'requestedBy' ? { office: person.designation || prev.office, receivedBy: { ...prev.receivedBy, user: person.user, name: person.name, designation: person.designation } } : {}) }))} />}
                 <div className="grid gap-3 md:grid-cols-3">
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>

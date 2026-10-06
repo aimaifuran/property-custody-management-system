@@ -1,3 +1,4 @@
+const ReturnedSupply = require('../models/ReturnedSupply');
 const RIS = require('../models/RequisitionIssueSlip');
 const PRS = require('../models/PropertyReturnSlip');
 const Property = require('../models/Property');
@@ -23,12 +24,13 @@ async function annualOfficeItems(year, acquiredOnly = false) {
   const start = new Date(Date.UTC(year, 0, 1) - 8 * 60 * 60 * 1000);
   const beforeEnd = date => date && new Date(date) < end;
   const inPeriod = date => beforeEnd(date) && (!acquiredOnly || new Date(date) >= start);
-  const [slips, returns, properties, accountabilities, ics, pars, cards] = await Promise.all([
+  const [slips, returns, properties, accountabilities, ics, pars, cards, supplies] = await Promise.all([
     RIS.find({ deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } }).lean(),
     PRS.find({ deleted: false, status: 'RETURNED' }).lean(),
     Property.find({ deleted: false }).lean(),
     Accountability.find({ deleted: false }).populate({ path: 'inventory', populate: { path: 'item' } }).lean(),
     ICS.find({ deleted: false }).lean(), PAR.find({ deleted: false }).lean(), PropertyCard.find({ deleted: false }).lean(),
+    ReturnedSupply.find({ deleted: false, prs: null, ris: { $ne: null } }).lean(),
   ]);
   const returned = new Map();
   for (const record of returns) {
@@ -38,6 +40,11 @@ async function annualOfficeItems(year, acquiredOnly = false) {
       const key = `${item.ris}:${item.risItem}`;
       returned.set(key, (returned.get(key) || 0) + Number(item.quantity || 0));
     }
+  }
+  for (const item of supplies) {
+    if (!item.risItem || !beforeEnd(item.returnedTo?.date || item.createdAt)) continue;
+    const key = `${item.ris}:${item.risItem}`;
+    returned.set(key, (returned.get(key) || 0) + Number(item.quantity || 0));
   }
   const rows = [];
   const coveredIars = new Set();

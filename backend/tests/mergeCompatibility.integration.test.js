@@ -146,4 +146,33 @@ test('merged deployment routes, list responses, login locks and password recover
   assert.deepEqual(newMonthly.body.data.rows.map(row => row.item), monthly.body.data.report.rows.map(row => row.item));
   assert.equal(newMonthly.body.data.rows.some(row => row.item === 'FORGED'), false);
 
+  // Admin-created users and typed requests retain a stable account link.
+  const legacy = await RIS.create({ risNumber: 'LINK-LEGACY', requestedBy: { name: 'Jane Marie Doe' }, status: 'ISSUED', items: [{ description: 'Linked Laptop', quantityIssued: 2 }] });
+  const added = await request(admin, '/api/users', 'POST', { firstName: 'Jane', middleName: 'Marie', lastName: 'Doe', username: 'jane', email: 'jane@example.test', password: 'Valid123!', office: 'Treasury', division: 'Finance', role: 'user', permissions: [] });
+  assert.equal(added.status, 201);
+  assert.equal(added.body.data.createdBy, String(admin._id));
+  assert.ok(added.body.data.permissions.includes('canViewRIS'));
+  const jane = await User.findById(added.body.data._id);
+  assert.equal(String((await RIS.findById(legacy._id)).requestedBy.user), String(jane._id));
+  assert.equal((await request(jane, '/api/ris/my-returns')).body.data.some(row => row.risNumber === 'LINK-LEGACY'), true);
+  assert.equal((await request(owner, '/api/ris/my-returns')).body.data.some(row => row.risNumber === 'LINK-LEGACY'), false);
+  const typedReturn = await request(admin, '/api/prs', 'POST', { returnedBy: { name: ' jane marie doe ' }, items: [{ description: 'Linked Laptop', mrNumber: 'LINK-LEGACY', quantity: 1 }] });
+  assert.equal(typedReturn.status, 201, JSON.stringify(typedReturn.body));
+  assert.equal(typedReturn.body.data.items[0].ris, String(legacy._id));
+  assert.equal((await request(jane, '/api/ris/my-returns')).body.data.find(row => row.risNumber === 'LINK-LEGACY').status, 'Partially returned');
+  const directReturn = await request(admin, '/api/returned-supply', 'POST', { returnedBy: { user: jane._id }, description: 'Linked Laptop', mrNumber: 'LINK-LEGACY', quantity: 1 });
+  assert.equal(directReturn.status, 201, JSON.stringify(directReturn.body));
+  assert.equal((await request(jane, '/api/ris/my-returns')).body.data.find(row => row.risNumber === 'LINK-LEGACY').status, 'Successfully returned');
+  assert.equal((await request(admin, '/api/returned-supply', 'POST', { returnedBy: { user: jane._id }, description: 'Linked Laptop', mrNumber: 'LINK-LEGACY', quantity: 1 })).status, 400);
+  assert.equal((await request(admin, '/api/prs', 'POST', { returnedBy: { user: owner._id }, items: [{ ris: legacy._id, risItem: legacy.items[0]._id, quantity: 1 }] })).status, 400);
+  await request(admin, `/api/users/${jane._id}`, 'PUT', { firstName: 'Janet' });
+  assert.equal((await request(jane, '/api/ris/my-returns')).body.data.find(row => row.risNumber === 'LINK-LEGACY').quantityReturned, 2);
+  const sameName = await makeUser('same-name', 'user', { firstName: 'Janet', middleName: 'Marie', lastName: 'Doe' });
+  const formPayload = { risNumber: 'LINK-NEW', entityName: 'Carigara', fundCluster: 'General', division: 'Finance', office: 'Treasury', responsibilityCenterCode: '001', requestedBy: { name: 'Janet Marie Doe' }, receivedBy: { name: 'Janet Marie Doe' } };
+  assert.equal((await request(admin, '/api/ris', 'POST', formPayload)).status, 400, 'Duplicate names must require explicit selection');
+  const selected = await request(admin, '/api/ris', 'POST', { ...formPayload, requestedBy: { user: jane._id }, receivedBy: { user: jane._id } });
+  assert.equal(selected.status, 201);
+  assert.equal(selected.body.data.requestedBy.name, 'Janet Marie Doe');
+  assert.equal((await request(sameName, '/api/ris')).body.data.some(row => row.risNumber === 'LINK-NEW'), false);
+
 });

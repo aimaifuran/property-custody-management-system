@@ -1,3 +1,5 @@
+import UserAccountSelect from '../components/UserAccountSelect';
+import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -18,12 +20,15 @@ const toDateInputValue = (date) => {
 };
 
 const toFormSignatory = (signatory = {}) => ({
+    user: signatory.user?._id || signatory.user || undefined,
     date: toDateInputValue(signatory.date),
     name: signatory.name || '',
     designation: signatory.designation || ''
 });
 
 const toForm = (record) => ({
+    ris: record.ris || '',
+    risItem: record.risItem || '',
     lguName: record.lguName || '',
     purpose: record.purpose || '',
     quantity: record.quantity ?? '',
@@ -34,7 +39,7 @@ const toForm = (record) => ({
     unitValue: record.unitValue ?? '',
     totalValue: record.totalValue ?? 0,
     note: record.note || '',
-    returnedBy: getStickySignatory('returnedBy', toFormSignatory(record.returnedBy)),
+    returnedBy: record.returnedBy ? toFormSignatory(record.returnedBy) : getStickySignatory('returnedBy', toFormSignatory()),
     returnedTo: getStickySignatory('returnedTo', toFormSignatory(record.returnedTo))
 });
 
@@ -43,10 +48,13 @@ export default function ReturnedSupplyPage() {
     const [pageLoadError, setPageLoadError] = useState('');
 
     const [records, setRecords] = useState([]);
+    const [issuedRecords, setIssuedRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
+  const [search, setSearch] = useState('');
+  const filteredReports = filterReports(records, search);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
@@ -64,9 +72,9 @@ export default function ReturnedSupplyPage() {
       }
     };
 
-    useEffect(() => { load(); }, []);
-    const pageCount = Math.max(1, Math.ceil(records.length / perPage));
-    const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
+    useEffect(() => { load(); axios.get('/ris').then(({ data }) => setIssuedRecords((data.data || []).filter(record => ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status)))).catch(() => toast.error('Unable to load issued items for return linking')); }, []);
+    const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
+    const visibleRecords = filteredReports.slice((page - 1) * perPage, page * perPage);
 
     const startEdit = (record) => {
         setEditingId(record._id);
@@ -83,7 +91,7 @@ export default function ReturnedSupplyPage() {
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
     const updateSignatory = (section, key, value) => setForm(prev => {
-        const signatory = { ...prev[section], [key]: value };
+        const signatory = { ...prev[section], [key]: value, ...(key === 'name' ? { user: undefined } : {}) };
         saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
@@ -101,6 +109,8 @@ export default function ReturnedSupplyPage() {
         try {
             await axios[editingId ? 'put' : 'post'](editingId ? `/returned-supply/${editingId}` : '/returned-supply', {
                 ...form,
+                ris: form.ris || undefined,
+                risItem: form.risItem || undefined,
                 quantity: Number(form.quantity || 0),
                 unitValue: Number(form.unitValue || 0)
             });
@@ -139,7 +149,7 @@ export default function ReturnedSupplyPage() {
  return (
         <div className="space-y-6">
             <motion.div ref={recordsRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Returned Items</h2><NewFormButton onNew={createNew} editorRef={editorRef} /></div>
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={createNew} editorRef={editorRef} /></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
                 <div className="mt-3 space-y-3">
                     {visibleRecords.map((record) => (
@@ -161,7 +171,7 @@ export default function ReturnedSupplyPage() {
                         </div>
                     ))}
                 </div>
-                <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+                <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </motion.div>
 
             {form && (
@@ -173,6 +183,12 @@ export default function ReturnedSupplyPage() {
                         </div>
                         <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>
                     </div>
+                    <label className="mb-4 block"><span className="mb-1 block font-semibold">Issued item to return</span><select aria-label="Issued item to return" value={form.ris && form.risItem ? `${form.ris}:${form.risItem}` : ''} onChange={event => {
+                        const [risId, itemId] = event.target.value.split(':');
+                        const record = issuedRecords.find(entry => entry._id === risId);
+                        const item = record?.items.find(entry => entry._id === itemId);
+                        setForm(prev => ({ ...prev, ris: risId || '', risItem: itemId || '', ...(item ? { description: item.description, unit: item.unit, mrNumber: record.risNumber, returnedBy: { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name } } : {}) }));
+                    }} className="w-full rounded-lg border px-2 py-2"><option value="">Match typed item and RIS number to the selected account</option>{issuedRecords.filter(record => !form.returnedBy.user || String(record.requestedBy?.user || record.receivedBy?.user) === String(form.returnedBy.user)).flatMap(record => record.items.filter(item => item.quantityIssued > 0).map(item => <option key={`${record._id}:${item._id}`} value={`${record._id}:${item._id}`}>{record.requestedBy?.name || record.receivedBy?.name} ? {record.risNumber} ? {item.description}</option>))}</select></label>
                     <div className="grid gap-3 md:grid-cols-3">
                         <label className="block">
                             <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
@@ -233,7 +249,7 @@ export default function ReturnedSupplyPage() {
                     </div>
 
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
-                        {signatoryFields('Returned By', 'returnedBy')}
+                        <div><UserAccountSelect person={form.returnedBy} onChange={person => setForm(prev => ({ ...prev, returnedBy: person, ris: '', risItem: '' }))} />{signatoryFields('Returned By', 'returnedBy')}</div>
                         {signatoryFields('Returned To', 'returnedTo')}
                     </div>
 

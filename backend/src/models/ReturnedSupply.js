@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 
 const returnedSupplySchema = new mongoose.Schema({
   prs: { type: mongoose.Schema.Types.ObjectId, ref: 'PropertyReturnSlip', index: true },
+  ris: { type: mongoose.Schema.Types.ObjectId, ref: 'RequisitionIssueSlip' },
+  risItem: { type: mongoose.Schema.Types.ObjectId },
   lguName: { type: String, trim: true },
   purpose: { type: String, trim: true },
   quantity: { type: Number },
@@ -13,6 +15,7 @@ const returnedSupplySchema = new mongoose.Schema({
   totalValue: { type: Number },
   note: { type: String },
   returnedBy: {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     date: { type: Date },
     name: { type: String, trim: true },
     designation: { type: String, trim: true },
