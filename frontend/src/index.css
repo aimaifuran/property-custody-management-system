@@ -1186,11 +1186,11 @@ button.record-action:disabled { opacity: .5; cursor: not-allowed; }
 
 /* One shared text scale for pages, controls, and compact dashboard cards. */
 :root {
-  --app-text-size: 12px;
   --app-card-label-size: 10px;
-  --app-count-size: 16px;
-  --app-heading-size: 16px;
-  --app-section-size: 14px;
+  --app-text-size: var(--app-card-label-size);
+  --app-count-size: var(--app-card-label-size);
+  --app-heading-size: var(--app-card-label-size);
+  --app-section-size: var(--app-card-label-size);
 }
 body { font-size: var(--app-text-size); }
 :is(.app-shell, .login-page, form) :where(p, span, label, input, select, textarea, button, th, td, a, [class*="text-"]) {
@@ -1215,7 +1215,7 @@ body { font-size: var(--app-text-size); }
 .dashboard-issue .mt-4, .dashboard-other .mt-2 {
   font-size: var(--app-count-size) !important;
 }
-.dashboard-page .recharts-text { font-size: 12px !important; }
+.dashboard-page .recharts-text { font-size: var(--app-card-label-size) !important; }
 @media (max-width: 767px) {
   :is(.app-shell, .login-page, form) input:not([type="checkbox"]):not([type="radio"]),
   :is(.app-shell, .login-page, form) select,
@@ -1363,3 +1363,6 @@ body { font-size: var(--app-text-size); }
 @media (max-width: 767px) {
   .form-document input:not([type='checkbox']):not([type='radio']), .form-document select { min-height: 40px; }
 }
+
+/* Dashboard text follows the Issue labels, including unstyled activity text. */
+.dashboard-page :where(div, strong, b) { font-size: var(--app-card-label-size); }
