@@ -1103,6 +1103,10 @@ button.record-action:disabled { opacity: .5; cursor: not-allowed; }
 /* Compact summary rows use every column even on a narrow phone. */
 .dashboard-issue > .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .dashboard-other > .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 640px) {
+  .dashboard-issue > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-issue > .grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
 @media (max-width: 1099px) {
   .dashboard-issue > .grid, .dashboard-other > .grid { gap: 6px; }
   .dashboard-issue .minimal-surface, .dashboard-other .minimal-surface { padding: 8px; }
