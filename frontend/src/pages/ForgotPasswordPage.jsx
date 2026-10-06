@@ -1,3 +1,4 @@
+import Skeleton from '../components/Skeleton';
 import { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
@@ -14,7 +15,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       const { data } = await axios.post('/auth/forgot-password', { identifier });
-      toast.success(data.message || 'If an account exists, a reset link has been sent.');
+      toast.success(data.message || 'Your request has been sent for administrator approval.');
       setSubmitted(true);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to process your request');
@@ -32,11 +33,11 @@ export default function ForgotPasswordPage() {
         </div>
 
         <h1 className="mb-2 text-xl font-semibold">Forgot your password?</h1>
-        <p className="mb-6 text-sm text-slate-400">Enter your username or email and we'll send you a link to reset your password.</p>
+        <p className="mb-6 text-sm text-slate-400">Enter your username or email to request administrator approval for a password reset.</p>
 
         {submitted ? (
           <div className="rounded-xl border border-teal-800 bg-teal-900/30 px-4 py-3 text-sm text-teal-200">
-            If an account with that email or username exists, a password reset link has been sent. Please check your inbox.
+            If an active user account exists, the administrator will receive your request. After approval, a reset link will be sent to your registered email. Administrator accounts receive a recovery email directly.
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -52,7 +53,7 @@ export default function ForgotPasswordPage() {
               />
             </label>
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white disabled:opacity-60">
-              {loading ? 'Sending…' : 'Send reset link'}
+              {loading ? <Skeleton className="h-4 w-20" /> : 'Request password reset'}
             </button>
           </form>
         )}

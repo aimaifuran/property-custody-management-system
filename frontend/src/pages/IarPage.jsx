@@ -1,3 +1,6 @@
+import NewFormButton from '../components/NewFormButton';
+import { PageSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import RecordActionButton from '../components/RecordActionButton';
 import {
@@ -81,6 +84,9 @@ const toForm = (record) => ({
 });
 
 export default function IarPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [iar, setIar] = useState([]);
     const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
@@ -104,11 +110,23 @@ export default function IarPage() {
         };
     });
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const {
             data
         } = await axios.get('/iar');
         setIar(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
+    useEffect(() => { load(); }, []);
+
     // useEffect(() => {
     //     load();
     //     axios.get('/document-numbers/IAR')
@@ -176,12 +194,12 @@ export default function IarPage() {
     };
 
     const formatAmount = (amount) => {
-        return amount.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+        return amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
     };
-    
+
     async function generateExcel(data) {
       console.log('Generating Excel for IAR:', data);
 
@@ -220,7 +238,7 @@ export default function IarPage() {
       worksheet.getCell("A35").value = data.inspectedBy;
       worksheet.getCell("F28").value = formatDate(data.acceptanceDate);
       worksheet.getCell("D35").value = data.acceptedBy;
-      
+
 
       // Generate the modified Excel file
       const buffer = await workbook.xlsx.writeBuffer();
@@ -295,7 +313,7 @@ export default function IarPage() {
         form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
       });
 
-      
+
       form.getTextField("inspectionDate").setText(formatDate(data.inspectionDate));
       form.getTextField("inspectedBy").setText(data.inspectedBy);
       form.getTextField("acceptanceDate").setText(formatDate(data.acceptanceDate));
@@ -321,17 +339,19 @@ export default function IarPage() {
       }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
       <>
         <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-lg font-bold tracking-tight text-[#285943]">Saved Reports</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold tracking-tight text-[#285943]">Saved Reports</h2><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="relative min-w-[240px]"><Search size={16} className="absolute left-3 top-3 text-slate-400" /><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search reports" className="w-full rounded-lg border border-white bg-[#eef7f1] py-2 pl-9 pr-3 text-xs text-slate-700 shadow-inner" /></label>
               <label className="flex items-center gap-2 whitespace-nowrap text-xs text-[#285943]">Per page <select value={perPage} onChange={(event) => updatePerPage(event.target.value)} className="rounded-lg border border-white bg-[#eef7f1] px-2 py-2 text-xs shadow-inner"><option value="5">5</option><option value="10">10</option><option value="20">20</option></select></label>
             </div>
           </div>
-          {visibleReports.map((item) => 
+          {visibleReports.map((item) =>
             <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}>
               <div>
                 <b className="text-sm tracking-tight text-[#285943]">{item.iarNumber}</b>
@@ -370,7 +390,7 @@ export default function IarPage() {
               {field('Invoice No.', 'invoiceNumber')}
               {field('Invoice Date', 'invoiceDate', 'date')}
             </div>
-            <div className="mt-6 overflow-x-auto">
+            <TableScroll className="mt-6 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                     <tr className="bg-slate-50 text-left">
@@ -383,11 +403,11 @@ export default function IarPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {form.items.map((item, index) => 
+                  {form.items.map((item, index) =>
                     <tr key={index}>
-                      {['stockPropertyNumber', 'description', 'unit'].map((key) => 
+                      {['stockPropertyNumber', 'description', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
-                          <input aria-label={key} value={item[key]} onChange={(e) => 
+                          <input aria-label={key} value={item[key]} onChange={(e) =>
                             updateItem(index, key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                         </td>
                       )}
@@ -404,7 +424,7 @@ export default function IarPage() {
                   )}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
             <button type="button" onClick={() => update('items', [...form.items, emptyItem()])} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
             <div className="mt-6 grid gap-3 border-t pt-4 md:grid-cols-3">
               <h2 className="md:col-span-3 text-lg font-semibold">INSPECTION</h2>

@@ -1,5 +1,5 @@
-import { Loader2 } from 'lucide-react';
+import Skeleton from './Skeleton';
 
 export default function Spinner({ size = 16, className = '' }) {
-    return <Loader2 size={size} className={`animate-spin ${className}`} />;
+  return <Skeleton className={className} style={{ width: size, height: size }} />;
 }

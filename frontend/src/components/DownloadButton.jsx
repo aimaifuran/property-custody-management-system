@@ -1,4 +1,5 @@
-import { Loader2, Check } from 'lucide-react';
+import Skeleton from './Skeleton';
+import { Check } from 'lucide-react';
 
 const TYPE_CONFIG = {
     excel: { src: '/excel-icon.png', title: 'Download Excel', color: '#107C41', size: 38 },
@@ -20,7 +21,7 @@ export default function DownloadButton({ type, status = 'idle', onClick, classNa
             className={`inline-flex h-[38px] w-[70px] shrink-0 items-center justify-center rounded-xl border transition hover:brightness-95 disabled:opacity-60 ${className}`}
         >
             {status === 'loading' ? (
-                <Loader2 size={20} className="animate-spin" />
+                <Skeleton className="h-5 w-8" label="Preparing download" />
             ) : status === 'success' ? (
                 <Check size={20} />
             ) : (

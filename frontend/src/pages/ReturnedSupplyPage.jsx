@@ -1,3 +1,6 @@
+import NewFormButton from '../components/NewFormButton';
+import { PageSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
@@ -36,6 +39,9 @@ const toForm = (record) => ({
 });
 
 export default function ReturnedSupplyPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
@@ -44,17 +50,21 @@ export default function ReturnedSupplyPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/returned-supply');
         setRecords(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
-    useEffect(() => {
-        const controller = new AbortController();
-        axios.get('/returned-supply', { signal: controller.signal })
-            .then(({ data }) => setRecords(data.data || []))
-            .catch(() => { if (!controller.signal.aborted) toast.error('Unable to load returned supply records'); });
-        return () => controller.abort();
-    }, []);
+    useEffect(() => { load(); }, []);
     const pageCount = Math.max(1, Math.ceil(records.length / perPage));
     const visibleRecords = records.slice((page - 1) * perPage, page * perPage);
 
@@ -62,6 +72,8 @@ export default function ReturnedSupplyPage() {
         setEditingId(record._id);
         setForm(toForm(record));
     };
+
+    const createNew = () => { setEditingId(null); setForm(toForm({})); };
 
     const cancelEdit = () => {
         setEditingId(null);
@@ -87,12 +99,12 @@ export default function ReturnedSupplyPage() {
     const save = async (event) => {
         event.preventDefault();
         try {
-            await axios.put(`/returned-supply/${editingId}`, {
+            await axios[editingId ? 'put' : 'post'](editingId ? `/returned-supply/${editingId}` : '/returned-supply', {
                 ...form,
                 quantity: Number(form.quantity || 0),
                 unitValue: Number(form.unitValue || 0)
             });
-            toast.success('Returned supply record updated');
+            toast.success(editingId ? 'Returned supply record updated' : 'Returned supply record created');
             markUpdated(editingId);
             cancelEdit();
             load();
@@ -122,10 +134,12 @@ export default function ReturnedSupplyPage() {
         </div>
     );
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <motion.div ref={recordsRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Returned Items</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Returned Items</h2><NewFormButton onNew={createNew} editorRef={editorRef} /></div>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
                 <div className="mt-3 space-y-3">
                     {visibleRecords.map((record) => (
@@ -170,7 +184,7 @@ export default function ReturnedSupplyPage() {
                         </label>
                     </div>
 
-                    <div className="mt-6 overflow-x-auto">
+                    <TableScroll className="mt-6 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-left">
@@ -209,7 +223,7 @@ export default function ReturnedSupplyPage() {
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+                    </TableScroll>
 
                     <div className="mt-4">
                         <label className="block">
@@ -223,7 +237,7 @@ export default function ReturnedSupplyPage() {
                         {signatoryFields('Returned To', 'returnedTo')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
+                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{editingId ? 'Save Changes' : 'Save New Form'}</button>
                 </form>
             )}
         </div>

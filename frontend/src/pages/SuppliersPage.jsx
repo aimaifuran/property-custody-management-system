@@ -1,3 +1,4 @@
+import { PageSkeleton } from '../components/Skeleton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -5,6 +6,9 @@ import { Plus, Search } from 'lucide-react';
 import Pagination from '../components/Pagination';
 
 export default function SuppliersPage() {
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoadError, setPageLoadError] = useState('');
+
   const [suppliers, setSuppliers] = useState([]);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', address: '', contactNumber: '' });
@@ -12,8 +16,18 @@ export default function SuppliersPage() {
   const [perPage, setPerPage] = useState(5);
 
   const load = async () => {
+    setPageLoading(true);
+    setPageLoadError('');
+    try {
+
     const { data } = await axios.get('/suppliers');
     setSuppliers(data.data || []);
+
+    } catch (error) {
+      setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+    } finally {
+      setPageLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -29,7 +43,9 @@ export default function SuppliersPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
   const visibleSuppliers = filtered.slice((page - 1) * perPage, page * perPage);
 
-  return (
+  if (pageLoading) return <PageSkeleton />;
+  if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

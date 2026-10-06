@@ -1,3 +1,6 @@
+import NewFormButton from '../components/NewFormButton';
+import { PageSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
@@ -341,7 +344,7 @@ const toFormSignatory = (signatory) => {
 //     }
 //   });
 
-  
+
 //   const signatureLabels = [
 //     ['C35', 'Requested by:'],
 //     ['D35', 'Approved by:'],
@@ -396,6 +399,9 @@ const toFormSignatory = (signatory) => {
 // };
 
 export default function RisPage() {
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoadError, setPageLoadError] = useState('');
+
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(newForm);
@@ -416,6 +422,10 @@ export default function RisPage() {
   const canEditReview = canReviewRis;
 
   const load = async () => {
+    setPageLoading(true);
+    setPageLoadError('');
+    try {
+
     setStockLoadError('');
 
     const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get('/items')]);
@@ -431,6 +441,12 @@ export default function RisPage() {
     } else {
       setItems([]);
       setStockLoadError('Unable to load stock list. Please refresh the page or check your account permissions.');
+    }
+
+    } catch (error) {
+      setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -653,9 +669,9 @@ export default function RisPage() {
   };
 
   const formatAmount = (amount) => {
-    return amount.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+    return amount.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
     });
   }
 
@@ -713,7 +729,7 @@ export default function RisPage() {
     worksheet.getCell("H37").value = data.receivedBy?.name;
     worksheet.getCell("H38").value = data.receivedBy?.designation;
     worksheet.getCell("H39").value = formatDate(data.receivedBy?.date);
-    
+
 
     // Generate the modified Excel file
     const buffer = await workbook.xlsx.writeBuffer();
@@ -755,7 +771,7 @@ export default function RisPage() {
       form.getTextField(`remarks${index + 1}`).setText(String(item.remarks || ''));
     });
 
-    
+
     form.getTextField("purpose").setText(String(data.purpose));
 
     // Requested by
@@ -829,16 +845,14 @@ export default function RisPage() {
     DRAFT: 'bg-slate-100 text-slate-700',
   };
 
-  return (
+  if (pageLoading) return <PageSkeleton />;
+  if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
     <div className="space-y-6">
       <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Submitted RIS</h2>
-          <button type="button" onClick={() => {
-            resetForm();
-            setCreatingRis(true);
-            requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-          }} className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-800">Add +</button>
+          <NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} />
         </div>
         {stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
@@ -968,12 +982,12 @@ export default function RisPage() {
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden border border-slate-700">
-            <div className="grid grid-cols-8 border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
+          <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
+            <div className="ris-table-grid border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
               <div className="col-span-4 border-r border-slate-700 py-2 italic">Requisition</div>
               <div className="col-span-4 py-2 italic">Stock Available?</div>
             </div>
-            <div className="grid grid-cols-8 border-b border-slate-700 text-center text-sm font-semibold">
+            <div className="ris-table-grid border-b border-slate-700 text-center text-sm font-semibold">
               <div className="border-r border-slate-700 px-2 py-2">Stock No.</div>
               <div className="border-r border-slate-700 px-2 py-2">Unit</div>
               <div className="border-r border-slate-700 px-2 py-2">Description</div>
@@ -985,7 +999,7 @@ export default function RisPage() {
             </div>
 
             {reviewDraft.items.map((item, index) => (
-              <div key={`${reviewDraft._id}-review-${index}`} className="grid grid-cols-8 border-b border-slate-300 last:border-b-0">
+              <div key={`${reviewDraft._id}-review-${index}`} className="ris-table-grid border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-2 text-sm">{item.stockNumber}</div>
                 <div className="border-r border-slate-300 p-2 text-sm">{item.unit}</div>
                 <div className="border-r border-slate-300 p-2 text-sm">{item.description}</div>
@@ -1032,7 +1046,7 @@ export default function RisPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </TableScroll>
         </div>
       ) : null}
 
@@ -1119,13 +1133,13 @@ export default function RisPage() {
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden border border-slate-700">
-            <div className="grid grid-cols-9 border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
+          <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
+            <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
               <div className="col-span-4 border-r border-slate-700 py-2 italic">Requisition</div>
               <div className="col-span-4 border-r border-slate-700 py-2 italic">Stock Available?</div>
               <div className="py-2" />
             </div>
-            <div className="grid grid-cols-9 border-b border-slate-700 text-center text-sm font-semibold">
+            <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 text-center text-sm font-semibold">
               <div className="border-r border-slate-700 px-2 py-2">Stock No.</div>
               <div className="border-r border-slate-700 px-2 py-2">Unit</div>
               <div className="border-r border-slate-700 px-2 py-2">Description</div>
@@ -1138,7 +1152,7 @@ export default function RisPage() {
             </div>
 
             {form.items.map((item, index) => (
-              <div key={`ris-row-${index}`} className="grid grid-cols-9 border-b border-slate-300 last:border-b-0">
+              <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-1">
                   <select
                     value={item.stockNumber}
@@ -1223,7 +1237,7 @@ export default function RisPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </TableScroll>
 
           <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
             <label className="block">

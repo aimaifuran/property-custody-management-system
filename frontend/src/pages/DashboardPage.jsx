@@ -1,3 +1,5 @@
+import Skeleton from '../components/Skeleton';
+import { PageSkeleton } from '../components/Skeleton';
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -115,7 +117,8 @@ export default function DashboardPage() {
       .sort((first, second) => Number(first.year) - Number(second.year));
   }, [annualReportData]);
 
-  return (
+  if (loading) return <PageSkeleton dashboard />;
+ return (
     <div className="dashboard-page space-y-6">
       {error && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
@@ -132,7 +135,7 @@ export default function DashboardPage() {
                   <div className="dashboard-card-label text-sm leading-snug text-slate-500">{card.title}</div>
                   <div className={`shrink-0 rounded-md bg-gradient-to-br ${card.color} p-2.5 text-white`}><Icon size={20} /></div>
                 </div>
-                <div className="mt-4 text-3xl font-semibold text-slate-900">{loading ? 'â€”' : (counts?.[card.key] ?? 0)}</div>
+                <div className="mt-4 text-3xl font-semibold text-slate-900">{loading ? <Skeleton className="h-4 w-20" /> : (counts?.[card.key] ?? 0)}</div>
               </motion.div>
             );
           })}
@@ -142,11 +145,11 @@ export default function DashboardPage() {
       <div className="dashboard-results grid items-stretch gap-4 xl:grid-cols-3">
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-3">
-            <div className="minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2><div className="mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="65%" label>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div></div>
-            <div className="minimal-surface h-fit p-4">
+            <div className="dashboard-return-summary minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="65%" label>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
+            <div className="dashboard-users minimal-surface h-fit p-4">
               <h2 className="text-sm font-semibold">User Management</h2>
               <div className="dashboard-user-pictorial">
-                {loading ? <p>Loading users…</p> : chartData.users.length === 0 ? <p>No user records yet.</p> : [...chartData.users].sort((first, second) => {
+                {loading ? <Skeleton className="h-4 w-20" /> : chartData.users.length === 0 ? <p>No user records yet.</p> : [...chartData.users].sort((first, second) => {
                   const roleOrder = { admin: 0, user: 1 };
                   return (roleOrder[first.label.toLowerCase()] ?? 2) - (roleOrder[second.label.toLowerCase()] ?? 2);
                 }).map((entry) => (
@@ -159,7 +162,7 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-            <div className="minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2><div className="mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div></div>
+            <div className="dashboard-return-summary minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2>{chartData.returnedSupply.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
           </div>
 
           <div className="dashboard-reports grid gap-4 sm:grid-cols-2">
@@ -226,7 +229,7 @@ export default function DashboardPage() {
                     <span className={`shrink-0 rounded-md p-1.5 ${card.iconBg} ${card.iconColor}`}><Icon size={16} /></span>
                     <span className="dashboard-card-label text-xs font-semibold uppercase tracking-wide leading-snug">{card.title}</span>
                   </div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{loading ? 'â€”' : (counts?.[card.key] ?? 0)}</div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">{loading ? <Skeleton className="h-4 w-20" /> : (counts?.[card.key] ?? 0)}</div>
                 </div>
               </div>
             );

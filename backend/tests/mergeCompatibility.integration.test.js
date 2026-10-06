@@ -18,7 +18,8 @@ test('merged deployment routes, list responses, login locks and password recover
   const originalFrontendUrl = process.env.FRONTEND_URL;
   process.env.FRONTEND_URL = 'https://frontend.example.test';
   let resetUrl;
-  mailer.sendPasswordResetEmail = async (_user, url) => { resetUrl = url; };
+  let failDelivery = false;
+  mailer.sendPasswordResetEmail = async (_user, url) => { if (failDelivery) throw new Error('SMTP unavailable'); resetUrl = url; };
   const app = require('../src/app');
   assert.equal(app.get('trust proxy'), 1);
   const server = app.listen(0);
@@ -77,11 +78,72 @@ test('merged deployment routes, list responses, login locks and password recover
   await User.updateOne({ _id: other._id }, { $set: { locked: true } });
   assert.equal((await request(null, '/api/auth/login', 'POST', { identifier: 'other', password: 'Valid123!' })).status, 423);
   assert.equal((await request(null, '/api/auth/forgot-password', 'POST', { identifier: 'owner' })).status, 200);
+  assert.equal(resetUrl, undefined, 'No email before approval');
+  assert.equal((await User.findById(owner._id)).resetToken, undefined);
+  const requests = await request(admin, '/api/users/password-reset-requests');
+  assert.equal(requests.body.data.length, 1);
+  const resetId = requests.body.data[0]._id;
+  assert.equal(requests.body.data[0].status, 'PENDING');
+  assert.equal(requests.body.data[0].tokenHash, undefined);
+  assert.equal((await request(owner, '/api/users/password-reset-requests')).status, 403);
+  assert.equal((await request(owner, `/api/users/password-reset-requests/${resetId}/approve`, 'POST', {})).status, 403);
+  await request(null, '/api/auth/forgot-password', 'POST', { identifier: 'owner' });
+  assert.equal((await request(admin, '/api/users/password-reset-requests')).body.data.length, 1);
+  failDelivery = true;
+  assert.equal((await request(admin, `/api/users/password-reset-requests/${resetId}/approve`, 'POST', {})).status, 502);
+  assert.equal((await User.findById(owner._id)).resetToken, undefined);
+  assert.equal((await request(admin, '/api/users/password-reset-requests')).body.data[0].status, 'PENDING');
+  failDelivery = false;
+  assert.equal((await request(admin, `/api/users/password-reset-requests/${resetId}/approve`, 'POST', {})).status, 200);
+  assert.equal((await request(admin, `/api/users/password-reset-requests/${resetId}/approve`, 'POST', {})).status, 409);
+  for (const account of (await request(admin, '/api/users')).body.data) for (const field of ['password', 'refreshToken', 'resetToken', 'resetTokenExpiry', 'emailChangeCode']) assert.equal(account[field], undefined);
   assert.equal(new URL(resetUrl).origin, 'https://frontend.example.test');
   const rawToken = new URL(resetUrl).searchParams.get('token');
   const saved = await User.findById(owner._id);
   assert.equal(saved.resetToken, crypto.createHash('sha256').update(rawToken).digest('hex'));
-  assert.equal((await request(null, '/api/auth/reset-password', 'POST', { token: rawToken, password: 'NewValid123!' })).status, 200);
+  const concurrentResets = await Promise.all([1, 2].map(() => request(null, '/api/auth/reset-password', 'POST', { token: rawToken, password: 'NewValid123!' })));
+  assert.deepEqual(concurrentResets.map(result => result.status).sort(), [200, 400], 'A reset link must be used only once even for concurrent requests');
   assert.equal((await request(null, '/api/auth/reset-password', 'POST', { token: rawToken, password: 'NewValid123!' })).status, 400);
   assert.equal(await bcrypt.compare('NewValid123!', (await User.findById(owner._id)).password), true);
+  assert.equal((await request(admin, '/api/users/password-reset-requests')).body.data.length, 0);
+  await request(null, '/api/auth/forgot-password', 'POST', { identifier: 'other' });
+  const rejection = (await request(admin, '/api/users/password-reset-requests')).body.data[0];
+  assert.equal((await request(admin, `/api/users/password-reset-requests/${rejection._id}/reject`, 'POST', { reason: 'Identity not confirmed' })).status, 200);
+  assert.equal((await request(admin, `/api/users/password-reset-requests/${rejection._id}/approve`, 'POST', {})).status, 409);
+  assert.equal((await User.findById(other._id)).resetToken, undefined);
+  const manualForms = [
+    ['/api/ics', { icsNumber: 'NEW-ICS', office: 'Mayor Office', receivedBy: { name: 'Mayor', date: '2026-03-01' }, items: [{ description: 'Aircon split type', quantity: 2, unit: 'unit', unitCost: 10000, totalCost: 20000 }] }],
+    ['/api/par', { parNumber: 'NEW-PAR', office: 'Engineering', receivedBy: { name: 'Engineer', date: '2026-04-01' }, items: [{ description: 'Air conditioner', quantity: 1, unit: 'unit', amount: 50000 }] }],
+    ['/api/property-cards', { propertyNumber: 'NEW-CARD', items: [{ description: 'Office table', receiptQuantity: 1, itdQuantity: 1, itdOfficeOfficer: 'Accounting', date: '2026-05-01' }] }],
+    ['/api/returned-supply', { description: 'Returned chair', quantity: 1, unit: 'unit', unitValue: 100 }],
+  ];
+  for (const [route, body] of manualForms) {
+    assert.equal((await request(owner, route, 'POST', body)).status, 403);
+    const created = await request(admin, route, 'POST', { ...body, deleted: true });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    assert.equal(created.body.data.deleted, false);
+    assert.equal((await request(admin, route, 'POST', { items: [] })).status, 400);
+  }
+  const issued = await RIS.create({ risNumber: 'OFFICE-2026', status: 'ISSUED', office: 'Treasury', issuedAt: '2026-01-01', receivedBy: { name: 'Treasurer' }, items: [{ description: 'Air conditioning unit', stockNumber: 'AC-1', quantityIssued: 3, unit: 'unit' }] });
+  await PropertyReturnSlip.create({ status: 'RETURNED', returnedTo: { date: '2026-02-01' }, items: [{ ris: issued._id, risItem: issued.items[0]._id, description: 'Air conditioning unit', quantity: 1 }] });
+  await RIS.create({ risNumber: 'FUTURE-2027', status: 'ISSUED', office: 'Supply', issuedAt: '2027-01-01', items: [{ description: 'Aircon', quantityIssued: 100 }] });
+  await RIS.create({ risNumber: 'OLDER-2025', status: 'ISSUED', office: 'Treasury', issuedAt: '2025-01-01', items: [{ description: 'Aircon', quantityIssued: 1 }] });
+  const annual = await request(admin, '/api/reports/annual-office-items?year=2026');
+  assert.equal(annual.status, 200);
+  assert.equal(annual.body.data.groups.find(group => group.itemType === 'Tables and Desks').rows[0].office, 'Accounting');
+  const aircon = annual.body.data.groups.find(group => group.itemType === 'Air Conditioners');
+  assert.equal(aircon.quantity, 6, 'Group aircon across offices; subtract confirmed returns');
+  assert.deepEqual(aircon.offices, ['Engineering', 'Mayor Office', 'Treasury']);
+  const recordedThisYear = await request(admin, '/api/reports/annual-office-items?year=2026&period=acquired');
+  assert.equal(recordedThisYear.body.data.groups.find(group => group.itemType === 'Air Conditioners').quantity, 5);
+  assert.equal((await request(owner, '/api/reports/annual-office-items?year=2026')).status, 403);
+  assert.equal((await request(admin, '/api/reports/annual-office-items?year=bad')).status, 400);
+  const reportMonth = require('../src/utils/monthlyItems').monthOf(new Date());
+  const monthly = await request(admin, `/api/monthly-item-reports?month=${reportMonth}`);
+  const newMonthly = await request(admin, '/api/monthly-item-reports', 'POST', { month: reportMonth, serialNumber: 'MANUAL-2026-01', lgu: 'Carigara', reportDate: '2026-01-31', rows: [{ item: 'FORGED', quantity: 999 }] });
+  assert.equal(newMonthly.status, 201, JSON.stringify(newMonthly.body));
+  assert.equal(newMonthly.body.data.automatic, false);
+  assert.deepEqual(newMonthly.body.data.rows.map(row => row.item), monthly.body.data.report.rows.map(row => row.item));
+  assert.equal(newMonthly.body.data.rows.some(row => row.item === 'FORGED'), false);
+
 });

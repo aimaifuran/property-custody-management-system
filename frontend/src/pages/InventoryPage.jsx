@@ -1,3 +1,6 @@
+import NewFormButton from '../components/NewFormButton';
+import { PageSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import {
     useEffect,
@@ -42,6 +45,9 @@ const initialForm = {
 const inputDate = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
 
 export default function InventoryPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [cards, setCards] = useState([]);
     const [editingCard, setEditingCard] = useState(null);
     const [form, setForm] = useState(initialForm);
@@ -49,10 +55,20 @@ export default function InventoryPage() {
     const [perPage, setPerPage] = useState(5);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const {
             data
         } = await axios.get('/property-cards');
         setCards(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
     useEffect(() => {
         load();
@@ -96,7 +112,7 @@ export default function InventoryPage() {
     const save = async (event) => {
         event.preventDefault();
         try {
-            await axios.put(`/property-cards/${editingCard._id}`, {
+            await axios[editingCard?._id ? 'put' : 'post'](editingCard?._id ? `/property-cards/${editingCard._id}` : '/property-cards', {
                 ...form,
                 items: form.items.map((item) => ({
                     ...item,
@@ -107,8 +123,8 @@ export default function InventoryPage() {
                     amount: item.amount === '' ? null : Number(item.amount)
                 })),
             });
-            toast.success('Property Card updated');
-            markUpdated(editingCard._id);
+            toast.success(editingCard?._id ? 'Property Card updated' : 'Property Card created');
+            if (editingCard?._id) markUpdated(editingCard._id);
             closeEditor();
             await load();
             scrollToRecords();
@@ -140,9 +156,9 @@ export default function InventoryPage() {
     };
 
     const formatAmount = (amount) => {
-      return amount.toLocaleString('en-US', { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
+      return amount.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
       });
     };
 
@@ -274,11 +290,13 @@ export default function InventoryPage() {
       }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
       <>
         <div className="space-y-6">
           <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold">Submitted Property Cards</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Submitted Property Cards</h2><NewFormButton onNew={() => { setEditingCard({}); setForm({ ...initialForm, items: [emptyItem()] }); }} editorRef={editorRef} /></div>
             <div className="mt-4 space-y-3">
               {visibleCards.map((card) => (
                 <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -301,7 +319,7 @@ export default function InventoryPage() {
               <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
               {!cards.length && (
                 <p className="py-4 text-slate-500">
-                  No Property Cards yet. Save an IAR to create one.
+                  No Property Cards yet. Select New Form or save an IAR to create one.
                 </p>
               )}
             </div>
@@ -311,7 +329,7 @@ export default function InventoryPage() {
               <div className="rounded-2xl border-2 border-slate-700 p-5 text-slate-900">
                 <div className="form-title-row border-b border-slate-300 pb-3">
                   <h1 className="form-page-title">Property Card</h1>
-                  <p className="mt-2 text-sm text-slate-500">One Property Card form is created for each Inspection &amp; Acceptance Report, including all received items.</p>
+                  <p className="mt-2 text-sm text-slate-500">Record property items here. Cards linked to an Inspection &amp; Acceptance Report are also created automatically.</p>
                   <button type="button" onClick={closeEditor} className="form-title-action rounded-xl border px-4 py-2 text-sm">Close Editor</button>
                 </div>
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -324,7 +342,7 @@ export default function InventoryPage() {
                   {field('Description','description')}
                   {field('S/N','serialNumber')}
                 </div>
-                <div className="mt-6 overflow-x-auto">
+                <TableScroll className="mt-6 overflow-x-auto">
                   <h3 className="mb-2 text-lg font-semibold">Items</h3>
                   <table className="min-w-full text-sm">
                     <thead>
@@ -353,7 +371,7 @@ export default function InventoryPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScroll>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"
@@ -366,7 +384,7 @@ export default function InventoryPage() {
                     type="submit"
                     className="rounded-xl bg-teal-600 px-4 py-2 font-semibold text-white"
                   >
-                    Update Property Card
+                    {editingCard?._id ? 'Update Property Card' : 'Save New Form'}
                   </button>
                 </div>
               </div>

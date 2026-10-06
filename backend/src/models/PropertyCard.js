@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const propertyCardSchema = new mongoose.Schema({
-  iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport', required: true, index: true },
+  iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport', index: true },
   // A Property Card is one document per IAR. Every received item belongs in
   // this array instead of creating a separate Property Card document.
   inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },

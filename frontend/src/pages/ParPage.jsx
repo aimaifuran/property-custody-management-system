@@ -1,3 +1,6 @@
+import NewFormButton from '../components/NewFormButton';
+import { PageSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -46,6 +49,7 @@ const toFormSignatory = (signatory = {}) => ({
 
 const toForm = (record) => ({
     entityName: record.entityName || '',
+    office: record.office || '',
     fundCluster: record.fundCluster || '',
     parNumber: record.parNumber || '',
     items: record.items && record.items.length ? record.items.map(toFormItem) : [emptyItem()],
@@ -55,6 +59,9 @@ const toForm = (record) => ({
 });
 
 export default function ParPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
@@ -63,8 +70,18 @@ export default function ParPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/par');
         setRecords(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
     useEffect(() => { load(); }, []);
@@ -83,6 +100,16 @@ export default function ParPage() {
                 .then(({ data }) => setForm({ ...nextForm, parNumber: data.data.nextNumber }))
                 .catch(() => setForm(nextForm));
         }
+    };
+
+    const createNew = async () => {
+        setEditingId(null);
+        const nextForm = toForm({ items: [emptyItem()] });
+        setForm(nextForm);
+        try {
+            const { data } = await axios.get('/document-numbers/PAR');
+            setForm(previous => ({ ...previous, parNumber: data.data.nextNumber }));
+        } catch { /* The document number can also be entered manually. */ }
     };
 
     const cancelEdit = () => {
@@ -110,7 +137,7 @@ export default function ParPage() {
     const save = async (event) => {
         event.preventDefault();
         try {
-            await axios.put(`/par/${editingId}`, {
+            await axios[editingId ? 'put' : 'post'](editingId ? `/par/${editingId}` : '/par', {
                 ...form,
                 items: form.items.map((item) => ({
                     ...item,
@@ -118,7 +145,7 @@ export default function ParPage() {
                     amount: Number(item.amount || 0)
                 }))
             });
-            toast.success('Property Acknowledgement Receipt updated');
+            toast.success(editingId ? 'Property Acknowledgement Receipt updated' : 'Property Acknowledgement Receipt created');
             markUpdated(editingId);
             cancelEdit();
             load();
@@ -163,12 +190,12 @@ export default function ParPage() {
     };
 
     const formatAmount = (amount) => {
-        return amount.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+        return amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
     };
-        
+
     async function generateExcel(data) {
         console.log('Generating Excel for PAR:', data);
 
@@ -210,7 +237,7 @@ export default function ParPage() {
         worksheet.getCell("G45").value = data.issuedBy.name;
         worksheet.getCell("G47").value = data.issuedBy.position;
         worksheet.getCell("G49").value = formatDate(data.issuedBy.date);
-        
+
 
         // Generate the modified Excel file
         const buffer = await workbook.xlsx.writeBuffer();
@@ -280,7 +307,7 @@ export default function ParPage() {
             form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
         });
 
-        
+
         form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
         form.getTextField("remarks").setText(String(data.remarks));
 
@@ -288,7 +315,7 @@ export default function ParPage() {
         form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
         form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
         form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
-        
+
         // Issued by
         form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
         form.getTextField("issuedByPosition").setText(String(data.issuedBy?.position || ''));
@@ -312,10 +339,12 @@ export default function ParPage() {
         }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Saved Records</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Saved Records</h2><NewFormButton onNew={createNew} editorRef={editorRef} /></div>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -348,9 +377,9 @@ export default function ParPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
-                        {field('PAR No.', 'parNumber')}
+                        {field('PAR No.', 'parNumber')}{field('Office', 'office')}
                     </div>
-                    <div className="mt-6 overflow-x-auto">
+                    <TableScroll className="mt-6 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-left">
@@ -387,7 +416,7 @@ export default function ParPage() {
                                 ))}
                             </tbody>
                         </table>
-                    </div>
+                    </TableScroll>
                     <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
 
                     <div className="mt-4 flex justify-end">
@@ -408,7 +437,7 @@ export default function ParPage() {
                         {signatoryFields('Issued By', 'issuedBy')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
+                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{editingId ? 'Save Changes' : 'Save New Form'}</button>
                 </form>
             )}
         </div>

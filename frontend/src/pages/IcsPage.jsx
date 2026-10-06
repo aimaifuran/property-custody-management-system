@@ -1,3 +1,6 @@
+import NewFormButton from '../components/NewFormButton';
+import { PageSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -48,6 +51,7 @@ const toFormSignatory = (signatory = {}) => ({
 
 const toForm = (record) => ({
     entityName: record.entityName || '',
+    office: record.office || '',
     fundCluster: record.fundCluster || '',
     icsNumber: record.icsNumber || '',
     items: record.items && record.items.length ? record.items.map(toFormItem) : [emptyItem()],
@@ -57,6 +61,9 @@ const toForm = (record) => ({
 });
 
 export default function IcsPage() {
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageLoadError, setPageLoadError] = useState('');
+
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(null);
@@ -65,8 +72,18 @@ export default function IcsPage() {
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
     const load = async () => {
+      setPageLoading(true);
+      setPageLoadError('');
+      try {
+
         const { data } = await axios.get('/ics');
         setRecords(data.data || []);
+
+      } catch (error) {
+        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+      } finally {
+        setPageLoading(false);
+      }
     };
 
     useEffect(() => { load(); }, []);
@@ -85,6 +102,16 @@ export default function IcsPage() {
                 .then(({ data }) => setForm({ ...nextForm, icsNumber: data.data.nextNumber }))
                 .catch(() => setForm(nextForm));
         }
+    };
+
+    const createNew = async () => {
+        setEditingId(null);
+        const nextForm = toForm({ items: [emptyItem()] });
+        setForm(nextForm);
+        try {
+            const { data } = await axios.get('/document-numbers/ICS');
+            setForm(previous => ({ ...previous, icsNumber: data.data.nextNumber }));
+        } catch { /* The document number can also be entered manually. */ }
     };
 
     const cancelEdit = () => {
@@ -115,7 +142,7 @@ export default function IcsPage() {
     const save = async (event) => {
         event.preventDefault();
         try {
-            await axios.put(`/ics/${editingId}`, {
+            await axios[editingId ? 'put' : 'post'](editingId ? `/ics/${editingId}` : '/ics', {
                 ...form,
                 items: form.items.map((item) => ({
                     ...item,
@@ -123,7 +150,7 @@ export default function IcsPage() {
                     unitCost: Number(item.unitCost || 0)
                 }))
             });
-            toast.success('Inventory Custodian Slip updated');
+            toast.success(editingId ? 'Inventory Custodian Slip updated' : 'Inventory Custodian Slip created');
             markUpdated(editingId);
             cancelEdit();
             load();
@@ -168,12 +195,12 @@ export default function IcsPage() {
     };
 
     const formatAmount = (amount) => {
-        return amount.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
+        return amount.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         });
     };
-    
+
     async function generateExcel(data) {
         console.log('Generating Excel for ICS:', data);
 
@@ -216,7 +243,7 @@ export default function IcsPage() {
         worksheet.getCell("G47").value = data.receivedBy.name;
         worksheet.getCell("G49").value = data.receivedBy.position;
         worksheet.getCell("G51").value = formatDate(data.receivedBy.date);
-        
+
 
         // Generate the modified Excel file
         const buffer = await workbook.xlsx.writeBuffer();
@@ -286,7 +313,7 @@ export default function IcsPage() {
             form.getTextField(`inventoryItemNo${index + 1}`).setText(String(item.inventoryItemNo));
             form.getTextField(`estimatedUsefulLife${index + 1}`).setText(String(item.estimatedUsefulLife));
         });
-        
+
         form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
         form.getTextField("remarks").setText(String(data.remarks));
 
@@ -318,10 +345,12 @@ export default function IcsPage() {
         }
     };
 
-    return (
+    if (pageLoading) return <PageSkeleton />;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+ return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Saved Records</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Saved Records</h2><NewFormButton onNew={createNew} editorRef={editorRef} /></div>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -354,9 +383,9 @@ export default function IcsPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
-                        {field('ICS No.', 'icsNumber')}
+                        {field('ICS No.', 'icsNumber')}{field('Office', 'office')}
                     </div>
-                    <div className="mt-6 overflow-x-auto">
+                    <TableScroll className="mt-6 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-left">
@@ -397,7 +426,7 @@ export default function IcsPage() {
                                 ))}
                             </tbody>
                         </table>
-                    </div>
+                    </TableScroll>
                     <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
 
                     <div className="mt-4 flex justify-end">
@@ -418,7 +447,7 @@ export default function IcsPage() {
                         {signatoryFields('Received By', 'receivedBy')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
+                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{editingId ? 'Save Changes' : 'Save New Form'}</button>
                 </form>
             )}
         </div>

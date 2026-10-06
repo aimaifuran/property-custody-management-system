@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
+const PasswordResetRequest = require('../models/PasswordResetRequest');
+const { createResetLink } = require('../utils/passwordRecovery');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { loginLimiter, forgotPasswordLimiter } = require('../middlewares/rateLimiter');
@@ -136,8 +138,7 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// Works identically for admin and user accounts alike - reset eligibility is
-// based only on the account existing and being active, not on role.
+// User recovery requires administrator approval. Admin accounts retain email recovery.
 router.post('/forgot-password', forgotPasswordLimiter, [
   body('identifier').notEmpty().withMessage('Email or username is required'),
 ], async (req, res) => {
@@ -146,7 +147,7 @@ router.post('/forgot-password', forgotPasswordLimiter, [
 
   // Always return the same generic message so the endpoint can't be used to
   // enumerate which emails/usernames have accounts.
-  const genericMessage = 'If an account with that email or username exists, a password reset link has been sent.';
+  const genericMessage = 'If an active user account exists, your request has been sent to the administrator for approval. Approved requests receive a reset link by email.';
 
   try {
     const { identifier } = req.body;
@@ -156,23 +157,23 @@ router.post('/forgot-password', forgotPasswordLimiter, [
     });
 
     if (user && user.status === 'active') {
-      const rawToken = crypto.randomBytes(32).toString('hex');
-      user.resetToken = hashSecret(rawToken);
-      user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
-      await user.save();
-
-      // TODO: remove this hardcoded fallback once FRONTEND_URL is confirmed
-      // working in Vercel's production environment vars - it's still not
-      // being picked up there for reasons unresolved so far.
-      if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
-        console.warn('FRONTEND_URL is not set in production — falling back to the hardcoded production URL.');
+      if (user.role === 'user') {
+        await PasswordResetRequest.updateMany({ user: user._id, status: 'APPROVED', expiresAt: { $lte: new Date() } }, { $set: { status: 'EXPIRED' }, $unset: { activeKey: 1 } });
+        const request = await PasswordResetRequest.findOneAndUpdate(
+          { activeKey: String(user._id) },
+          { $setOnInsert: { user: user._id, status: 'PENDING' } },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        );
+        if (request.status === 'PENDING') {
+          await User.updateOne({ _id: user._id }, { $unset: { resetToken: 1, resetTokenExpiry: 1 } });
+        }
+      } else {
+        const link = createResetLink();
+        user.resetToken = link.tokenHash;
+        user.resetTokenExpiry = link.expiresAt;
+        await user.save();
+        await sendPasswordResetEmail(user, link.url);
       }
-      const defaultFrontendUrl = process.env.NODE_ENV === 'production'
-        ? 'https://pais-v1.vercel.app'
-        : 'http://localhost:5173';
-      const frontendUrl = process.env.FRONTEND_URL || defaultFrontendUrl;
-      const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
-      await sendPasswordResetEmail(user, resetUrl);
 
       await ActivityLog.create({
         user: user._id,
@@ -203,14 +204,18 @@ router.post('/reset-password', [
     deleted: false,
   });
 
-  if (!user) return errorResponse(res, 'This reset link is invalid or has expired', [], 400);
+  if (!user || user.status !== 'active') return errorResponse(res, 'This reset link is invalid or has expired', [], 400);
+  const approval = user.role === 'user' ? await PasswordResetRequest.findOne({ user: user._id, status: 'APPROVED', tokenHash: hashSecret(token), expiresAt: { $gt: new Date() } }) : null;
+  if (user.role === 'user' && !approval) return errorResponse(res, 'An administrator must approve this password reset', [], 403);
 
-  user.password = await bcrypt.hash(password, 10);
-  user.resetToken = undefined;
-  user.resetTokenExpiry = undefined;
-  // Invalidate any existing session so the reset also signs the account out everywhere.
-  user.refreshToken = undefined;
-  await user.save();
+  const passwordHash = await bcrypt.hash(password, 10);
+  const updated = await User.findOneAndUpdate(
+    { _id: user._id, resetToken: hashSecret(token), resetTokenExpiry: { $gt: new Date() } },
+    { $set: { password: passwordHash, failedLoginAttempts: 0 }, $unset: { resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, lockUntil: 1 } },
+    { returnDocument: 'after' },
+  );
+  if (!updated) return errorResponse(res, 'This reset link is invalid or has already been used', [], 400);
+  if (approval) await PasswordResetRequest.updateOne({ _id: approval._id }, { $set: { status: 'COMPLETED' }, $unset: { activeKey: 1, tokenHash: 1 } });
 
   await ActivityLog.create({
     user: user._id,

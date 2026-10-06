@@ -16,6 +16,13 @@ const { authenticate, authorize, adminOnly } = require('../middlewares/auth');
 const router = express.Router();
 router.use(authenticate, adminOnly);
 
+router.get('/annual-office-items', async (req, res) => {
+  const year = Number(req.query.year);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return res.status(400).json({ success: false, message: 'Choose a valid report year' });
+  const data = await require('../utils/annualOfficeItems').annualOfficeItems(year, req.query.period === 'acquired');
+  return successResponse(res, 'Annual office item documents', data);
+});
+
 router.get('/inventory', authenticate, authorize('canViewDashboard'), async (req, res) => {
   const inventories = await Inventory.find({ deleted: false }).populate('item').populate('supplier');
   return successResponse(res, 'Inventory report', inventories);

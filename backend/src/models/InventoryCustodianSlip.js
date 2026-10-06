@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const inventoryCustodianSlipSchema = new mongoose.Schema({
   iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport', index: true },
   entityName: { type: String, trim: true },
+  office: { type: String, trim: true },
   fundCluster: { type: String, trim: true },
   // Omitted on the auto-created draft; the sparse unique index allows multiple
   // IARs below the PAR threshold to share an unassigned ICS number.

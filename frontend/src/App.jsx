@@ -1,3 +1,4 @@
+import { PageSkeleton } from './components/Skeleton';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -16,7 +17,7 @@ import ParPage from './pages/ParPage';
 import ReturnedSupplyPage from './pages/ReturnedSupplyPage';
 import MyReturnsPage from './pages/MyReturnsPage';
 import MyIssuedItemsPage from './pages/MyIssuedItemsPage';
-import ReportsPage from './pages/ReportsPage';
+import AnnualOfficeItemsPage from './pages/AnnualOfficeItemsPage';
 import MonthlyItemsReportPage from './pages/MonthlyItemsReportPage';
 import PpeStationReportPage from './pages/PpeStationReportPage';
 import HistoricalRecordsPage from './pages/HistoricalRecordsPage';
@@ -27,7 +28,7 @@ import ProfilePage from './pages/ProfilePage';
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
   const { pathname } = useLocation();
-  if (!authReady || loading) return <div className="flex min-h-screen items-center justify-center">Loading…</div>;
+  if (!authReady || loading) return <PageSkeleton fullScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'admin' && !['/my-issued-items', '/my-returns'].includes(pathname)) return <Navigate to="/my-issued-items" replace />;
   if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
@@ -79,7 +80,7 @@ function AppRoutes() {
             const pages = {
               '/dashboard': RoleDashboard,
               '/reports/monthly': MonthlyItemsReportPage,
-              '/reports/annual': () => <ReportsPage mode="annual" />,
+              '/reports/annual': AnnualOfficeItemsPage,
               '/reports/ppe-list': PpeStationReportPage,
               '/historical-records': HistoricalRecordsPage,
               '/suppliers': SuppliersPage,
