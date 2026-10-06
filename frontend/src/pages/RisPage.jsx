@@ -810,13 +810,13 @@ export default function RisPage() {
                   {item.status}
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-1 items-center gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-2 text-sm text-slate-600 sm:grid-cols-2">
-                <div className="min-w-0 space-y-2 break-words">
+              <div className="mt-2 grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-1 text-sm text-slate-600 sm:grid-cols-2">
+                <div className="min-w-0 space-y-1 break-words">
                 <div>Requested by: {item.requestedBy?.name || 'N/A'}</div>
                 <div>Approved by: {item.approvedBy?.name || 'Pending'}</div>
                 </div>
-                <div className="min-w-0 space-y-2 break-words">
+                <div className="min-w-0 space-y-1 break-words">
                 <div>Issued by: {item.issuedBy?.name || 'Pending'}</div>
                 <div>Received by: {item.receivedBy?.name || 'N/A'}</div>
                 </div>

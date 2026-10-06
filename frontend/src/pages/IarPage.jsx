@@ -155,7 +155,7 @@ export default function IarPage() {
         setEditingId(null);
         setForm(newForm());
         axios.get('/document-numbers/IAR')
-          .then(({ data }) => setForm((previous) => ({ ...previous, iarNumber: data.data.nextNumber })))
+          .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
           .catch(() => {});
     };
 
@@ -181,7 +181,7 @@ export default function IarPage() {
             setEditingId(null);
             setForm(newForm());
             axios.get('/document-numbers/IAR')
-              .then(({ data }) => setForm((previous) => ({ ...previous, iarNumber: data.data.nextNumber })))
+              .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
               .catch(() => {});
             load();
             if (editingId) scrollToRecords();
@@ -189,7 +189,7 @@ export default function IarPage() {
             toast.error(error.response?.data?.message || 'Unable to save IAR');
         }
     };
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'iarNumber' ? 'e.g., IAR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'iarNumber' ? 'e.g., 2026-10-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
 
     const formatDate = (date) => {
       if (!date) return '';

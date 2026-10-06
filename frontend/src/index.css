@@ -1436,3 +1436,9 @@ body { font-size: var(--app-text-size); }
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times-bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times-italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+
+/* Keep record summaries compact while allowing names to wrap. */
+.saved-record { min-height: 0; padding: 12px !important; line-height: 1.25; }
+.saved-record :is(p, span, div) { line-height: 1.25; }
+.saved-record .space-y-2 > :not(:last-child) { margin-block-end: 4px; }
+.saved-reports-header { padding-block: 6px; gap: 10px; }

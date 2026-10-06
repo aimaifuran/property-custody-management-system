@@ -17,6 +17,8 @@ const createFormRecord = (Model, fields, label, itemsField = 'items') => async (
       const settings = await Setting.findOne().sort({ createdAt: 1 }).lean();
       if (settings?.entityName) payload.entityName = settings.entityName;
     }
+    const numberField = ['icsNumber', 'parNumber', 'ptrNumber', 'prsNumber', 'risNumber', 'iarNumber'].find(field => fields.includes(field));
+    if (numberField && !String(payload[numberField] || '').trim()) payload[numberField] = await require('./documentNumber').nextDocumentNumber(Model, numberField);
     const record = await Model.create(payload);
     return successResponse(res, `${label} created`, record, 201);
   } catch (error) {
