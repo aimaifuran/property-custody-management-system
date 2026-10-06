@@ -1,10 +1,12 @@
+import { embedFormFonts } from '../utils/formPdfFonts';
+import { FORM_PDF_FONT_SIZE } from '../utils/historicalFormPdf';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { BarChart3, CalendarDays, Download, FileText, Printer } from 'lucide-react';
 
 const MONTHS = [
@@ -13,11 +15,11 @@ const MONTHS = [
 ];
 
 const FORM_OPTIONS = [
-  { value: 'IAR', label: 'Inspection & Acceptance Report', path: '/iar' },
+  { value: 'IAR', label: 'Inspection and Acceptance Report', path: '/iar' },
   { value: 'PROPERTY CARD', label: 'Property Card', path: '/inventory' },
-  { value: 'RIS', label: 'Requisition', path: '/ris' },
-  { value: 'ICS', label: 'Inventory Custodian', path: '/inventory-custodian' },
-  { value: 'PAR', label: 'Property Acknowledgement Receipts', path: '/par' },
+  { value: 'RIS', label: 'Requisition and Issue Slip', path: '/ris' },
+  { value: 'ICS', label: 'Inventory Custodian Slip', path: '/inventory-custodian' },
+  { value: 'PAR', label: 'Property Acknowledgement Receipt', path: '/par' },
   { value: 'PTR', label: 'Property Transfer Report', path: '/transfers' },
   { value: 'PRS', label: 'Property Return Slip', path: '/returns' },
   { value: 'RETURNED SUPPLY', label: 'Returned Supply', path: '/returned-supply' },
@@ -104,8 +106,7 @@ export default function ReportsPage({ mode }) {
 
   const generatePdf = async (print = false) => {
     const pdfDoc = await PDFDocument.create();
-    const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const { regular: regularFont, bold: boldFont } = await embedFormFonts(pdfDoc);
     const green = rgb(0.10, 0.38, 0.27);
     const lightGreen = rgb(0.91, 0.96, 0.93);
     const ink = rgb(0.12, 0.17, 0.15);
@@ -126,10 +127,12 @@ export default function ReportsPage({ mode }) {
         ['Property records', countByType(['PROPERTY CARD', 'PAR'])],
       ];
       const drawCentered = (text, y, size, font = regularFont, color = ink) => {
+        size = FORM_PDF_FONT_SIZE;
         const textWidth = font.widthOfTextAtSize(text, size);
         page.drawText(text, { x: (width - textWidth) / 2, y, size, font, color });
       };
       const drawCenteredInHeader = (text, y, size, font = regularFont, color = ink) => {
+        size = FORM_PDF_FONT_SIZE;
         const headerLeft = 126;
         const headerRight = width - 28;
         const textWidth = font.widthOfTextAtSize(text, size);
@@ -137,9 +140,10 @@ export default function ReportsPage({ mode }) {
       };
       const drawSection = (label, x, y, sectionWidth) => {
         page.drawRectangle({ x, y: y - 2, width: sectionWidth, height: 20, color: green });
-        page.drawText(label, { x: x + 8, y: y + 3, size: 9, font: boldFont, color: rgb(1, 1, 1) });
+        page.drawText(label, { x: x + 8, y: y + 3, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(1, 1, 1) });
       };
-      const drawCell = (text, x, y, cellWidth, size = 8) => {
+      const drawCell = (text, x, y, cellWidth, size = FORM_PDF_FONT_SIZE) => {
+        size = FORM_PDF_FONT_SIZE;
         page.drawText(String(text).slice(0, 32), { x: x + 6, y, size, font: regularFont, color: ink });
         page.drawLine({ start: { x, y: y - 5 }, end: { x: x + cellWidth, y: y - 5 }, thickness: 0.4, color: rgb(0.78, 0.84, 0.80) });
       };
@@ -166,19 +170,19 @@ export default function ReportsPage({ mode }) {
       summaryCards.forEach(([label, value], index) => {
         const x = 34 + (index * 106);
         page.drawRectangle({ x, y: 575, width: cardWidth, height: 58, color: lightGreen, borderColor: rgb(0.78, 0.86, 0.81), borderWidth: 0.6 });
-        drawCentered(String(value), 606, 18, boldFont, green);
-        const labelWidth = regularFont.widthOfTextAtSize(label, 7.5);
-        page.drawText(label, { x: x + (cardWidth - labelWidth) / 2, y: 590, size: 7.5, font: regularFont, color: ink });
+        page.drawText(String(value), { x: x + (cardWidth - boldFont.widthOfTextAtSize(String(value), FORM_PDF_FONT_SIZE)) / 2, y: 606, size: FORM_PDF_FONT_SIZE, font: boldFont, color: green });
+        const labelWidth = regularFont.widthOfTextAtSize(label, FORM_PDF_FONT_SIZE);
+        page.drawText(label, { x: x + (cardWidth - labelWidth) / 2, y: 590, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
         const sublabel = label === 'Received' ? '(IAR)' : label === 'Issued' ? '(RIS / ICS)' : label === 'Returned' ? '(PRS)' : label === 'Transferred' ? '(PTR)' : '(PC / PAR)';
-        const sublabelWidth = regularFont.widthOfTextAtSize(sublabel, 7);
-        page.drawText(sublabel, { x: x + (cardWidth - sublabelWidth) / 2, y: 579, size: 7, font: regularFont, color: rgb(0.29, 0.38, 0.33) });
+        const sublabelWidth = regularFont.widthOfTextAtSize(sublabel, FORM_PDF_FONT_SIZE);
+        page.drawText(sublabel, { x: x + (cardWidth - sublabelWidth) / 2, y: 579, size: FORM_PDF_FONT_SIZE, font: regularFont, color: rgb(0.29, 0.38, 0.33) });
       });
 
       drawSection('SUPPLY TRANSACTIONS', 28, 554, 260);
       page.drawRectangle({ x: 34, y: 394, width: 248, height: 145, color: rgb(1, 1, 1), borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
       page.drawRectangle({ x: 34, y: 516, width: 248, height: 23, color: lightGreen });
-      page.drawText('Form', { x: 46, y: 524, size: 8, font: boldFont, color: ink });
-      page.drawText('Documents', { x: 220, y: 524, size: 8, font: boldFont, color: ink });
+      page.drawText('Form', { x: 46, y: 524, size: FORM_PDF_FONT_SIZE, font: boldFont, color: ink });
+      page.drawText('Documents', { x: 220, y: 524, size: FORM_PDF_FONT_SIZE, font: boldFont, color: ink });
       formRows.forEach(([formName, count], index) => {
         const y = 502 - (index * 17);
         drawCell(formName, 34, y, 174, 7.5);
@@ -193,30 +197,30 @@ export default function ReportsPage({ mode }) {
         const barHeight = (value / chartMax) * 86;
         const x = 328 + (index * 45);
         page.drawRectangle({ x, y: chartBottom, width: 24, height: Math.max(barHeight, 2), color: index % 2 ? rgb(0.32, 0.57, 0.43) : rgb(0.56, 0.73, 0.62) });
-        page.drawText(String(value), { x: x + 7, y: chartBottom + barHeight + 5, size: 7, font: boldFont, color: ink });
-        page.drawText(label.slice(0, 8), { x: x - 3, y: 401, size: 6, font: regularFont, color: ink });
+        page.drawText(String(value), { x: x + 7, y: chartBottom + barHeight + 5, size: FORM_PDF_FONT_SIZE, font: boldFont, color: ink });
+        page.drawText(label.slice(0, 8), { x: x - 3, y: 401, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
       });
       page.drawLine({ start: { x: 322, y: chartBottom }, end: { x: 552, y: chartBottom }, thickness: 0.6, color: rgb(0.55, 0.64, 0.58) });
 
       drawSection('FORM COVERAGE', 28, 373, 260);
       page.drawRectangle({ x: 34, y: 245, width: 248, height: 104, color: rgb(1, 1, 1), borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      page.drawText('All monthly form records are listed above.', { x: 46, y: 326, size: 8, font: regularFont, color: ink });
-      page.drawText(`Total form documents: ${monthlyRecords.length}`, { x: 46, y: 309, size: 8, font: boldFont, color: green });
-      page.drawText('The detailed records remain available in the', { x: 46, y: 287, size: 7.5, font: regularFont, color: ink });
-      page.drawText('on-screen report table for document review.', { x: 46, y: 274, size: 7.5, font: regularFont, color: ink });
+      page.drawText('All monthly form records are listed above.', { x: 46, y: 326, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
+      page.drawText(`Total form documents: ${monthlyRecords.length}`, { x: 46, y: 309, size: FORM_PDF_FONT_SIZE, font: boldFont, color: green });
+      page.drawText('The detailed records remain available in the', { x: 46, y: 287, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
+      page.drawText('on-screen report table for document review.', { x: 46, y: 274, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
 
       drawSection('NOTABLE ACTIVITIES', 307, 373, 260);
       page.drawRectangle({ x: 313, y: 245, width: 248, height: 104, color: rgb(1, 1, 1), borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      ['Processed form records for the selected month.', `Recorded ${monthlyRecords.length} document${monthlyRecords.length === 1 ? '' : 's'} across the selected forms.`, 'Updated supply and property accountability records.'].forEach((note, index) => page.drawText(`• ${note}`, { x: 323, y: 326 - (index * 22), size: 7.5, font: regularFont, color: ink }));
+      ['Processed form records for the selected month.', `Recorded ${monthlyRecords.length} document${monthlyRecords.length === 1 ? '' : 's'} across the selected forms.`, 'Updated supply and property accountability records.'].forEach((note, index) => page.drawText(`• ${note}`, { x: 323, y: 326 - (index * 33), size: FORM_PDF_FONT_SIZE, maxWidth: 230, lineHeight: 11, font: regularFont, color: ink }));
 
       drawSection('REMARKS', 28, 222, 539);
       page.drawRectangle({ x: 34, y: 139, width: 527, height: 66, color: lightGreen, borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      page.drawText('The Supply Office continues to ensure the proper management of supplies', { x: 46, y: 181, size: 8, font: regularFont, color: ink });
-      page.drawText('and property records. All forms are organized for review and accountability.', { x: 46, y: 166, size: 8, font: regularFont, color: ink });
+      page.drawText('The Supply Office continues to ensure the proper management of supplies', { x: 46, y: 181, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
+      page.drawText('and property records. All forms are organized for review and accountability.', { x: 46, y: 166, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
 
       [['Prepared by:', 112], ['Reviewed by:', 285], ['Approved by:', 458]].forEach(([label, x]) => {
         page.drawLine({ start: { x: x - 58, y: 91 }, end: { x: x + 58, y: 91 }, thickness: 0.7, color: rgb(0.38, 0.47, 0.42) });
-        page.drawText(label, { x: x - 28, y: 78, size: 7.5, font: regularFont, color: ink });
+        page.drawText(label, { x: x - 28, y: 78, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
       });
     } else {
     let page = pdfDoc.addPage([595, 842]);
@@ -229,11 +233,11 @@ export default function ReportsPage({ mode }) {
       }
     };
 
-    page.drawText('Property Accountability Management System', { x: 40, y, size: 14, font: boldFont, color: rgb(0.18, 0.43, 0.40) });
+    page.drawText('Property Accountability Management System', { x: 40, y, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(0.18, 0.43, 0.40) });
     y -= 24;
-    page.drawText(`${title} - ${periodLabel}`, { x: 40, y, size: 16, font: boldFont, color: rgb(0.12, 0.16, 0.20) });
+    page.drawText(`${title} - ${periodLabel}`, { x: 40, y, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(0.12, 0.16, 0.20) });
     y -= 28;
-    page.drawText(`Issued reports recorded: ${visibleRecords.length}`, { x: 40, y, size: 10, font: regularFont, color: rgb(0.35, 0.39, 0.45) });
+    page.drawText(`Issued reports recorded: ${visibleRecords.length}`, { x: 40, y, size: FORM_PDF_FONT_SIZE, font: regularFont, color: rgb(0.35, 0.39, 0.45) });
     y -= 24;
     page.drawLine({ start: { x: 40, y }, end: { x: 555, y }, thickness: 1, color: rgb(0.82, 0.86, 0.89) });
     y -= 20;
@@ -245,7 +249,7 @@ export default function ReportsPage({ mode }) {
       { label: 'Date', x: 400 },
       { label: 'Status', x: 475 },
     ];
-    columns.forEach((column) => page.drawText(column.label, { x: column.x, y, size: 9, font: boldFont, color: rgb(0.25, 0.31, 0.38) }));
+    columns.forEach((column) => page.drawText(column.label, { x: column.x, y, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(0.25, 0.31, 0.38) }));
     y -= 18;
 
     visibleRecords.forEach((record) => {
@@ -257,7 +261,7 @@ export default function ReportsPage({ mode }) {
         formatDate(record.reportDate),
         record.status || 'RECORDED',
       ];
-      values.forEach((value, index) => page.drawText(String(value).slice(0, index === 2 ? 22 : 18), { x: columns[index].x, y, size: 8.5, font: regularFont, color: rgb(0.20, 0.24, 0.29) }));
+      values.forEach((value, index) => page.drawText(String(value).slice(0, index === 2 ? 22 : 18), { x: columns[index].x, y, size: FORM_PDF_FONT_SIZE, font: regularFont, color: rgb(0.20, 0.24, 0.29) }));
       y -= 19;
     });
     }

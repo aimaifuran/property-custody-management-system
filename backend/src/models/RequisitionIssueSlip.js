@@ -46,7 +46,7 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
   issuedAt: { type: Date },
   signatureHash: { type: String },
   items: [{
-    stockNumber: String,
+    stockNumber: { type: String, default: null },
     unit: String,
     description: String,
     quantityRequested: Number,

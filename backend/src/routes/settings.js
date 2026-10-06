@@ -4,6 +4,15 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
 const router = express.Router();
+router.get('/entity-name', authenticate, async (req, res) => {
+  const settings = await Setting.findOne().sort({ createdAt: 1 }).lean();
+  return successResponse(res, 'Entity Name retrieved', { entityName: settings?.entityName || '' });
+});
+router.patch('/entity-name', authenticate, authorize('canManageSettings'), async (req, res) => {
+  if (typeof req.body.entityName !== 'string' || !req.body.entityName.trim() || req.body.entityName.trim().length > 300) return errorResponse(res, 'Enter an Entity Name of up to 300 characters', [], 400);
+  const settings = await Setting.findOneAndUpdate({}, { $set: { entityName: req.body.entityName.trim() } }, { upsert: true, runValidators: true, sort: { createdAt: 1 }, returnDocument: 'after' });
+  return successResponse(res, 'Entity Name saved for new forms', { entityName: settings.entityName });
+});
 const roles = ['requestedBy', 'approvedBy', 'issuedBy', 'receivedBy', 'receivedFrom', 'returnedBy', 'returnedTo', 'inspectedBy', 'custodian', 'accountingStaff'];
 router.get('/remembered-signatories', authenticate, async (req, res) => {
   const settings = await Setting.findOne().sort({ createdAt: 1 }).lean();

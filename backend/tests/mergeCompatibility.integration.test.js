@@ -175,4 +175,23 @@ test('merged deployment routes, list responses, login locks and password recover
   assert.equal(selected.body.data.requestedBy.name, 'Janet Marie Doe');
   assert.equal((await request(sameName, '/api/ris')).body.data.some(row => row.risNumber === 'LINK-NEW'), false);
 
+  assert.equal((await request(owner, '/api/settings/entity-name', 'PATCH', { entityName: 'Unauthorized' })).status, 403);
+  assert.equal((await request(admin, '/api/settings/entity-name', 'PATCH', { entityName: '   ' })).status, 400);
+  assert.equal((await request(admin, '/api/settings/entity-name', 'PATCH', { entityName: 'Carigara Supply Office' })).status, 200);
+  assert.equal((await request(owner, '/api/settings/entity-name')).body.data.entityName, 'Carigara Supply Office');
+  for (const [index, stockNumber] of ['MANUAL-Ab12/2026', '', null].entries()) {
+    const manual = await request(admin, '/api/ris', 'POST', { ...formPayload, risNumber: `MANUAL-STOCK-${index}`, requestedBy: { user: jane._id }, receivedBy: { user: jane._id }, items: [{ stockNumber, description: 'Manual item', unit: 'piece', quantityRequested: 1 }] });
+    assert.equal(manual.status, 201, JSON.stringify(manual.body));
+    assert.equal(manual.body.data.items[0].stockNumber, stockNumber);
+    assert.equal(manual.body.data.entityName, 'Carigara Supply Office');
+    assert.equal(manual.body.data.fundCluster, formPayload.fundCluster);
+    assert.equal(manual.body.data.responsibilityCenterCode, formPayload.responsibilityCenterCode);
+    const edited = await request(admin, `/api/ris/${manual.body.data._id}`, 'PUT', { items: [{ stock_number: 'EDITED-A9', description: 'Manual item', unit: 'piece', quantityRequested: 1 }] });
+    assert.equal(edited.status, 200);
+    assert.equal(edited.body.data.items[0].stockNumber, 'EDITED-A9');
+    const cleared = await request(admin, `/api/ris/${manual.body.data._id}`, 'PUT', { items: [{ stockNumber: '', description: 'Manual item', unit: 'piece', quantityRequested: 1 }] });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.data.items[0].stockNumber, '');
+  }
+
 });

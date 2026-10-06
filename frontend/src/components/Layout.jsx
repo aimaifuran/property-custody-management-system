@@ -8,11 +8,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const issueItems = [
-  { to: '/iar', label: 'Inspection & Acceptance Report', icon: FileCheck2, permissions: ['canViewIAR', 'canManageIAR'], adminOnly: true },
+  { to: '/iar', label: 'Inspection and Acceptance Report', icon: FileCheck2, permissions: ['canViewIAR', 'canManageIAR'], adminOnly: true },
   { to: '/inventory', label: 'Property Card', icon: ClipboardList, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'], adminOnly: true },
-  { to: '/ris', label: 'Requisition', icon: ClipboardCheck, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'], adminOnly: true },
-  { to: '/inventory-custodian', label: 'Inventory Custodian', icon: Archive, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'], adminOnly: true },
-  { to: '/par', label: 'Property Acknowledgement Receipts', icon: FileText, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'], adminOnly: true },
+  { to: '/ris', label: 'Requisition and Issue Slip', icon: ClipboardCheck, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'], adminOnly: true },
+  { to: '/inventory-custodian', label: 'Inventory Custodian Slip', icon: Archive, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'], adminOnly: true },
+  { to: '/par', label: 'Property Acknowledgement Receipt', icon: FileText, permissions: ['canViewRIS', 'canCreateRIS', 'canReviewRIS', 'canManageRIS'], adminOnly: true },
 ];
 
 const reportItems = [
@@ -123,7 +123,7 @@ export default function Layout() {
         <div className="sidebar-brand mb-6">
           <img src="/lgu-logo.png" alt="Municipality of Carigara official seal" className="sidebar-brand__logo h-16 w-16 rounded-full object-cover" />
           <div className="min-w-0">
-            <div className="text-lg font-bold tracking-wide">PAMS</div>
+            <div className="sidebar-brand__title text-lg font-bold tracking-wide">PAMS</div>
             <p className="mt-1 text-xs leading-relaxed text-white/65">Property Accountability Management System</p>
           </div>
         </div>
@@ -235,7 +235,7 @@ export default function Layout() {
                 <Menu size={18} />
               </button>
               <div className="min-w-0">
-                <div className="text-sm font-semibold leading-snug tracking-tight text-slate-800 sm:text-base">Property Accountability Management System of Supply Office of LGU Carigara</div>
+                <div className="title-bar__title text-sm font-semibold leading-snug tracking-tight text-slate-800 sm:text-base">Property Accountability Management System of Supply Office of LGU Carigara</div>
                 <div className="text-xs text-slate-500">Secure property custody tracking</div>
               </div>
             </div>

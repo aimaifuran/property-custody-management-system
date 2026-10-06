@@ -90,4 +90,12 @@ test('user requests and return results are scoped to the signed-in account', { t
   assert.equal((await request(admin, `/prs/${finalReturn.body.data._id}/confirm`, 'POST', {})).status, 200);
   result = (await request(user, '/ris/my-returns')).body.data.find(row => row.risNumber === 'RIS-SECOND');
   assert.equal(result.status, 'Successfully returned'); assert.equal(result.quantityRemaining, 0);
+  for (const stockNumber of ['MANUAL-U123', '', null]) {
+    const manual = await request(user, '/ris/my-requests', 'POST', { purpose: 'Office use', items: [{ stockNumber, description: 'Manually described item', unit: 'piece', quantityRequested: 1 }] });
+    assert.equal(manual.status, 201, JSON.stringify(manual.body));
+    assert.equal(manual.body.data.items[0].stockNumber, stockNumber);
+    assert.equal(manual.body.data.items[0].quantityIssued, 0);
+    assert.equal(manual.body.data.requestedBy.user, String(user._id));
+  }
+
 });

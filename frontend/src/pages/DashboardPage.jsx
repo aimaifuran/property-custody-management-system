@@ -10,11 +10,11 @@ import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, PieChart, Pie, Res
 
 // Mirrors the sidebar's "Issue" submenu (Layout.jsx issueItems) â€” same labels, same icons.
 const primaryCards = [
-  { key: 'iar', title: 'Inspection & Acceptance Report', icon: FileCheck2, color: 'from-emerald-500 to-teal-600' },
+  { key: 'iar', title: 'Inspection and Acceptance Report', icon: FileCheck2, color: 'from-emerald-500 to-teal-600' },
   { key: 'propertyCards', title: 'Property Card', icon: ClipboardList, color: 'from-blue-500 to-cyan-600' },
-  { key: 'ris', title: 'Requisition', icon: FileText, color: 'from-violet-500 to-fuchsia-600' },
-  { key: 'ics', title: 'Inventory Custodian', icon: Archive, color: 'from-amber-500 to-orange-600' },
-  { key: 'par', title: 'Property Acknowledgement Receipts', icon: FileText, color: 'from-sky-500 to-indigo-600' },
+  { key: 'ris', title: 'Requisition and Issue Slip', icon: FileText, color: 'from-violet-500 to-fuchsia-600' },
+  { key: 'ics', title: 'Inventory Custodian Slip', icon: Archive, color: 'from-amber-500 to-orange-600' },
+  { key: 'par', title: 'Property Acknowledgement Receipt', icon: FileText, color: 'from-sky-500 to-indigo-600' },
 ];
 
 // Mirrors the sidebar's top-level items below "Issue" (Layout.jsx navItems) â€” same labels, same icons.
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                     <div className="whitespace-nowrap text-xs text-slate-400">{formatRelativeTime(entry.createdAt)}</div>
                   </div>
                   {entry.details && <div className="mt-1 text-sm text-slate-500">{entry.details}</div>}
-                  <div className="mt-1 text-xs text-slate-400">by {formatUserName(entry.user)}</div>
+                  <div className="dashboard-activity-author mt-1 text-xs text-slate-400">by {formatUserName(entry.user)}</div>
                 </div>
               ))}
             </div>

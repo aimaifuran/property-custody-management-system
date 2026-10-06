@@ -1,3 +1,4 @@
+const Setting = require('../models/Setting');
 const express = require('express');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
@@ -37,6 +38,16 @@ const createSignatureHash = (payload) => crypto.createHash('sha256').update(JSON
 const { resolveAccount: resolvePersonUser, linkLegacyRequests, ownerFilter: ownRisFilterById } = require('../utils/accountLinks');
 const ownRisFilter = user => ownRisFilterById(user._id);
 
+const manualStockItems = items => {
+  if (!Array.isArray(items)) throw new Error('Items must be a list');
+  return items.map(entry => {
+    const stockNumber = Object.hasOwn(entry, 'stockNumber') ? entry.stockNumber : entry.stock_number ?? null;
+    if (stockNumber !== null && typeof stockNumber !== 'string') throw new Error('Stock Number must be text or empty');
+    const { stock_number, ...item } = entry;
+    return { ...item, stockNumber };
+  });
+};
+
 const canReviewRis = (user) => (
   user?.role === 'admin'
 );
@@ -70,17 +81,20 @@ router.post('/my-requests', authenticate, async (req, res) => {
   if (req.user.role !== 'user' || !req.user.permissions?.includes('canViewRIS')) return errorResponse(res, 'Forbidden', [], 403);
   const { purpose, items } = req.body;
   if (!String(purpose || '').trim() || !Array.isArray(items) || !items.length) return errorResponse(res, 'Purpose and requested items are required', [], 400);
+  let manualItems;
+  try { manualItems = manualStockItems(items); } catch (error) { return errorResponse(res, error.message, [], 400); }
   const requestedItems = [];
-  for (const entry of items) {
-    if (requestedItems.some(item => item.stockNumber === entry.stockNumber)) return errorResponse(res, 'Select each stock item only once', [], 400);
+  for (const entry of manualItems) {
+    if (entry.stockNumber && requestedItems.some(item => item.stockNumber === entry.stockNumber)) return errorResponse(res, 'Select each stock item only once', [], 400);
     const quantity = Number(entry.quantityRequested);
     if (!Number.isInteger(quantity) || quantity <= 0) return errorResponse(res, 'Requested quantities must be positive whole numbers', [], 400);
-    const item = await Item.findOne({ stockNumber: entry.stockNumber, deleted: false });
-    if (!item) return errorResponse(res, 'Select a valid stock number', [], 400);
-    requestedItems.push({ stockNumber: item.stockNumber, description: item.description || item.name, unit: item.unit, quantityRequested: quantity, quantityIssued: 0 });
+    const item = entry.stockNumber ? await Item.findOne({ stockNumber: entry.stockNumber, deleted: false }) : null;
+    const description = entry.description || item?.description || item?.name;
+    if (!String(description || '').trim()) return errorResponse(res, 'Describe the requested item', [], 400);
+    requestedItems.push({ stockNumber: entry.stockNumber, description, unit: entry.unit || item?.unit || '', quantityRequested: quantity, quantityIssued: 0 });
   }
   const person = { user: req.user._id, name: getUserLabel(req.user), designation: req.user.office, date: new Date() };
-  const ris = await RequisitionIssueSlip.create({ risNumber: `RIS-${new Date().getFullYear()}-${crypto.randomUUID()}`, entityName: 'LGU Carigara', division: req.user.division, office: req.user.office, purpose: String(purpose).trim(), requestedBy: person, receivedBy: person, items: requestedItems, status: 'PENDING_REVIEW' });
+  const ris = await RequisitionIssueSlip.create({ risNumber: `RIS-${new Date().getFullYear()}-${crypto.randomUUID()}`, entityName: (await Setting.findOne().sort({ createdAt: 1 }).lean())?.entityName || 'LGU Carigara', division: req.user.division, office: req.user.office, purpose: String(purpose).trim(), requestedBy: person, receivedBy: person, items: requestedItems, status: 'PENDING_REVIEW' });
   await ActivityLog.create({ user: req.user._id, action: 'RIS created', details: `RIS ${ris.risNumber} submitted by user for admin review`, ipAddress: req.ip, browser: req.get('user-agent') });
   return successResponse(res, 'Request submitted for admin review', ris, 201);
 });
@@ -144,7 +158,10 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
   if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
   const payload = { ...req.body };
+  const settings = await Setting.findOne().sort({ createdAt: 1 }).lean();
+  if (settings?.entityName) payload.entityName = settings.entityName;
   try {
+    if (payload.items) payload.items = manualStockItems(payload.items);
     payload.requestedBy = await resolvePersonUser(payload.requestedBy);
     payload.receivedBy = await resolvePersonUser(payload.receivedBy);
   } catch (error) { return errorResponse(res, error.message, [], 400); }
@@ -167,6 +184,7 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
 router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), async (req, res) => {
   const updates = { ...req.body };
   try {
+    if (updates.items) updates.items = manualStockItems(updates.items);
     if (updates.requestedBy) updates.requestedBy = await resolvePersonUser(updates.requestedBy);
     if (updates.receivedBy) updates.receivedBy = await resolvePersonUser(updates.receivedBy);
   } catch (error) { return errorResponse(res, error.message, [], 400); }
@@ -187,7 +205,9 @@ router.post('/:id/review', authenticate, async (req, res) => {
   const stockLookup = await Item.find({ deleted: false });
   const stockMap = new Map(stockLookup.map((entry) => [entry.stockNumber, entry]));
 
-  ris.items = (req.body.items || ris.items).map((entry) => {
+  let reviewedItems;
+  try { reviewedItems = req.body.items ? manualStockItems(req.body.items) : ris.items.map(item => item.toObject()); } catch (error) { return errorResponse(res, error.message, [], 400); }
+  ris.items = reviewedItems.map((entry) => {
     const requested = Number(entry.quantityRequested || 0);
     const inventoryItem = stockMap.get(entry.stockNumber);
     const available = Number(inventoryItem?.quantityOnHand || 0);

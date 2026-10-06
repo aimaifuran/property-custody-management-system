@@ -1,3 +1,7 @@
+import { preloadFormFonts } from '../utils/formPdfFonts';
+import FormEditorHeader from '../components/FormEditorHeader';
+import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
+import EntityNameField from '../components/EntityNameField';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
@@ -12,7 +16,6 @@ import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 import { useAuth } from '../contexts/AuthContext';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
@@ -405,9 +408,12 @@ export default function RisPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [pageLoadError, setPageLoadError] = useState('');
 
+  useEffect(() => { preloadFormFonts(['regular', 'bold']).catch(() => {}); }, []);
+  const [exportingRis, setExportingRis] = useState('');
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(newForm);
+  const [fundClusterOption, setFundClusterOption] = useState('');
   const [editingRis, setEditingRis] = useState(null);
   const [creatingRis, setCreatingRis] = useState(false);
   const [issueErrors, setIssueErrors] = useState({});
@@ -499,15 +505,6 @@ export default function RisPage() {
     setForm((prev) => {
       const nextItems = prev.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item;
-        if (key === 'stockNumber') {
-          const selected = selectedInventoryMap.get(value);
-          return {
-            ...item,
-            stockNumber: value,
-            unit: selected?.unit || '',
-            description: selected?.description || '',
-          };
-        }
         return { ...item, [key]: value };
       });
       return { ...prev, items: nextItems };
@@ -527,6 +524,7 @@ export default function RisPage() {
 
   const resetForm = () => {
     setForm(newForm());
+    setFundClusterOption('');
     setEditingRis(null);
     setCreatingRis(false);
     assignNextNumber();
@@ -748,76 +746,14 @@ export default function RisPage() {
   }
 
   async function generatePdf(data, print = false) {
-    const existingPdfBytes = await fetch("/forms/templates/ris-template.pdf").then(res =>
-        res.arrayBuffer()
-    );
-
-    const pdfDoc = await PDFDocument.load(existingPdfBytes);
-
-    const form = pdfDoc.getForm();
-
-    form.getTextField("entityName").setText(String(data.entityName));
-    form.getTextField("fundCluster").setText(String(data.fundCluster));
-    form.getTextField("division").setText(String(data.division));
-    form.getTextField("office").setText(String(data.office));
-    form.getTextField("responsibilityCenterCode").setText(String(data.responsibilityCenterCode));
-    form.getTextField("risNumber").setText(String(data.risNumber));
-
-    // Table data insertion
-    const startRowNumber = 1; // Starting row for table data
-    data.items.forEach((item, index) => {
-      form.getTextField(`stockNumber${index + 1}`).setText(String(item.stockNumber));
-      form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-      form.getTextField(`description${index + 1}`).setText(String(item.description));
-      form.getTextField(`quantityRequested${index + 1}`).setText(String(item.quantityRequested));
-      form.getTextField(`yes${index + 1}`).setText(String(item.isAvailable ? '/' : ''));
-      form.getTextField(`no${index + 1}`).setText(String(!item.isAvailable ? '/' : ''));
-      form.getTextField(`quantityIssued${index + 1}`).setText(String(item.quantityIssued <= 0 ? '' : item.quantityIssued));
-      form.getTextField(`remarks${index + 1}`).setText(String(item.remarks || ''));
-    });
-
-
-    form.getTextField("purpose").setText(String(data.purpose));
-
-    // Requested by
-    form.getTextField("requestedByName").setText(String(data.requestedBy?.name || ''));
-    form.getTextField("requestedByDesignation").setText(String(data.requestedBy?.designation || ''));
-    form.getTextField("requestedByDate").setText(String(formatDate(data.requestedBy?.date)));
-
-    // Approved by
-    form.getTextField("approvedByName").setText(String(data.approvedBy?.name || ''));
-    form.getTextField("approvedByDesignation").setText(String(data.approvedBy?.designation || ''));
-    form.getTextField("approvedByDate").setText(String(formatDate(data.approvedBy?.date)));
-
-    // Issued by
-    form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
-    form.getTextField("issuedByDesignation").setText(String(data.issuedBy?.designation || ''));
-    form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
-
-    // Received by
-    form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
-    form.getTextField("receivedByDesignation").setText(String(data.receivedBy?.designation || ''));
-    form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
-
-    // Optional: prevent further editing
-    form.flatten();
-
-    const pdfBytes = await pdfDoc.save();
-
-    if (print) {
-      const blob = new Blob([pdfBytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const printWindow = window.open(url, "_blank");
-      printWindow.print();
-    } else {
-      saveAs(
-        new Blob([pdfBytes], { type: "application/pdf" }),
-        "RIS.pdf"
-      );
-    }
-  };
+      if (exportingRis) return;
+      setExportingRis(data._id || data.risNumber);
+      try { await exportOfficialFormPdf('RIS', data, print); }
+      finally { setExportingRis(''); }
+    };
 
   const editDraft = async (record) => {
+    setFundClusterOption(record.fundCluster === 'Trust Fund' ? 'Trust Fund' : record.fundCluster ? 'Specify' : '');
     setCreatingRis(false);
     setEditingRis(record);
     setForm({
@@ -889,11 +825,11 @@ export default function RisPage() {
               {canManage ? (
               <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
                 <RecordActionButton action="edit" title="Update record" onClick={() => editDraft(item)} />
-                <RecordActionButton action="pdf"
+                <RecordActionButton action="pdf" busy={exportingRis === item._id} disabled={Boolean(exportingRis)}
                   onClick={() => generatePdf(item)}
                   title="Download PDF"
                  />
-                <RecordActionButton action="print"
+                <RecordActionButton action="print" busy={exportingRis === item._id} disabled={Boolean(exportingRis)}
                   onClick={() => generatePdf(item, true)}
                   title="Print record"
                  />
@@ -1061,78 +997,22 @@ export default function RisPage() {
         className="form-document scroll-mt-6 mx-auto max-w-6xl p-4"
       >
         <div className="rounded-2xl border-2 border-slate-700 p-4 text-slate-900">
-          <div className="form-title-row border-b border-slate-300 pb-3">
-            <h1 className="form-page-title">Requisition &amp; Issue Slip</h1>
-            <button type="button" onClick={resetForm} className="form-title-action inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-              <RotateCcw size={16} />
-              Close Editor
-            </button>
-          </div>
+          <FormEditorHeader title="Requisition and Issue Slip" description="Record requested items and issued quantities." onClose={resetForm} />
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
-            <div className="space-y-3">
-              <label className="grid grid-cols-[130px_1fr] items-end gap-3 text-sm font-semibold">
-                <span>Entity Name:</span>
-                <input
-                  value={form.entityName}
-                  onChange={(e) => updateForm({ entityName: e.target.value })}
-                  placeholder="e.g., Municipality of Carigara"
-                  className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 font-semibold outline-none focus:border-slate-900"
-                />
+            <EntityNameField value={form.entityName} onChange={entityName => updateForm({ entityName })} isNew={!editingRis} />
+            <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+              <label className="block font-semibold"><span className="mb-1 block">Fund Cluster:</span>
+                <select aria-label="Fund Cluster" required value={fundClusterOption} onChange={event => { setFundClusterOption(event.target.value); updateForm({ fundCluster: event.target.value === 'Trust Fund' ? 'Trust Fund' : '' }); }} className="w-full rounded-lg border px-2 py-2">
+                  <option value="">Select fund source</option><option value="Trust Fund">Trust Fund</option><option value="Specify">Specify</option>
+                </select>
               </label>
+              {fundClusterOption === 'Specify' && <label className="block"><span className="mb-1 block">Specific fund source:</span><input type="text" aria-label="Specific fund source" required value={form.fundCluster} onChange={event => updateForm({ fundCluster: event.target.value })} placeholder="e.g., General Fund" className="w-full rounded-lg border px-2 py-2" /></label>}
             </div>
-            <label className="grid grid-cols-[130px_1fr] items-end gap-3 text-sm font-semibold lg:justify-self-end lg:w-full">
-              <span className="text-right">Fund Cluster:</span>
-              <input
-                value={form.fundCluster}
-                onChange={(e) => updateForm({ fundCluster: e.target.value })}
-                placeholder="e.g., General Fund"
-                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 text-center font-semibold outline-none focus:border-slate-900"
-              />
-            </label>
           </div>
 
-          <div className="mt-4 grid grid-cols-[170px_1fr_1.2fr] border border-slate-700">
-            <div className="border-r border-slate-700">
-              <div className="border-b border-slate-700 px-2 py-3 text-sm">Division:</div>
-              <div className="px-2 py-[0.77rem] text-sm">Office:</div>
-            </div>
-            <div className="border-r border-slate-700">
-              <div className="border-b border-slate-700 px-3 py-[0.4rem] ">
-                <input
-                  value={form.division}
-                  onChange={(e) => updateForm({ division: e.target.value })}
-                  className="w-full border-0 bg-transparent px-0 py-1 outline-none"
-                />
-              </div>
-              <div className="px-3 py-2">
-                <input
-                  value={form.office}
-                  onChange={(e) => updateForm({ office: e.target.value })}
-                  className="w-full border-0 bg-transparent px-0 py-1 outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <div className="border-b border-slate-700 px-[0.8rem] py-[0.77rem] text-sm">
-                <div className="grid grid-cols-[1fr_1fr] gap-3">
-                  <span>Responsibility Center Code:</span>
-                  <input
-                    value={form.responsibilityCenterCode}
-                    onChange={(e) => updateForm({ responsibilityCenterCode: e.target.value })}
-                    className="w-full border-0 bg-transparent px-0 py-0 outline-none"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-[1fr_1fr] gap-3 px-[0.8rem] py-[0.77rem] text-sm">
-                <span>RIS No.:</span>
-                <input
-                  value={form.risNumber}
-                  onChange={(e) => updateForm({ risNumber: e.target.value })}
-                  className="w-full border-0 bg-transparent px-0 py-0 text-center font-semibold outline-none"
-                />
-              </div>
-            </div>
+          <div className="ris-header-fields mt-4 grid gap-3 sm:grid-cols-2">
+            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span><input type="text" aria-label={label} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" /></label>)}
           </div>
 
           <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
@@ -1156,18 +1036,13 @@ export default function RisPage() {
             {form.items.map((item, index) => (
               <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-1">
-                  <select
-                    value={item.stockNumber}
+                  <input
+                    type="text"
+                    aria-label={`Stock Number, row ${index + 1}`}
+                    value={item.stockNumber ?? ''}
                     onChange={(e) => updateItem(index, 'stockNumber', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  >
-                    <option value="">Select stock</option>
-                    {items.map((entry) => (
-                      <option key={entry._id} value={entry.stockNumber}>
-                        {entry.stockNumber} - {entry.description}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div className="border-r border-slate-300 p-1">
                   <input

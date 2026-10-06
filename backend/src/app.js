@@ -64,7 +64,8 @@ const swaggerSpec = swaggerJsdoc({
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 const { authenticate, adminOnly } = require('./middlewares/auth');
-app.use(['/api/suppliers', '/api/inventory', '/api/property-cards', '/api/items', '/api/iar', '/api/ptr', '/api/prs', '/api/accountabilities', '/api/ics', '/api/par', '/api/returned-supply', '/api/users', '/api/properties', '/api/document-numbers', '/api/settings'], authenticate, adminOnly);
+app.use(['/api/suppliers', '/api/inventory', '/api/property-cards', '/api/items', '/api/iar', '/api/ptr', '/api/prs', '/api/accountabilities', '/api/ics', '/api/par', '/api/returned-supply', '/api/users', '/api/properties', '/api/document-numbers'], authenticate, adminOnly);
+app.use('/api/settings', authenticate, (req, res, next) => req.method === 'GET' && req.path === '/entity-name' ? next() : adminOnly(req, res, next));
 app.use('/api/auth', authRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/inventory', inventoryRoutes);

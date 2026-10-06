@@ -1,3 +1,4 @@
+import FormEditorHeader from '../components/FormEditorHeader';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import Skeleton from '../components/Skeleton';
@@ -23,6 +24,7 @@ export default function PpeStationReportPage() {
   const defaults = useRef({});
   const [records, setRecords] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -57,9 +59,9 @@ export default function PpeStationReportPage() {
     rememberQueue.current = task;
     return task;
   };
-  const reset = () => { setEditingId(null); setForm(blankForm({ ...defaults.current, ...dirtySignatories.current })); };
+  const reset = () => { setEditorOpen(true); setEditingId(null); setForm(blankForm({ ...defaults.current, ...dirtySignatories.current })); };
   const edit = record => {
-    setEditingId(record._id); setForm({ ...record, rows: record.rows.map(row => ({ ...row, unitCost: row.unitCost ?? '', totalCost: row.totalCost ?? '' })) });
+    setEditorOpen(true); setEditingId(record._id); setForm({ ...record, rows: record.rows.map(row => ({ ...row, unitCost: row.unitCost ?? '', totalCost: row.totalCost ?? '' })) });
     editor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const save = async event => {
@@ -100,9 +102,9 @@ export default function PpeStationReportPage() {
  return <div className="space-y-6">
     <div><h1 className="text-2xl font-semibold">List of PPEs</h1><p className="mt-1 text-sm text-slate-600">List of PPEs Found at Station. Print on A4 paper in landscape orientation.</p></div>
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    {loading ? <Skeleton className="h-4 w-20" /> : canEdit && !error && <form ref={editor} onSubmit={save} className="form-document form-frame ppe-station-form">
-      <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-semibold">{editingId ? 'Edit List of PPEs' : 'New List of PPEs'}</h2><button type="button" onClick={reset} className="rounded-lg border px-3 py-1 text-sm">{editingId ? 'Cancel Edit' : 'Clear Form'}</button></div>
-      <p className="text-center text-sm">Republic of the Philippines</p><div className="my-2">{field('governmentUnit', 'Local Government Unit', 'text', true)}</div><h3 className="mb-4 text-center text-base font-bold">List of PPEs Found at Station</h3>
+    {loading ? <Skeleton className="h-4 w-20" /> : canEdit && editorOpen && !error && <form ref={editor} onSubmit={save} className="form-document form-frame ppe-station-form">
+      <FormEditorHeader title="List of PPEs Found at Station" description="Record office equipment and the person accountable for each item." onClose={() => setEditorOpen(false)} />
+      <p className="text-center text-sm">Republic of the Philippines</p><div className="my-2">{field('governmentUnit', 'Local Government Unit', 'text', true)}</div>
       <div className="grid gap-3 sm:grid-cols-2">{field('accountGroup', 'PPE Account Group', 'text', true)}{field('date', 'Date', 'date', true)}</div>
       <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[1100px] table-fixed border-collapse text-xs"><colgroup>{STATION_PPE_COLUMNS.map(([key, , width]) => <col key={key} style={{ width: `${width}%` }} />)}</colgroup><thead><tr>{STATION_PPE_COLUMNS.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead><tbody>{form.rows.map((row, index) => <tr key={index}>{STATION_PPE_COLUMNS.map(([key, label]) => <td key={key}>{['unitCost', 'totalCost'].includes(key) ? <input aria-label={`${label}, row ${index + 1}`} type="number" min={0} step="0.01" value={row[key]} onChange={event => setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry) }))} /> : <textarea aria-label={`${label}, row ${index + 1}`} required={['article', 'description'].includes(key)} maxLength={{ article: 100, description: 1500, propertyNumber: 300, accountablePerson: 200, remarks: 300 }[key]} value={row[key] || ''} rows={key === 'description' ? 3 : 2} onChange={event => setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry) }))} />}</td>)}</tr>)}</tbody></table></TableScroll>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><button type="button" disabled={form.rows.length >= 500} onClick={() => setForm(previous => ({ ...previous, rows: [...previous.rows, blankRow()] }))} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm"><Plus size={16} /> Add PPE</button><label className="text-xs">Remove row <select defaultValue="" disabled={form.rows.length === 1} onChange={event => { const index = Number(event.target.value); setForm(previous => ({ ...previous, rows: previous.rows.filter((_, rowIndex) => rowIndex !== index) })); event.target.value = ''; }}><option value="" disabled>Select row</option>{form.rows.map((row, index) => <option key={index} value={index}>Row {index + 1}: {row.article || 'Blank'}</option>)}</select></label></div>

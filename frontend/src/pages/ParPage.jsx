@@ -1,3 +1,6 @@
+import FormEditorHeader from '../components/FormEditorHeader';
+import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
+import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
@@ -9,7 +12,6 @@ import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { PDFDocument } from "pdf-lib";
 import { saveAs } from "file-saver";
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import FundClusterField from '../components/FundClusterField';
@@ -158,7 +160,7 @@ export default function ParPage() {
         }
     };
 
-    const field = (label, key, type = 'text') => (
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'parNumber' ? 'e.g., PAR-2026-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
@@ -287,59 +289,7 @@ export default function ParPage() {
     };
 
     async function generatePdf(data, print = false) {
-        const existingPdfBytes = await fetch("/forms/templates/par-template.pdf").then(res =>
-            res.arrayBuffer()
-        );
-
-        const pdfDoc = await PDFDocument.load(existingPdfBytes);
-
-        const form = pdfDoc.getForm();
-
-        form.getTextField("entityName").setText(String(data.entityName));
-        form.getTextField("fundCluster").setText(String(data.fundCluster));
-        form.getTextField("parNumber").setText(String(data.parNumber));
-
-        // Table data insertion
-        const startRowNumber = 1; // Starting row for table data
-        data.items.forEach((item, index) => {
-            form.getTextField(`quantity${index + 1}`).setText(String(item.quantity));
-            form.getTextField(`unit${index + 1}`).setText(String(item.unit));
-            form.getTextField(`description${index + 1}`).setText(String(item.description));
-            form.getTextField(`propertyNumber${index + 1}`).setText(String(item.propertyNumber));
-            form.getTextField(`dateAcquired${index + 1}`).setText(String(formatDate(item.dateAcquired)));
-            form.getTextField(`amount${index + 1}`).setText(String(formatAmount(item.amount)));
-        });
-
-
-        form.getTextField("totalAmount").setText(String(formatAmount(data.totalAmount)));
-        form.getTextField("remarks").setText(String(data.remarks));
-
-        // Received by
-        form.getTextField("receivedByName").setText(String(data.receivedBy?.name || ''));
-        form.getTextField("receivedByPosition").setText(String(data.receivedBy?.position || ''));
-        form.getTextField("receivedByDate").setText(String(formatDate(data.receivedBy?.date)));
-
-        // Issued by
-        form.getTextField("issuedByName").setText(String(data.issuedBy?.name || ''));
-        form.getTextField("issuedByPosition").setText(String(data.issuedBy?.position || ''));
-        form.getTextField("issuedByDate").setText(String(formatDate(data.issuedBy?.date)));
-
-        // Optional: prevent further editing
-        form.flatten();
-
-        const pdfBytes = await pdfDoc.save();
-
-        if (print) {
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, "_blank");
-        printWindow.print();
-        } else {
-        saveAs(
-            new Blob([pdfBytes], { type: "application/pdf" }),
-            "PAR.pdf"
-        );
-        }
+      await exportOfficialFormPdf('PAR', data, print);
     };
 
     if (pageLoading) return <PageSkeleton />;
@@ -370,13 +320,7 @@ export default function ParPage() {
 
             {form && (
                 <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-                    <div className="form-title-row mb-5">
-                        <div>
-                            <h1 className="form-page-title">Property Acknowledgement Receipt</h1>
-                            <p className="mt-2 text-sm text-slate-500">Records here are created automatically from IAR items whose combined total cost is ₱50,000 or more.</p>
-                        </div>
-                        <button type="button" onClick={cancelEdit} className="form-title-action rounded-xl border px-3 py-2 text-sm">Cancel</button>
-                    </div>
+                    <FormEditorHeader title="Property Acknowledgement Receipt" description="Records here are created automatically from IAR items whose combined total cost is ₱50,000 or more." onClose={cancelEdit} />
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
