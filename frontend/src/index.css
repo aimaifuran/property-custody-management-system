@@ -1186,7 +1186,7 @@ button.record-action:disabled { opacity: .5; cursor: not-allowed; }
 
 /* One shared text scale for pages, controls, and compact dashboard cards. */
 :root {
-  --app-card-label-size: 10px;
+  --app-card-label-size: 11px;
   --app-text-size: var(--app-card-label-size);
   --app-count-size: var(--app-card-label-size);
   --app-heading-size: var(--app-card-label-size);
@@ -1219,7 +1219,7 @@ body { font-size: var(--app-text-size); }
 @media (max-width: 767px) {
   :is(.app-shell, .login-page, form) input:not([type="checkbox"]):not([type="radio"]),
   :is(.app-shell, .login-page, form) select,
-  :is(.app-shell, .login-page, form) textarea { font-size: 16px !important; }
+  :is(.app-shell, .login-page, form) textarea { font-size: var(--app-text-size) !important; }
 }
 
 /* Circular lock control adapted from Uiverse.io by mobinkakei. */
@@ -1445,3 +1445,35 @@ body { font-size: var(--app-text-size); }
 
 /* Align field labels regardless of shared component or page markup. */
 .form-document label > span:first-child { line-height: 1.4; margin-bottom: 4px; }
+
+/* Shared phone layout for all official forms and saved records. */
+.form-document label { min-width: 0; }
+.form-document label > span:first-child { display: block; }
+@media screen { .form-document :is(input, select, textarea, button, label, p, th, td, span) { font-size: var(--app-text-size) !important; } }
+@media screen and (max-width: 640px) {
+  .saved-records { padding: 12px !important; }
+  .saved-record { gap: 8px; text-align: left; }
+  .saved-record > :first-child:not(button) { flex: 1 1 0; width: auto; }
+  .saved-record > .flex:last-child { flex: 0 0 auto; width: auto; margin-left: auto; justify-content: flex-end; }
+  .form-document { min-width: 0; max-width: 100%; padding: 12px !important; }
+  .form-document .form-editor-header .form-title-row { gap: 8px; padding-bottom: 10px; }
+  .form-editor-header { margin-bottom: 14px; }
+  .form-document .form-editor-description { margin-top: 10px; }
+  .form-document :is(input:not([type='radio']):not([type='checkbox']), select) { height: 36px; min-height: 36px; line-height: 1.4; }
+  .saved-reports-controls { gap: 8px; }
+  .saved-reports-search { flex: 1 1 100%; width: 100%; }
+  .saved-reports-page-size { margin-left: auto; }
+}
+
+/* Compact record details on the left, matching actions on the right. */
+.saved-record { gap: 8px; }
+.saved-record :is(b, strong, div, p) { overflow-wrap: anywhere; }
+.saved-record > :first-child:not(button) { min-width: 0; flex-basis: 0; }
+.saved-record .flex:has(> .record-action) { gap: 6px; flex: 0 0 auto; align-items: center; justify-content: flex-end; }
+.saved-record > .flex:has(> div > .record-action) { width: 100%; gap: 8px; }
+.saved-record > .flex:has(> div > .record-action) > :first-child { flex: 1 1 0; min-width: 0; }
+.app-shell main .saved-record button.record-action { min-height: 28px !important; padding: 6px 8px !important; gap: 5px; border-radius: 8px !important; white-space: nowrap; justify-content: center; }
+@media screen and (max-width: 359px) {
+  .saved-record:has(> .flex > .record-action) > .flex:last-child { flex-shrink: 1; flex-wrap: wrap; }
+  .saved-record > .flex:has(> div > .record-action) { flex-wrap: wrap; }
+}
