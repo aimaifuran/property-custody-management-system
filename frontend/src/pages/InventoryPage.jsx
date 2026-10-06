@@ -286,7 +286,7 @@ export default function InventoryPage() {
           </div>
           {editingCard ? (
             <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
-              <div className="rounded-2xl border-2 border-slate-700 p-5 text-slate-900">
+              <div className="min-w-0 text-slate-900">
                 <FormEditorHeader title="Property Card" description="Record property items here. Cards linked to an Inspection and Acceptance Report are also created automatically." onClose={closeEditor} />
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                   {field('Month','month')}

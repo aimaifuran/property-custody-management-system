@@ -922,8 +922,8 @@ export default function RisPage() {
 
           <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
             <div className="ris-table-grid border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
-              <div className="col-span-4 border-r border-slate-700 py-2 italic">Requisition</div>
-              <div className="col-span-4 py-2 italic">Stock Available?</div>
+              <div className="col-span-4 border-r border-slate-700 py-2 italic justify-center">Requisition</div>
+              <div className="col-span-4 py-2 italic justify-center">Stock Available?</div>
             </div>
             <div className="ris-table-grid border-b border-slate-700 text-center text-sm font-semibold">
               <div className="border-r border-slate-700 px-2 py-2">Stock No.</div>
@@ -994,9 +994,9 @@ export default function RisPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         onSubmit={save}
-        className="form-document scroll-mt-6 mx-auto max-w-6xl p-4"
+        className="form-document form-frame scroll-mt-6 mx-auto max-w-6xl p-4"
       >
-        <div className="rounded-2xl border-2 border-slate-700 p-4 text-slate-900">
+        <div className="min-w-0 text-slate-900">
           <FormEditorHeader title="Requisition and Issue Slip" description="Record requested items and issued quantities." onClose={resetForm} />
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
@@ -1017,8 +1017,8 @@ export default function RisPage() {
 
           <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
             <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
-              <div className="col-span-4 border-r border-slate-700 py-2 italic">Requisition</div>
-              <div className="col-span-4 border-r border-slate-700 py-2 italic">Stock Available?</div>
+              <div className="col-span-4 border-r border-slate-700 py-2 italic justify-center">Requisition</div>
+              <div className="col-span-4 border-r border-slate-700 py-2 italic justify-center">Stock Available?</div>
               <div className="py-2" />
             </div>
             <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 text-center text-sm font-semibold">
