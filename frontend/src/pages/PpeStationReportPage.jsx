@@ -1,3 +1,4 @@
+import NewFormButton from '../components/NewFormButton';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -94,7 +95,7 @@ export default function PpeStationReportPage() {
   const pageCount = Math.max(1, Math.ceil(records.length / perPage));
   if (loading) return <PageSkeleton />;
  return <div className="space-y-6">
-    <div><h1 className="text-2xl font-semibold">List of PPEs</h1><p className="mt-1 text-sm text-slate-600">List of PPEs Found at Station. Print on A4 paper in landscape orientation.</p></div>
+    <div><h1 className="text-2xl font-semibold">List of PPEs</h1>{canEdit && <div className="mt-2"><NewFormButton onNew={reset} editorRef={editor} /></div>}<p className="mt-1 text-sm text-slate-600">List of PPEs Found at Station. Print on A4 paper in landscape orientation.</p></div>
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
     {loading ? <Skeleton className="h-4 w-20" /> : canEdit && !error && <form ref={editor} onSubmit={save} className="form-document form-frame ppe-station-form">
       <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-semibold">{editingId ? 'Edit List of PPEs' : 'New List of PPEs'}</h2><button type="button" onClick={reset} className="rounded-lg border px-3 py-1 text-sm">{editingId ? 'Cancel Edit' : 'Clear Form'}</button></div>

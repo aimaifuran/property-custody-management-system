@@ -1,3 +1,4 @@
+import NewFormButton from '../components/NewFormButton';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -418,7 +419,7 @@ export default function PrsPage() {
  return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Return Slips &amp; User Returns</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Return Slips &amp; User Returns</h2><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></div>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>

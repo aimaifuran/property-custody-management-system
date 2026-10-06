@@ -17,7 +17,7 @@ import ParPage from './pages/ParPage';
 import ReturnedSupplyPage from './pages/ReturnedSupplyPage';
 import MyReturnsPage from './pages/MyReturnsPage';
 import MyIssuedItemsPage from './pages/MyIssuedItemsPage';
-import ReportsPage from './pages/ReportsPage';
+import AnnualOfficeItemsPage from './pages/AnnualOfficeItemsPage';
 import MonthlyItemsReportPage from './pages/MonthlyItemsReportPage';
 import PpeStationReportPage from './pages/PpeStationReportPage';
 import HistoricalRecordsPage from './pages/HistoricalRecordsPage';
@@ -80,7 +80,7 @@ function AppRoutes() {
             const pages = {
               '/dashboard': RoleDashboard,
               '/reports/monthly': MonthlyItemsReportPage,
-              '/reports/annual': () => <ReportsPage mode="annual" />,
+              '/reports/annual': AnnualOfficeItemsPage,
               '/reports/ppe-list': PpeStationReportPage,
               '/historical-records': HistoricalRecordsPage,
               '/suppliers': SuppliersPage,

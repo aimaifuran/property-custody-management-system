@@ -1,3 +1,6 @@
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History } from 'lucide-react';
@@ -43,6 +46,31 @@ const canAccessNavItem = (user, item) => {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const [pendingResets, setPendingResets] = useState(0);
+  const notifiedResets = useRef(new Set());
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return undefined;
+    const controller = new AbortController();
+    const refresh = async () => {
+      try {
+        const { data } = await axios.get('/users/password-reset-requests', { signal: controller.signal });
+        const pending = data.data.filter(request => request.status === 'PENDING');
+        setPendingResets(pending.length);
+        pending.forEach(request => {
+          if (!notifiedResets.current.has(request._id)) {
+            notifiedResets.current.add(request._id);
+            toast(`Password reset requested by ${request.user.username}. Review in User Management.`, { id: `reset-${request._id}`, duration: 6000 });
+          }
+        });
+      } catch { /* Retry on focus or the next refresh. */ }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('password-recovery-updated', refresh);
+    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('password-recovery-updated', refresh); };
+  }, [user?._id, user?.role]);
   const [issueOpen, setIssueOpen] = useState(true);
   const [reportsOpen, setReportsOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -178,6 +206,7 @@ export default function Layout() {
               <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-slate-500 hover:bg-white/70 hover:text-emerald-800'}`}>
                 <Icon size={18} />
                 {item.label}
+                {item.to === '/users' && pendingResets > 0 && <span aria-label={`${pendingResets} password reset requests awaiting approval`} className="ml-auto rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{pendingResets}</span>}
               </NavLink>
             );
           })}

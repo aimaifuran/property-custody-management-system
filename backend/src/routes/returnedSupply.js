@@ -16,6 +16,8 @@ router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory
   return successResponse(res, 'Returned supply retrieved', records);
 });
 
+router.post('/', authenticate, authorize('canManageInventory'), require('../utils/createFormRecord')(ReturnedSupply, ['lguName', 'purpose', 'quantity', 'unit', 'description', 'propertyNumber', 'mrNumber', 'unitValue', 'totalValue', 'note', 'returnedBy', 'returnedTo'], 'Returned supply record', null));
+
 router.put('/:id', authenticate, authorize('canManageInventory'), async (req, res) => {
   const record = await ReturnedSupply.findOneAndUpdate({ _id: req.params.id, deleted: false }, req.body, { new: true, runValidators: true });
   if (!record) return errorResponse(res, 'Returned supply record not found', [], 404);

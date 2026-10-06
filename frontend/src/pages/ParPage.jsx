@@ -1,3 +1,4 @@
+import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -48,6 +49,7 @@ const toFormSignatory = (signatory = {}) => ({
 
 const toForm = (record) => ({
     entityName: record.entityName || '',
+    office: record.office || '',
     fundCluster: record.fundCluster || '',
     parNumber: record.parNumber || '',
     items: record.items && record.items.length ? record.items.map(toFormItem) : [emptyItem()],
@@ -100,6 +102,16 @@ export default function ParPage() {
         }
     };
 
+    const createNew = async () => {
+        setEditingId(null);
+        const nextForm = toForm({ items: [emptyItem()] });
+        setForm(nextForm);
+        try {
+            const { data } = await axios.get('/document-numbers/PAR');
+            setForm(previous => ({ ...previous, parNumber: data.data.nextNumber }));
+        } catch { /* The document number can also be entered manually. */ }
+    };
+
     const cancelEdit = () => {
         setEditingId(null);
         setForm(null);
@@ -125,7 +137,7 @@ export default function ParPage() {
     const save = async (event) => {
         event.preventDefault();
         try {
-            await axios.put(`/par/${editingId}`, {
+            await axios[editingId ? 'put' : 'post'](editingId ? `/par/${editingId}` : '/par', {
                 ...form,
                 items: form.items.map((item) => ({
                     ...item,
@@ -133,7 +145,7 @@ export default function ParPage() {
                     amount: Number(item.amount || 0)
                 }))
             });
-            toast.success('Property Acknowledgement Receipt updated');
+            toast.success(editingId ? 'Property Acknowledgement Receipt updated' : 'Property Acknowledgement Receipt created');
             markUpdated(editingId);
             cancelEdit();
             load();
@@ -332,7 +344,7 @@ export default function ParPage() {
  return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Saved Records</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Saved Records</h2><NewFormButton onNew={createNew} editorRef={editorRef} /></div>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -365,7 +377,7 @@ export default function ParPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
-                        {field('PAR No.', 'parNumber')}
+                        {field('PAR No.', 'parNumber')}{field('Office', 'office')}
                     </div>
                     <TableScroll className="mt-6 overflow-x-auto">
                         <table className="min-w-full text-sm">
@@ -425,7 +437,7 @@ export default function ParPage() {
                         {signatoryFields('Issued By', 'issuedBy')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
+                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{editingId ? 'Save Changes' : 'Save New Form'}</button>
                 </form>
             )}
         </div>

@@ -1,3 +1,4 @@
+import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -851,11 +852,7 @@ export default function RisPage() {
       <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Submitted RIS</h2>
-          <button type="button" onClick={() => {
-            resetForm();
-            setCreatingRis(true);
-            requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-          }} className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-800">Add +</button>
+          <NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} />
         </div>
         {stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">

@@ -1,3 +1,4 @@
+import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -50,6 +51,7 @@ const toFormSignatory = (signatory = {}) => ({
 
 const toForm = (record) => ({
     entityName: record.entityName || '',
+    office: record.office || '',
     fundCluster: record.fundCluster || '',
     icsNumber: record.icsNumber || '',
     items: record.items && record.items.length ? record.items.map(toFormItem) : [emptyItem()],
@@ -102,6 +104,16 @@ export default function IcsPage() {
         }
     };
 
+    const createNew = async () => {
+        setEditingId(null);
+        const nextForm = toForm({ items: [emptyItem()] });
+        setForm(nextForm);
+        try {
+            const { data } = await axios.get('/document-numbers/ICS');
+            setForm(previous => ({ ...previous, icsNumber: data.data.nextNumber }));
+        } catch { /* The document number can also be entered manually. */ }
+    };
+
     const cancelEdit = () => {
         setEditingId(null);
         setForm(null);
@@ -130,7 +142,7 @@ export default function IcsPage() {
     const save = async (event) => {
         event.preventDefault();
         try {
-            await axios.put(`/ics/${editingId}`, {
+            await axios[editingId ? 'put' : 'post'](editingId ? `/ics/${editingId}` : '/ics', {
                 ...form,
                 items: form.items.map((item) => ({
                     ...item,
@@ -138,7 +150,7 @@ export default function IcsPage() {
                     unitCost: Number(item.unitCost || 0)
                 }))
             });
-            toast.success('Inventory Custodian Slip updated');
+            toast.success(editingId ? 'Inventory Custodian Slip updated' : 'Inventory Custodian Slip created');
             markUpdated(editingId);
             cancelEdit();
             load();
@@ -338,7 +350,7 @@ export default function IcsPage() {
  return (
         <div className="space-y-6">
             <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-xl font-semibold">Saved Records</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-semibold">Saved Records</h2><NewFormButton onNew={createNew} editorRef={editorRef} /></div>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
@@ -371,7 +383,7 @@ export default function IcsPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
-                        {field('ICS No.', 'icsNumber')}
+                        {field('ICS No.', 'icsNumber')}{field('Office', 'office')}
                     </div>
                     <TableScroll className="mt-6 overflow-x-auto">
                         <table className="min-w-full text-sm">
@@ -435,7 +447,7 @@ export default function IcsPage() {
                         {signatoryFields('Received By', 'receivedBy')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save Changes</button>
+                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{editingId ? 'Save Changes' : 'Save New Form'}</button>
                 </form>
             )}
         </div>

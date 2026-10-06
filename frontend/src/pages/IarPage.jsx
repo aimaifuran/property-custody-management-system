@@ -1,3 +1,4 @@
+import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
@@ -344,7 +345,7 @@ export default function IarPage() {
       <>
         <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-lg font-bold tracking-tight text-[#285943]">Saved Reports</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold tracking-tight text-[#285943]">Saved Reports</h2><NewFormButton onNew={cancelEdit} editorRef={editorRef} /></div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="relative min-w-[240px]"><Search size={16} className="absolute left-3 top-3 text-slate-400" /><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search reports" className="w-full rounded-lg border border-white bg-[#eef7f1] py-2 pl-9 pr-3 text-xs text-slate-700 shadow-inner" /></label>
               <label className="flex items-center gap-2 whitespace-nowrap text-xs text-[#285943]">Per page <select value={perPage} onChange={(event) => updatePerPage(event.target.value)} className="rounded-lg border border-white bg-[#eef7f1] px-2 py-2 text-xs shadow-inner"><option value="5">5</option><option value="10">10</option><option value="20">20</option></select></label>
