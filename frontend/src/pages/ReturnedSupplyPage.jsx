@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
@@ -170,7 +171,7 @@ export default function ReturnedSupplyPage() {
                         </label>
                     </div>
 
-                    <div className="mt-6 overflow-x-auto">
+                    <TableScroll className="mt-6 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-left">
@@ -209,7 +210,7 @@ export default function ReturnedSupplyPage() {
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+                    </TableScroll>
 
                     <div className="mt-4">
                         <label className="block">

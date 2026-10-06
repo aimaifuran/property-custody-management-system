@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
@@ -968,12 +969,12 @@ export default function RisPage() {
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden border border-slate-700">
-            <div className="grid grid-cols-8 border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
+          <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
+            <div className="ris-table-grid border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
               <div className="col-span-4 border-r border-slate-700 py-2 italic">Requisition</div>
               <div className="col-span-4 py-2 italic">Stock Available?</div>
             </div>
-            <div className="grid grid-cols-8 border-b border-slate-700 text-center text-sm font-semibold">
+            <div className="ris-table-grid border-b border-slate-700 text-center text-sm font-semibold">
               <div className="border-r border-slate-700 px-2 py-2">Stock No.</div>
               <div className="border-r border-slate-700 px-2 py-2">Unit</div>
               <div className="border-r border-slate-700 px-2 py-2">Description</div>
@@ -985,7 +986,7 @@ export default function RisPage() {
             </div>
 
             {reviewDraft.items.map((item, index) => (
-              <div key={`${reviewDraft._id}-review-${index}`} className="grid grid-cols-8 border-b border-slate-300 last:border-b-0">
+              <div key={`${reviewDraft._id}-review-${index}`} className="ris-table-grid border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-2 text-sm">{item.stockNumber}</div>
                 <div className="border-r border-slate-300 p-2 text-sm">{item.unit}</div>
                 <div className="border-r border-slate-300 p-2 text-sm">{item.description}</div>
@@ -1032,7 +1033,7 @@ export default function RisPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </TableScroll>
         </div>
       ) : null}
 
@@ -1119,13 +1120,13 @@ export default function RisPage() {
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden border border-slate-700">
-            <div className="grid grid-cols-9 border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
+          <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
+            <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
               <div className="col-span-4 border-r border-slate-700 py-2 italic">Requisition</div>
               <div className="col-span-4 border-r border-slate-700 py-2 italic">Stock Available?</div>
               <div className="py-2" />
             </div>
-            <div className="grid grid-cols-9 border-b border-slate-700 text-center text-sm font-semibold">
+            <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 text-center text-sm font-semibold">
               <div className="border-r border-slate-700 px-2 py-2">Stock No.</div>
               <div className="border-r border-slate-700 px-2 py-2">Unit</div>
               <div className="border-r border-slate-700 px-2 py-2">Description</div>
@@ -1138,7 +1139,7 @@ export default function RisPage() {
             </div>
 
             {form.items.map((item, index) => (
-              <div key={`ris-row-${index}`} className="grid grid-cols-9 border-b border-slate-300 last:border-b-0">
+              <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-1">
                   <select
                     value={item.stockNumber}
@@ -1223,7 +1224,7 @@ export default function RisPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </TableScroll>
 
           <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
             <label className="block">

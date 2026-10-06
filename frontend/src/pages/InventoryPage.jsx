@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import {
     useEffect,
@@ -324,7 +325,7 @@ export default function InventoryPage() {
                   {field('Description','description')}
                   {field('S/N','serialNumber')}
                 </div>
-                <div className="mt-6 overflow-x-auto">
+                <TableScroll className="mt-6 overflow-x-auto">
                   <h3 className="mb-2 text-lg font-semibold">Items</h3>
                   <table className="min-w-full text-sm">
                     <thead>
@@ -353,7 +354,7 @@ export default function InventoryPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScroll>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"

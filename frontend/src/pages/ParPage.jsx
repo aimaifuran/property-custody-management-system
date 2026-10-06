@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -350,7 +351,7 @@ export default function ParPage() {
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                         {field('PAR No.', 'parNumber')}
                     </div>
-                    <div className="mt-6 overflow-x-auto">
+                    <TableScroll className="mt-6 overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-left">
@@ -387,7 +388,7 @@ export default function ParPage() {
                                 ))}
                             </tbody>
                         </table>
-                    </div>
+                    </TableScroll>
                     <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
 
                     <div className="mt-4 flex justify-end">

@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
 import RecordActionButton from '../components/RecordActionButton';
 import {
@@ -370,7 +371,7 @@ export default function IarPage() {
               {field('Invoice No.', 'invoiceNumber')}
               {field('Invoice Date', 'invoiceDate', 'date')}
             </div>
-            <div className="mt-6 overflow-x-auto">
+            <TableScroll className="mt-6 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                     <tr className="bg-slate-50 text-left">
@@ -404,7 +405,7 @@ export default function IarPage() {
                   )}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
             <button type="button" onClick={() => update('items', [...form.items, emptyItem()])} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
             <div className="mt-6 grid gap-3 border-t pt-4 md:grid-cols-3">
               <h2 className="md:col-span-3 text-lg font-semibold">INSPECTION</h2>

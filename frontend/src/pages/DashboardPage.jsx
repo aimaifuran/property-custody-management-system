@@ -143,7 +143,7 @@ export default function DashboardPage() {
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-3">
             <div className="minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2><div className="mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="65%" label>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div></div>
-            <div className="minimal-surface h-fit p-4">
+            <div className="dashboard-users minimal-surface h-fit p-4">
               <h2 className="text-sm font-semibold">User Management</h2>
               <div className="dashboard-user-pictorial">
                 {loading ? <p>Loading users…</p> : chartData.users.length === 0 ? <p>No user records yet.</p> : [...chartData.users].sort((first, second) => {

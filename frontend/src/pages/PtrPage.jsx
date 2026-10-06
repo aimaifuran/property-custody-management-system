@@ -1,3 +1,4 @@
+import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -457,7 +458,7 @@ export default function PtrPage() {
                     )}
                 </div>
 
-                <div className="mt-6 overflow-x-auto">
+                <TableScroll className="mt-6 overflow-x-auto">
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-left">
@@ -490,7 +491,7 @@ export default function PtrPage() {
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </TableScroll>
                 <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
