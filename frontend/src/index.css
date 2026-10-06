@@ -1442,3 +1442,6 @@ body { font-size: var(--app-text-size); }
 .saved-record :is(p, span, div) { line-height: 1.25; }
 .saved-record .space-y-2 > :not(:last-child) { margin-block-end: 4px; }
 .saved-reports-header { padding-block: 6px; gap: 10px; }
+
+/* Align field labels regardless of shared component or page markup. */
+.form-document label > span:first-child { line-height: 1.4; margin-bottom: 4px; }
