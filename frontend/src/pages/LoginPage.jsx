@@ -144,7 +144,7 @@ export default function LoginPage() {
 
             <button type="submit" disabled={submitting || countdown > 0} aria-label="Sign in" aria-busy={submitting} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{submitting ? <Skeleton className="h-4 w-16" label="Signing in" /> : 'Sign in'}</button>
 
-            {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
+            {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
           </form>
           <Link to="/forgot-password" className="mt-3 block py-1 text-center text-xs text-white/85 underline md:mt-3 md:py-0 md:text-sm">Forgot your password?</Link>
 
