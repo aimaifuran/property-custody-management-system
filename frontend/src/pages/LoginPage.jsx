@@ -1,5 +1,6 @@
 import Skeleton from '../components/Skeleton';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
 
@@ -20,6 +21,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState('Admin123!');
 
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [lockUntil, setLockUntil] = useState(() => {
+    try { return Number(sessionStorage.getItem('login-lock-until')) || 0; } catch { return 0; }
+  });
+  const [countdown, setCountdown] = useState(() => Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000)));
+  useEffect(() => {
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
+      setCountdown(remaining);
+      if (!remaining) { try { sessionStorage.removeItem('login-lock-until'); } catch {} }
+    };
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [lockUntil]);
 
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -32,7 +48,7 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
 
     e.preventDefault();
-    if (submitting) return;
+    if (submitting || lockUntil > Date.now()) return;
     setSubmitting(true);
 
     try {
@@ -43,7 +59,15 @@ export default function LoginPage() {
 
     } catch (error) {
 
-      toast.error(error.response?.data?.message || 'Login failed');
+      const response = error.response;
+      const serverDeadline = response?.data?.errors?.find(entry => entry.lockUntil)?.lockUntil;
+      const retryAfter = Number(response?.headers?.['retry-after']);
+      if (serverDeadline || (response?.status === 429 && retryAfter > 0)) {
+        const deadline = serverDeadline ? new Date(serverDeadline).getTime() : Date.now() + retryAfter * 1000;
+        setLockUntil(deadline);
+        setCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+        try { sessionStorage.setItem('login-lock-until', String(deadline)); } catch {}
+      } else { toast.error(response?.data?.message || 'Login failed'); }
     } finally {
       setSubmitting(false);
 
@@ -103,7 +127,12 @@ export default function LoginPage() {
 
               <span className="mb-1 block text-xs font-semibold text-white/85 md:mb-1 md:text-sm">Password</span>
 
-              <input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" placeholder="Password" />
+              <div className="relative">
+                <input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" style={{ paddingRight: '2.75rem' }} placeholder="Password" />
+                <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword(value => !value)} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-white/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                  {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                </button>
+              </div>
 
             </label>
 
@@ -113,8 +142,9 @@ export default function LoginPage() {
 
             </label>
 
-            <button type="submit" disabled={submitting} aria-label="Sign in" aria-busy={submitting} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{submitting ? <Skeleton className="h-4 w-16" label="Signing in" /> : 'Sign in'}</button>
+            <button type="submit" disabled={submitting || countdown > 0} aria-label="Sign in" aria-busy={submitting} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{submitting ? <Skeleton className="h-4 w-16" label="Signing in" /> : 'Sign in'}</button>
 
+            {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
           </form>
           <Link to="/forgot-password" className="mt-3 block py-1 text-center text-xs text-white/85 underline md:mt-3 md:py-0 md:text-sm">Forgot your password?</Link>
 

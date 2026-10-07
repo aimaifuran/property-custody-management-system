@@ -67,6 +67,10 @@ test('merged deployment routes, list responses, login locks and password recover
   for (let attempt = 0; attempt < 5; attempt++) {
     const response = await request(null, '/api/auth/login', 'POST', { identifier: 'owner', password: 'wrong' });
     assert.equal(response.status, attempt === 4 ? 423 : 401);
+    if (attempt === 4) {
+      const remaining = new Date(response.body.errors[0].lockUntil).getTime() - Date.now();
+      assert.ok(remaining > 25000 && remaining <= 30000, 'fifth failure locks login for 30 seconds');
+    }
   }
   assert.equal((await request(null, '/api/auth/login', 'POST', { identifier: 'owner', password: 'Valid123!' })).status, 423);
   await User.updateOne({ _id: owner._id }, { $set: { lockUntil: new Date(0), refreshToken: 'private-refresh', resetToken: 'private-reset', emailChangeCode: 'private-code' } });

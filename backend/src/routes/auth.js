@@ -22,7 +22,7 @@ const publicUser = (user) => {
 const hashSecret = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 5 * 60 * 1000;
+const LOCKOUT_DURATION_MS = 30 * 1000;
 
 const createToken = (user) => jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '1h' });
 const createRefreshToken = (user) => jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { expiresIn: '7d' });
@@ -48,7 +48,8 @@ router.post('/login', loginLimiter, [
     if (user.locked) return errorResponse(res, 'This user account is temporarily locked', [], 423);
 
     if (user.lockUntil && user.lockUntil > new Date()) {
-      return errorResponse(res, 'Too many login attempts', [{ lockUntil: user.lockUntil }], 423);
+      res.set('Retry-After', String(Math.ceil((user.lockUntil.getTime() - Date.now()) / 1000)));
+      return errorResponse(res, 'Too many attempts, please try again shortly', [{ lockUntil: user.lockUntil }], 423);
     }
 
     const valid = await bcrypt.compare(password, user.password);
@@ -68,7 +69,8 @@ router.post('/login', loginLimiter, [
           browser: req.get('user-agent'),
         });
 
-        return errorResponse(res, 'Too many login attempts', [{ lockUntil: user.lockUntil }], 423);
+        res.set('Retry-After', String(Math.ceil((user.lockUntil.getTime() - Date.now()) / 1000)));
+      return errorResponse(res, 'Too many attempts, please try again shortly', [{ lockUntil: user.lockUntil }], 423);
       }
 
       await user.save();
