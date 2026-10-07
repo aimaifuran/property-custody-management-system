@@ -326,7 +326,7 @@ export default function IcsPage() {
 
             {form && (
                 <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-                    <FormEditorHeader title="Inventory Custodian Slip" description="Records here are created automatically from IAR items whose combined total cost is below ₱50,000." onClose={cancelEdit} />
+                    <FormEditorHeader title="Inventory Custodian Slip" description="Linked RIS issuances for items with a unit cost below ₱50,000 are recorded here under the requester account." onClose={cancelEdit} />
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />

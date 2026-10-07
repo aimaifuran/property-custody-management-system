@@ -5,7 +5,7 @@ import EntityNameField from '../components/EntityNameField';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
-import { PageSkeleton } from '../components/Skeleton';
+import Skeleton, { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -413,6 +413,7 @@ export default function RisPage() {
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(newForm);
+  const [savingRis, setSavingRis] = useState(false);
   const [fundClusterOption, setFundClusterOption] = useState('');
   const [editingRis, setEditingRis] = useState(null);
   const [creatingRis, setCreatingRis] = useState(false);
@@ -423,7 +424,12 @@ export default function RisPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(ris, search);
+  const [approvedPage, setApprovedPage] = useState(1);
+  const [approvedPerPage, setApprovedPerPage] = useState(5);
+  const [approvedSearch, setApprovedSearch] = useState('');
+  const isApprovedRecord = record => ['APPROVED', 'ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status);
+  const filteredReports = filterReports(ris.filter(record => !isApprovedRecord(record)), search);
+  const approvedReports = filterReports(ris.filter(isApprovedRecord), approvedSearch);
   const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingRis?._id);
   const supplyReviewRef = useRef(null);
   const { user } = useAuth();
@@ -476,6 +482,10 @@ export default function RisPage() {
   }, []);
   const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
   const visibleRis = filteredReports.slice((page - 1) * perPage, page * perPage);
+  const approvedPageCount = Math.max(1, Math.ceil(approvedReports.length / approvedPerPage));
+  const visibleApproved = approvedReports.slice((approvedPage - 1) * approvedPerPage, approvedPage * approvedPerPage);
+  useEffect(() => { setPage(current => Math.min(current, pageCount)); }, [pageCount]);
+  useEffect(() => { setApprovedPage(current => Math.min(current, approvedPageCount)); }, [approvedPageCount]);
 
   useEffect(() => {
     if (!reviewTarget || !reviewDraft || !supplyReviewRef.current) return;
@@ -532,6 +542,8 @@ export default function RisPage() {
 
   const save = async (e) => {
     e.preventDefault();
+    if (savingRis) return;
+    const approveAfterSave = e.nativeEvent.submitter?.value === 'approve';
 
     const { _id, createdAt, updatedAt, __v, ...formData } = form;
     const payload = {
@@ -547,10 +559,12 @@ export default function RisPage() {
         })),
     };
 
+    setSavingRis(true);
     try {
       if (editingRis) {
         await axios.put(`/ris/${editingRis._id}`, payload);
-        toast.success('RIS updated');
+        if (approveAfterSave) await axios.post(`/ris/${editingRis._id}/approve`);
+        toast.success(approveAfterSave ? 'RIS approved and issued. The user can now return the items.' : 'RIS updated');
         markUpdated(editingRis._id);
       } else if (creatingRis) {
         await axios.post('/ris', payload);
@@ -562,7 +576,7 @@ export default function RisPage() {
     } catch (error) {
       const message = error?.response?.data?.message || 'Unable to save RIS';
       toast.error(message);
-    }
+    } finally { setSavingRis(false); }
   };
 
   const buildReviewDraft = (record) => {
@@ -632,7 +646,7 @@ export default function RisPage() {
   const approveRis = async (id) => {
     try {
       await axios.post(`/ris/${id}/approve`);
-      toast.success('RIS approved');
+      toast.success('RIS approved and issued. Items are now available for return.');
       load();
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Unable to approve RIS');
@@ -790,15 +804,18 @@ export default function RisPage() {
   if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
     <div className="space-y-6">
-      <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} /></SavedReportsHeader>
-        {stockLoadError ? (
+      {[{ key: 'drafts', title: 'Drafts & Pending Items', records: visibleRis, page, pageCount, perPage, search, setPage, setPerPage, setSearch },
+        { key: 'approved', title: 'Approved Items', records: visibleApproved, page: approvedPage, pageCount: approvedPageCount, perPage: approvedPerPage, search: approvedSearch, setPage: setApprovedPage, setPerPage: setApprovedPerPage, setSearch: setApprovedSearch }].map(group => (
+      <section key={group.key} aria-label={group.title} ref={group.key === 'drafts' ? recordsRef : undefined} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <SavedReportsHeader title={group.title} search={group.search} onSearch={value => { group.setSearch(value); group.setPage(1); }} perPage={group.perPage} onPerPage={value => { group.setPerPage(value); group.setPage(1); }}>{group.key === 'drafts' && <NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} />}</SavedReportsHeader>
+        {group.key === 'drafts' && stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {stockLoadError}
           </div>
         ) : null}
         <div className="mt-4 space-y-3">
-          {visibleRis.map((item) => (
+          {!group.records.length && <p className="text-slate-500">{group.key === 'approved' ? 'No approved items found.' : 'No draft or pending items found.'}</p>}
+          {group.records.map((item) => (
             <div key={item._id} className={`saved-record rounded-xl border p-4 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -824,7 +841,7 @@ export default function RisPage() {
               </div>
               {canManage ? (
               <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
-                <RecordActionButton action="edit" title="Update record" onClick={() => editDraft(item)} />
+                {!['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(item.status) && <RecordActionButton action="edit" title="Update record" onClick={() => editDraft(item)} />}
                 <RecordActionButton action="pdf" busy={exportingRis === item._id} disabled={Boolean(exportingRis)}
                   onClick={() => generatePdf(item)}
                   title="Download PDF"
@@ -869,9 +886,10 @@ export default function RisPage() {
               ) : null}
             </div>
           ))}
-          <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
+          <Pagination showPageSize={false} page={group.page} pageCount={group.pageCount} perPage={group.perPage} onPageChange={group.setPage} onPerPageChange={(value) => { group.setPerPage(value); group.setPage(1); }} />
         </div>
-      </div>
+      </section>
+      ))}
 
       {reviewTarget && reviewDraft ? (
         <div
@@ -1201,11 +1219,16 @@ export default function RisPage() {
               </button>
               <button
                 type="submit"
+                disabled={savingRis}
                 className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 <Save size={16} />
                 {editingRis ? 'Update RIS' : 'Save Request'}
               </button>
+              {user?.role === 'admin' && editingRis && !['ISSUED', 'ACCOUNTABILITY_LOCKED', 'REJECTED'].includes(editingRis.status) && <button
+                type="submit" name="action" value="approve" disabled={savingRis}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              >{savingRis ? <Skeleton className="h-4 w-20" label="Saving RIS" /> : <><CheckCircle2 size={16} /> Approved</>}</button>}
             </div>
           </div>
         </div>

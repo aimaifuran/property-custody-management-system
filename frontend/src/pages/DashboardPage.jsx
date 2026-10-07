@@ -26,6 +26,8 @@ const secondaryCards = [
 ];
 
 const CHART_COLORS = ['#2f6f68', '#b49a5a', '#7b8fa8', '#a86f78', '#6f7d62', '#c58b5c'];
+const RETURN_SLIP_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#db2777', '#16a34a', '#ea580c'];
+const RETURN_SUPPLY_COLORS = ['#d97706', '#059669', '#e11d48', '#4f46e5', '#0284c7', '#9333ea'];
 const REPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const formatRelativeTime = (dateStr) => {
@@ -144,8 +146,8 @@ export default function DashboardPage() {
       <div className="dashboard-results grid items-stretch gap-4 xl:grid-cols-3">
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-3">
-            <div className="dashboard-return-summary minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="65%" label>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
-            <div className="dashboard-return-summary minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2>{chartData.returnedSupply.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
+            <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="65%" label>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={RETURN_SLIP_COLORS[index % RETURN_SLIP_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
+            <div className="dashboard-return-summary dashboard-return-supply minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2>{chartData.returnedSupply.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={RETURN_SUPPLY_COLORS[index % RETURN_SUPPLY_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
             <div className="dashboard-users minimal-surface h-fit p-4">
               <h2 className="text-sm font-semibold">User Management</h2>
               <div className="dashboard-user-pictorial">

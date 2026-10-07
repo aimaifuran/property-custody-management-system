@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const propertyAccountabilitySchema = new mongoose.Schema({
   inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory', required: true },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+  ris: { type: mongoose.Schema.Types.ObjectId, ref: 'RequisitionIssueSlip', index: true },
+  risItem: mongoose.Schema.Types.ObjectId,
+  issuanceForm: mongoose.Schema.Types.ObjectId,
+  quantity: Number,
   employee: { type: String, required: true },
   office: { type: String, required: true },
   serialNumber: { type: String, trim: true },

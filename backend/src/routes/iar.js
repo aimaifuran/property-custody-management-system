@@ -6,8 +6,8 @@ const Item = require('../models/Item');
 const LedgerTransaction = require('../models/LedgerTransaction');
 const PropertyCard = require('../models/PropertyCard');
 const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
-const InventoryCustodianSlip = require('../models/InventoryCustodianSlip');
-const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgementReceipt');
+
+
 const Supplier = require('../models/Supplier');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
@@ -172,68 +172,13 @@ router.post('/', authenticate, authorize('canManageIAR'), [
   report.propertyCards = [propertyCard._id];
   report.requisition = ris._id;
 
-  // A single consolidated ICS or PAR record is created per IAR, chosen by the
-  // combined total cost of all items: below the PAR threshold goes to ICS,
-  // at/above it goes to PAR.
-  const combinedTotalCost = report.items.reduce((sum, entry) => sum + Number(entry.totalCost || 0), 0);
-  const itemsForAccountability = report.items.map((entry) => ({
-    quantity: entry.quantity ?? null,
-    unit: entry.unit || null,
-    unitCost: entry.unitCost ?? null,
-    totalCost: entry.totalCost ?? null,
-    description: entry.description || entry.item || null,
-    propertyNumber: entry.stockPropertyNumber || entry.stockNumber || null,
-    dateAcquired: report.purchaseDate || report.acceptanceDate || null,
-  }));
-
-  if (combinedTotalCost < 50000) {
-    const ics = await InventoryCustodianSlip.create({
-      iar: report._id,
-      entityName: report.entityName || null,
-      fundCluster: report.fundCluster || null,
-      icsNumber: undefined,
-      items: itemsForAccountability.map((entry) => ({
-        quantity: entry.quantity,
-        unit: entry.unit,
-        unitCost: entry.unitCost,
-        totalCost: entry.totalCost,
-        description: entry.description,
-        inventoryItemNo: entry.propertyNumber,
-        estimatedUsefulLife: null,
-      })),
-      remarks: null,
-      receivedFrom: { name: report.supplierName || null, position: null, date: report.acceptanceDate || null },
-      receivedBy: { name: report.custodian || null, position: null, date: report.acceptanceDate || null },
-    });
-    report.inventoryCustodianSlip = ics._id;
-  } else {
-    const par = await PropertyAcknowledgementReceipt.create({
-      iar: report._id,
-      entityName: report.entityName || null,
-      fundCluster: report.fundCluster || null,
-      parNumber: undefined,
-      items: itemsForAccountability.map((entry) => ({
-        quantity: entry.quantity,
-        unit: entry.unit,
-        description: entry.description,
-        propertyNumber: entry.propertyNumber,
-        dateAcquired: entry.dateAcquired,
-        amount: entry.totalCost,
-      })),
-      remarks: null,
-      receivedBy: { name: report.custodian || null, position: null, date: report.acceptanceDate || null },
-      issuedBy: { name: null, position: null, date: null },
-    });
-    report.propertyAcknowledgementReceipt = par._id;
-  }
-
   report.status = 'LOGGED_TO_STOCKS';
   await report.save();
 
   await ActivityLog.create({
     user: req.user._id,
     action: 'IAR created',
-    details: `IAR ${report.iarNumber} created; Property Card, RIS draft, and ${report.inventoryCustodianSlip ? 'ICS' : 'PAR'} record generated`,
+    details: `IAR ${report.iarNumber} created; Property Card and RIS draft generated`,
     ipAddress: req.ip,
     browser: req.get('user-agent'),
   });

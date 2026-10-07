@@ -176,7 +176,7 @@ export default function IarPage() {
               markUpdated(editingId);
             } else {
                 await axios.post('/iar', payload);
-                toast.success('IAR saved. Property Card, RIS draft, and ICS/PAR record created.');
+                toast.success('IAR saved. Property Card and RIS draft created. ICS/PAR will be generated when issued.');
             }
             setEditingId(null);
             setForm(newForm());
@@ -319,7 +319,7 @@ export default function IarPage() {
         <hr className="border-slate-300 border-2 my-8" />
         <div className="space-y-6">
           {editorOpen && (<form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-            <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR automatically creates its linked Property Card, RIS draft, and an Inventory Custodian Slip (below ₱50,000) or Property Acknowledgement Receipt (₱50,000 and up) record.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
+            <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock and creates a Property Card and RIS draft. ICS/PAR are generated during issuance.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
               <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />

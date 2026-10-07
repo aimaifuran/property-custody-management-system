@@ -154,15 +154,15 @@ export default function ReturnedSupplyPage() {
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
                 <div className="mt-3 space-y-3">
                     {visibleRecords.map((record) => (
-                        <div key={record._id} className={`saved-record rounded-xl border p-4 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div key={record._id} className={`saved-record returned-supply-record rounded-xl border p-4 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                            <div className="returned-supply-record-header flex items-start justify-between gap-3">
                                 <div>
                                     <div className="font-semibold">{record.description || 'Untitled item'}</div>
                                     <div className="text-sm text-slate-500">{record.lguName || 'No LGU'} · {record.purpose || 'N/A'}</div>
                                 </div>
-                                <RecordActionButton action="edit" onClick={() => startEdit(record)} />
+                                <div className="shrink-0"><RecordActionButton action="edit" onClick={() => startEdit(record)} /></div>
                             </div>
-                            <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+                            <div className="returned-supply-record-details mt-3 grid grid-cols-1 gap-x-6 gap-y-2 border-t border-slate-100 pt-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
                                 <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>
                                 <div>Property No.: {record.propertyNumber || 'N/A'}</div>
                                 <div>M.R. No.: {record.mrNumber || 'N/A'}</div>

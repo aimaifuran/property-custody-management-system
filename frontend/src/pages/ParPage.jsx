@@ -320,7 +320,7 @@ export default function ParPage() {
 
             {form && (
                 <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
-                    <FormEditorHeader title="Property Acknowledgement Receipt" description="Records here are created automatically from IAR items whose combined total cost is ₱50,000 or more." onClose={cancelEdit} />
+                    <FormEditorHeader title="Property Acknowledgement Receipt" description="Linked RIS issuances for items with a unit cost of ₱50,000 or more are recorded here under the requester account." onClose={cancelEdit} />
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />

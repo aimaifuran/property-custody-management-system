@@ -7,7 +7,7 @@ import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
@@ -96,40 +96,71 @@ export default function PrsPage() {
     const [processing, setProcessing] = useState('');
     const [rejectionReasons, setRejectionReasons] = useState({});
     const [issuedRecords, setIssuedRecords] = useState([]);
+    const [approvedRecords, setApprovedRecords] = useState([]);
+    const [finalizingRis, setFinalizingRis] = useState('');
+    const [issuanceError, setIssuanceError] = useState('');
+    const [issuedLoading, setIssuedLoading] = useState(true);
+    const [issuedError, setIssuedError] = useState('');
     const [form, setForm] = useState(newForm);
     const [editingId, setEditingId] = useState(null);
     const [editorOpen, setEditorOpen] = useState(true);
+    const loadingRecords = useRef(false);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
   const filteredReports = filterReports(reports, search);
     const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
 
-    const load = async () => {
-      setPageLoading(true);
-      setPageLoadError('');
+    const load = async (background = false) => {
+      if (loadingRecords.current) return;
+      loadingRecords.current = true;
+      if (!background) { setPageLoading(true); setPageLoadError(''); }
       try {
 
         const { data } = await axios.get('/prs');
         setReports(data.data || []);
 
       } catch (error) {
-        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+        if (!background) setPageLoadError(error.response?.data?.message || 'Unable to load records.');
       } finally {
-        setPageLoading(false);
+        loadingRecords.current = false;
+        if (!background) setPageLoading(false);
       }
     };
 
     useEffect(() => {
         load();
-        axios.get('/ris').then(({ data }) => setIssuedRecords((data.data || []).filter(record => ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status)))).catch(() => toast.error('Unable to load issued items for return linking'));
     }, []);
+    const loadIssued = async () => {
+        setIssuedLoading(true); setIssuedError('');
+        try {
+            const [{ data }, { data: requests }] = await Promise.all([axios.get('/ris/returnable-items', { params: editingId ? { exclude: editingId } : {} }), axios.get('/ris')]);
+            setApprovedRecords((requests.data || []).filter(record => record.status === 'APPROVED'));
+            setIssuedRecords(data.data || []);
+        } catch { setIssuedError('Unable to load issued items. Retry before saving a linked return.'); }
+        finally { setIssuedLoading(false); }
+    };
+    useEffect(() => { loadIssued(); }, [editingId, form.returnedBy.user]);
+    const accountId = person => String(person?.user?._id || person?.user || '');
+    const eligibleRecords = issuedRecords.filter(record => !accountId(form.returnedBy) || accountId(record.requestedBy?.user ? record.requestedBy : record.receivedBy) === accountId(form.returnedBy));
+    const awaitingIssuance = approvedRecords.filter(record => accountId(form.returnedBy) && accountId(record.requestedBy?.user ? record.requestedBy : record.receivedBy) === accountId(form.returnedBy));
+    const finalizeIssuance = async record => {
+        setFinalizingRis(record._id); setIssuanceError('');
+        try {
+            await axios.post(`/ris/${record._id}/approve`);
+            await loadIssued();
+            toast.success('Issuance completed. Select the item below to return it.');
+        } catch (error) { setIssuanceError(error.response?.data?.message || 'Unable to complete issuance.'); }
+        finally { setFinalizingRis(''); }
+    };
+    useEffect(() => { setIssuanceError(''); }, [form.returnedBy.user]);
     useEffect(() => {
-        const refresh = () => { if (!document.hidden) load().catch(() => {}); };
+        if (editorOpen) return;
+        const refresh = () => { if (!document.hidden) load(true); };
         const timer = window.setInterval(refresh, 15000);
         window.addEventListener('focus', refresh);
         return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-    }, []);
+    }, [editorOpen]);
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
 
@@ -164,7 +195,7 @@ export default function PrsPage() {
         try {
             await axios.post(`/prs/${record._id}/${action}`, action === 'reject' ? { reason: rejectionReasons[record._id] } : {});
             toast.success(action === 'confirm' ? 'Return confirmed and automatically recorded' : 'Return rejected');
-            await load();
+            await load(true);
         } catch (error) { toast.error(error.response?.data?.message || 'Unable to process return'); }
         finally { setProcessing(''); }
     };
@@ -176,6 +207,8 @@ export default function PrsPage() {
 
     const save = async (event) => {
         event.preventDefault();
+        if (accountId(form.returnedBy) && (issuedLoading || issuedError)) return toast.error('Wait for the issued items to load, or retry loading them.');
+        if (accountId(form.returnedBy) && form.items.some(item => !item.ris || !item.risItem)) return toast.error('Select an issued item in each row. A recorded request must be issued before it can be returned.');
         const purpose = form.purposeChoice === 'Other' ? form.purposeOther : form.purposeChoice;
         const payload = {
             lguName: form.lguName,
@@ -200,7 +233,8 @@ export default function PrsPage() {
             }
             setEditingId(null);
             setForm(newForm());
-            load();
+            load(true);
+            loadIssued();
             if (editingId) scrollToRecords();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Unable to save PRS');
@@ -428,7 +462,17 @@ export default function PrsPage() {
                     )}
                 </div>
 
-                <TableScroll className="mt-6 overflow-x-auto">
+                <div className="mt-4">
+                    <UserAccountSelect person={form.returnedBy} onChange={person => setForm(prev => ({ ...prev, returnedBy: person, items: prev.items.map(item => ({ ...item, ris: '', risItem: '', mrNumber: '' })) }))} />
+                    {issuedLoading ? <Skeleton className="h-4 w-48" label="Loading issued items" /> : issuedError ? <p role="alert" className="text-rose-700">{issuedError} <button type="button" onClick={loadIssued}>Retry</button></p> : accountId(form.returnedBy) && !eligibleRecords.length ? <p role="alert" className="text-amber-800">{awaitingIssuance.length ? 'This account has an approved RIS awaiting completed issuance.' : 'No outstanding issued items are available for this account.'}</p> : <p className="text-slate-500">Select the exact issued item below. Its details and remaining quantity will fill automatically.</p>}
+                </div>
+                {!issuedLoading && awaitingIssuance.map(record => <div key={record._id} className="mt-2 flex flex-wrap items-center gap-2">
+                    <span>RIS {record.risNumber} ? approved, awaiting issuance</span>
+                    <button type="button" disabled={Boolean(finalizingRis)} onClick={() => finalizeIssuance(record)} className="rounded-lg bg-teal-600 px-3 py-2 text-white disabled:opacity-50">{finalizingRis === record._id ? 'Completing issuance?' : 'Complete issuance'}</button>
+                    <a href="/ris" className="underline">Edit RIS quantities</a>
+                </div>)}
+                {issuanceError && <p role="alert" className="mt-2 text-rose-700">{issuanceError} Open the RIS and correct its quantities before completing issuance.</p>}
+                <TableScroll className="mt-4 overflow-x-auto">
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-left">
@@ -446,14 +490,15 @@ export default function PrsPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <select aria-label="Issued item to return" value={item.ris && item.risItem ? `${item.ris}:${item.risItem}` : ''} onChange={(e) => {
+                                        <select aria-label="Issued item to return" required={Boolean(accountId(form.returnedBy))} disabled={issuedLoading || Boolean(issuedError)} value={item.ris && item.risItem ? `${item.ris}:${item.risItem}` : ''} onChange={(e) => {
                                             const [risId, itemId] = e.target.value.split(':');
                                             const record = issuedRecords.find(row => row._id === risId);
                                             const issued = record?.items.find(row => row._id === itemId);
-                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name || '' } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '' } : {}) } : row) }));
+                                            const quantity = issued ? Math.min(Number(item.quantity) || issued.quantityRemaining, issued.quantityRemaining) : item.quantity;
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
                                         }} className="w-64 rounded-xl border border-slate-200 px-2 py-2">
-                                            <option value="">Unlinked return (not shown to users)</option>
-                                            {issuedRecords.filter(record => !form.returnedBy.user || String(record.requestedBy?.user || record.receivedBy?.user) === String(form.returnedBy.user)).flatMap(record => record.items.filter(row => row.quantityIssued > 0).map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.requestedBy?.name || record.receivedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (issued {row.quantityIssued})</option>))}
+                                            <option value="">{accountId(form.returnedBy) ? 'Select issued item to return' : 'Select issued item / manual historical return'}</option>
+                                            {eligibleRecords.flatMap(record => record.items.map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.requestedBy?.name || record.receivedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (remaining {row.quantityRemaining})</option>))}
                                         </select>
                                     </td>
                                     <td className="p-2">
@@ -498,11 +543,11 @@ export default function PrsPage() {
                 </div>
 
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    <div><UserAccountSelect person={form.returnedBy} onChange={person => setForm(prev => ({ ...prev, returnedBy: person, items: [emptyItem()] }))} />{signatoryFields('Returned By', 'returnedBy')}</div>
+                    {signatoryFields('Returned By', 'returnedBy')}
                     {signatoryFields('Returned To', 'returnedTo')}
                 </div>
 
-                <button type="submit" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
+                <button type="submit" disabled={Boolean(accountId(form.returnedBy)) && (issuedLoading || Boolean(issuedError) || !eligibleRecords.length)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">
                     <RotateCcw size={16} />
                     {editingId ? 'Update PRS' : 'Create PRS'}
                 </button>

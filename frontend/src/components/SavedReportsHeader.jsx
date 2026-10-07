@@ -11,9 +11,9 @@ export function filterReports(records, search) {
   return records.filter(record => values(record).toLocaleLowerCase().includes(keyword));
 }
 
-export default function SavedReportsHeader({ children, search, onSearch, perPage, onPerPage, options = [5, 10, 25] }) {
+export default function SavedReportsHeader({ children, search, onSearch, perPage, onPerPage, options = [5, 10, 25], title = 'Saved Reports' }) {
   return <div className="saved-reports-header">
-    <div className="saved-reports-heading"><h2>Saved Reports</h2>{children}</div>
+    <div className="saved-reports-heading"><h2>{title}</h2>{children}</div>
     <div className="saved-reports-controls">
       <label className="saved-reports-search"><span className="sr-only">Search reports</span><Search size={16} aria-hidden="true" /><input type="search" value={search} onChange={event => onSearch(event.target.value)} placeholder="Search reports" /></label>
       <label className="saved-reports-page-size">Per page<select value={perPage} onChange={event => onPerPage(Number(event.target.value))}>{options.map(value => <option key={value} value={value}>{value}</option>)}</select></label>

@@ -25,8 +25,8 @@ async function connectDatabase() {
       throw new Error('MONGODB_URI is required in production');
     }
 
-    const { MongoMemoryServer } = require('mongodb-memory-server');
-    memoryServer = await MongoMemoryServer.create();
+    const { MongoMemoryReplSet } = require('mongodb-memory-server');
+    memoryServer = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
     const memoryUri = memoryServer.getUri();
     await mongoose.connect(memoryUri, { dbName });
     return mongoose.connection;

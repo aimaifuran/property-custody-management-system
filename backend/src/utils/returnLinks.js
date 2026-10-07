@@ -25,7 +25,8 @@ const linkReturnItems = async payload => {
     if (!account) continue;
     const records = await RequisitionIssueSlip.find({ deleted: false, ...ownerFilter(account), status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] }, ...(entry.mrNumber ? { risNumber: entry.mrNumber } : {}) });
     const matches = records.flatMap(record => record.items.filter(item => item.quantityIssued > 0 && String(item.description || '').trim().toLowerCase() === String(entry.description || '').trim().toLowerCase()).map(item => ({ record, item })));
-    if (matches.length !== 1) throw new Error('Select the exact issued item to return for this user account');
+    if (!matches.length) throw new Error('No matching issued item was found under this user account. Select an issued item; a pending RIS request must be issued before it can be returned.');
+    if (matches.length > 1) throw new Error('More than one issuance matches this item. Select the exact RIS item in the issued-item dropdown.');
     entry.ris = matches[0].record._id;
     entry.risItem = matches[0].item._id;
     entry.mrNumber = matches[0].record.risNumber;
