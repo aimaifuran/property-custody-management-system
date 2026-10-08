@@ -10,7 +10,8 @@ const Ledger = require('../models/LedgerTransaction');
 const PropertyCard = require('../models/PropertyCard');
 const ActivityLog = require('../models/ActivityLog');
 const { resolveAccount, accountName } = require('./accountLinks');
-const { nextDocumentNumber } = require('./documentNumber');
+const { reserveDocumentNumber } = require('./documentNumber');
+const { notifyUsers } = require('./workflowNotifications');
 
 // Approval authorizes issuance; stock and recipient accountability change together.
 module.exports = async function issueRis(id, admin, request = {}, { approve = false } = {}) {
@@ -35,7 +36,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
     const issuedAt = new Date();
     const issuer = { name: accountName(admin), position: admin.office || 'Supply Officer', date: issuedAt };
     const recipient = { name: requester.name, position: requester.designation || ris.office, date: issuedAt };
-    const groups = { ICS: [], PAR: [] };
+    const groups = { SUPPLY: [], ICS: [], PAR: [] };
     const required = new Map();
     for (const row of ris.items) {
       const quantity = Number(approve && ['DRAFT', 'PENDING_REVIEW', 'PENDING_APPROVAL', 'APPROVED'].includes(previousStatus) && !row.quantityIssued ? row.quantityRequested : row.quantityIssued ?? row.quantityRequested);
@@ -50,17 +51,27 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
       if (total > item.quantityOnHand) throw new Error(`Insufficient stock for ${row.stockNumber}`);
       const unitCost = Number(inventory.unitCost ?? item.cost);
       if (!Number.isFinite(unitCost) || unitCost < 0) throw new Error(`Set the unit cost for ${row.stockNumber} before issuance`);
-      const formType = unitCost < 50000 ? 'ICS' : 'PAR';
+      const formType = item.itemType === 'SUPPLY' ? 'SUPPLY' : unitCost < 50000 ? 'ICS' : 'PAR';
       groups[formType].push({ row, item, inventory, quantity, unitCost });
     }
-    if (!groups.ICS.length && !groups.PAR.length) throw new Error('No available items to issue');
+    if (!groups.SUPPLY.length && !groups.ICS.length && !groups.PAR.length) throw new Error('No available items to issue');
     const accountabilities = [];
+    for (const { row, item, inventory, quantity, unitCost } of groups.SUPPLY) {
+      const updated = await Item.findOneAndUpdate({ _id: item._id, quantityOnHand: { $gte: quantity } }, { $inc: { quantityOnHand: -quantity } }, { returnDocument: 'after', session });
+      if (!updated) throw new Error(`Insufficient stock for ${row.stockNumber}`);
+      updated.status = updated.quantityOnHand > 0 ? 'IN_STORAGE' : 'ISSUED';
+      await updated.save({ session });
+      inventory.status = updated.status; await inventory.save({ session });
+      await Ledger.create([{ inventory: inventory._id, type: 'outgoing', quantity, reference: ris.risNumber, description: 'RIS supply issuance', runningBalance: updated.quantityOnHand }], { session });
+      await PropertyCard.updateMany({ deleted: false, 'items.inventory': inventory._id }, { $push: { items: { inventory: inventory._id, propertyNumber: row.stockNumber, description: row.description || item.description, date: issuedAt, receiptQuantity: 0, itdQuantity: quantity, itdOfficeOfficer: requester.name, balanceQuantity: updated.quantityOnHand, amount: quantity * unitCost, remarks: `RIS ${ris.risNumber}` } } }, { session });
+      Object.assign(row, { quantityIssued: quantity, unitCost, totalCost: quantity * unitCost, formType: 'SUPPLY', documentNumber: undefined, issuanceForm: undefined, accountability: undefined });
+    }
     for (const type of ['ICS', 'PAR']) {
       const rows = groups[type];
       if (!rows.length) continue;
       const Model = type === 'ICS' ? ICS : PAR;
       const field = type === 'ICS' ? 'icsNumber' : 'parNumber';
-      const documentNumber = await nextDocumentNumber(Model, field, issuedAt, session);
+      const documentNumber = await reserveDocumentNumber(Model, field, issuedAt, session);
       const [form] = await Model.create([{
         ris: ris._id, iar: ris.iar, user: requester.user, entityName: ris.entityName,
         fundCluster: ris.fundCluster, office: ris.office, [field]: documentNumber,
@@ -117,6 +128,8 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
     }
     ris.signatureHash = crypto.createHash('sha256').update(JSON.stringify({ ris: String(ris._id), user: String(requester.user), issuedAt })).digest('hex');
     await ris.save({ session });
+    const hasAssets = groups.ICS.length || groups.PAR.length;
+    await notifyUsers([requester.user], 'Request issued', `RIS ${ris.risNumber} has been issued.${hasAssets ? ' Accept receipt in the ICS/PAR forms.' : ' View your supplies in My Issued Items.'}`, hasAssets ? groups.ICS.length ? '/inventory-custodian' : '/par' : '/my-issued-items', session);
     await ActivityLog.create([{ user: admin._id, action: 'RIS issued', details: `RIS ${ris.risNumber} issued to ${requester.name}; linked ICS/PAR generated`, ipAddress: request.ip, browser: request.browser }], { session });
     return { ris, accountabilities };
   });

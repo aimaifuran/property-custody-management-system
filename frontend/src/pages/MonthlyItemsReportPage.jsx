@@ -1,3 +1,4 @@
+import NewFormBadge from '../components/NewFormBadge';
 import FormEditorHeader from '../components/FormEditorHeader';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 
@@ -13,6 +14,8 @@ import RecordActionButton from '../components/RecordActionButton';
 import Pagination from '../components/Pagination';
 import { useAuth } from '../contexts/AuthContext';
 import { buildPpePdf, PPE_COLUMNS, PPE_TITLE, ppeAmount, ppeTotal, ppeDate, ppePeriod } from '../utils/ppeListPdf';
+import { sortSavedReports } from '../utils/savedReportOrder';
+import useSavedReportPage from '../utils/useSavedReportPage';
 
 const currentMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).slice(0, 7);
 const emptyReport = { serialNumber: '', lgu: '', fund: '', periodStart: '', periodEnd: '', reportDate: '', custodian: '', accountingStaff: '', postedDate: '', rows: [], recapitulation: [] };
@@ -37,7 +40,9 @@ export default function MonthlyItemsReportPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(records, search);
+  const [recentlySavedId, setRecentlySavedId] = useState(null);
+  const filteredReports = sortSavedReports(filterReports(records, search));
+  useSavedReportPage(filteredReports, recentlySavedId, perPage, setPage);
   const dirty = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -66,11 +71,15 @@ export default function MonthlyItemsReportPage() {
   const selectMonth = value => { setEditorOpen(true); setIsNewForm(false); dirty.current = false; setLoading(true); if (value === month) setRefresh(previous => previous + 1); else setMonth(value); setPage(1); };
   const update = (key, value) => { if (['custodian', 'accountingStaff'].includes(key)) saveStickySignatory(key, { name: value }, 'name'); dirty.current = true; setForm(previous => ({ ...previous, [key]: value })); };
   const save = async event => {
-    event.preventDefault(); setSaving(true);
+    event.preventDefault(); setSaving(true); setRecentlySavedId(null);
     try {
       const payload = Object.fromEntries(metadataFields.map(key => [key, form[key]]));
-      if (isNewForm) await axios.post('/monthly-item-reports', { ...payload, month });
-      else await axios.put(`/monthly-item-reports/${form._id}`, payload);
+      const { data } = isNewForm
+        ? await axios.post('/monthly-item-reports', { ...payload, month })
+        : await axios.put(`/monthly-item-reports/${form._id}`, payload);
+      setRecords(previous => [data.data, ...previous.filter(record => record._id !== data.data._id)]);
+      setRecentlySavedId(data.data._id);
+      setSearch('');
       setIsNewForm(false);
       dirty.current = false; toast.success('Report details saved'); setRefresh(value => value + 1);
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to save report details.'); }
@@ -106,7 +115,7 @@ export default function MonthlyItemsReportPage() {
  return <div className="space-y-6">
     <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-semibold">Monthly Items Report</h1><p className="mt-1 text-sm text-slate-600">Recorded items are saved here automatically by their month of recording.</p></div><div className="flex items-end gap-2"><label className="text-sm font-semibold">Month<input type="month" min="2000-01" max="2100-12" value={month} onChange={event => { if (event.target.value) selectMonth(event.target.value); }} className="mt-1 block rounded-lg border bg-white px-3 py-2" /></label><button type="button" disabled={loading} onClick={() => setRefresh(value => value + 1)} className="rounded-lg border bg-white p-2" aria-label="Refresh recorded items"><RefreshCw size={18} /></button></div></div>
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    {loading ? <Skeleton className="h-4 w-20" /> : !error && editorOpen && <form onSubmit={save} className="form-document form-frame ppe-list-form">
+    {loading ? <Skeleton className="h-4 w-20" /> : !error && editorOpen && <form onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ppe-list-form">
       <FormEditorHeader title="Monthly Items Report" description={`${PPE_TITLE} · ${ppePeriod(form)}`} onClose={() => setEditorOpen(false)} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{field('lgu', 'LGU', 'text', true)}{field('fund', 'Fund')}{field('serialNumber', 'Serial No.', 'text', true)}{field('reportDate', 'Date', 'date', true)}</div>
@@ -115,7 +124,7 @@ export default function MonthlyItemsReportPage() {
       <div className="mt-5 grid gap-4 md:grid-cols-[3fr_1fr]"><section className="border border-slate-400 p-3"><p className="mb-3 text-sm">I hereby certify to the correctness of the above information.</p>{field('custodian', 'Supply and/or Property Custodian')}<p className="mt-2 text-center text-xs">Signature over Printed Name of Supply<br />and/or Property Custodian</p></section><section className="border border-slate-400 p-3"><p className="mb-3 text-sm">Posted by:</p>{field('accountingStaff', 'Designated Accounting Staff')}{field('postedDate', 'Date', 'date')}</section></div>
       <div className="mt-5 flex flex-wrap items-center justify-end gap-3"><button type="button" disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'preview')} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">{exporting ? <Skeleton className="h-4 w-24" /> : <><Eye size={16} /> Print Preview</>}</button><RecordActionButton action="pdf" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'print')} />{canEdit && <button disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-white"><Save size={16} />{saving ? <Skeleton className="h-4 w-20" /> : isNewForm ? 'Save New Form' : 'Save Report Details'}</button>}</div>
     </form>}
-    <section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-4 space-y-3">{records.length === 0 && !loading && !error && <p className="text-sm text-slate-500">Reports appear automatically when items are recorded.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div><div className="font-semibold">{record.month} {record.automatic ? '(Automatic)' : '(Saved form)'}</div><div className="text-xs text-slate-600">{record.lgu} | {ppeDate(record.reportDate)} | {record.rows.length} items</div></div><div className="flex gap-2"><button type="button" onClick={() => { setEditorOpen(true); if (record.automatic) selectMonth(record.month); else { setIsNewForm(false); dirty.current = true; setMonth(record.month); setForm(record); } }} className="rounded-lg border px-3 py-1 text-xs">View</button><RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>
-    {preview && <div className="fixed inset-0 z-[60] flex flex-col bg-slate-900/70 p-3" role="dialog" aria-modal="true" aria-label="Monthly Items Report print preview"><div className="flex items-center justify-between rounded-t-lg bg-white p-3"><span className="font-semibold">Print Preview - legal portrait</span><button type="button" aria-label="Close print preview" onClick={() => setPreview('')}><X size={20} /></button></div><iframe src={preview} title="Monthly Items Report PDF preview" className="min-h-0 flex-1 bg-white" /></div>}
+    <section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-4 space-y-3">{records.length === 0 && !loading && !error && <p className="text-sm text-slate-500">Reports appear automatically when items are recorded.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><NewFormBadge record={record} /><div><div className="font-semibold">{record.month} {record.automatic ? '(Automatic)' : '(Saved form)'}</div><div className="text-xs text-slate-600">{record.lgu} | {ppeDate(record.reportDate)} | {record.rows.length} items</div></div><div className="flex gap-2"><button type="button" onClick={() => { setEditorOpen(true); if (record.automatic) selectMonth(record.month); else { setIsNewForm(false); dirty.current = true; setMonth(record.month); setForm(record); } }} className="rounded-lg border px-3 py-1 text-xs">View</button><RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>
+    {preview && <div className="fixed inset-0 z-[60] flex flex-col bg-slate-900/70 p-3" role="dialog" aria-modal="true" aria-label="Monthly Items Report print preview"><div className="flex items-center justify-between rounded-t-lg bg-white p-3"><span className="font-semibold">Print Preview - A4 portrait</span><button type="button" aria-label="Close print preview" onClick={() => setPreview('')}><X size={20} /></button></div><iframe src={preview} title="Monthly Items Report PDF preview" className="min-h-0 flex-1 bg-white" /></div>}
   </div>;
 }

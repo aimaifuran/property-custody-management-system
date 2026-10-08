@@ -1,20 +1,22 @@
-import Skeleton from '../components/Skeleton';
 import { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
+import { ArrowLeft, ArrowRight, CheckCircle2, KeyRound, LoaderCircle, Mail, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export default function ForgotPasswordPage() {
   const [identifier, setIdentifier] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     try {
-      const { data } = await axios.post('/auth/forgot-password', { identifier });
+      const { data } = await axios.post('/auth/forgot-password', { identifier: identifier.trim() });
       toast.success(data.message || 'Your request has been sent for administrator approval.');
       setSubmitted(true);
     } catch (error) {
@@ -25,43 +27,74 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="auth-page flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
-      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
-        <div className="mb-6 text-center">
-          <div className="text-3xl font-semibold">PAIS</div>
-          <p className="mt-2 text-sm text-slate-400">Property Accountability Information System</p>
+    <main className="login-page forgot-password-page">
+      <div className="login-page__wash" aria-hidden="true" />
+      <motion.section
+        initial={{ opacity: 0, y: reduceMotion ? 0 : 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.25 }}
+        className="login-card recovery-card"
+        aria-labelledby="recovery-title"
+      >
+        <div className="recovery-brand">
+          <img src="/lgu-logo.png" alt="Municipality of Carigara official seal" width="52" height="52" />
+          <div>
+            <div className="recovery-brand__name">PAMS</div>
+            <p>Property Accountability<br />Management System</p>
+          </div>
         </div>
 
-        <h1 className="mb-2 text-xl font-semibold">Forgot your password?</h1>
-        <p className="mb-6 text-sm text-slate-400">Enter your username or email to request administrator approval for a password reset.</p>
+        <div className="recovery-heading">
+          <div className="recovery-icon" aria-hidden="true">{submitted ? <CheckCircle2 size={24} /> : <KeyRound size={24} />}</div>
+          <p className="recovery-eyebrow">Account recovery</p>
+          <h1 id="recovery-title">{submitted ? 'Request submitted' : 'Forgot your password?'}</h1>
+          <p id="recovery-description">{submitted ? 'Your next steps are below.' : 'Enter your username or registered email to recover access to your account.'}</p>
+        </div>
 
         {submitted ? (
-          <div className="rounded-xl border border-teal-800 bg-teal-900/30 px-4 py-3 text-sm text-teal-200">
-            If an active user account exists, the administrator will receive your request. After approval, a reset link will be sent to your registered email. Administrator accounts receive a recovery email directly.
+          <div className="recovery-confirmation" role="status" aria-live="polite">
+            <Mail size={20} aria-hidden="true" />
+            <div>
+              <h2>Watch for your recovery email</h2>
+              <p>If an active user account matches your details, your administrator will receive the request. After approval, a reset link will be sent to your registered email.</p>
+              <p>Admin accounts receive a recovery email directly. Check your spam folder too.</p>
+            </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="recovery-form">
             <label htmlFor="forgot-identifier" className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-300">Username or email</span>
-              <input
-                id="forgot-identifier"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3"
-                placeholder="Username or email"
-                required
-              />
+              <span className="recovery-label">Username or email</span>
+              <div className="recovery-input-wrap">
+                <Mail size={18} aria-hidden="true" />
+                <input
+                  id="forgot-identifier"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  className="login-input recovery-input"
+                  placeholder="Enter your username or email"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-describedby="recovery-description recovery-help"
+                  disabled={loading}
+                  required
+                />
+              </div>
             </label>
-            <button type="submit" disabled={loading} className="w-full rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white disabled:opacity-60">
-              {loading ? <Skeleton className="h-4 w-20" /> : 'Request password reset'}
+            <button type="submit" disabled={loading} aria-busy={loading} className="login-button recovery-submit">
+              {loading ? <><LoaderCircle className="recovery-spinner" size={18} aria-hidden="true" /> Sending request...</> : <>Request password reset <ArrowRight size={18} aria-hidden="true" /></>}
             </button>
+            <div id="recovery-help" className="recovery-help">
+              <ShieldCheck size={18} aria-hidden="true" />
+              <p>User requests need administrator approval. Admin accounts receive a recovery email directly.</p>
+            </div>
           </form>
         )}
 
-        <div className="mt-6 text-center text-sm text-slate-400">
-          <Link to="/login" className="font-semibold text-teal-400 hover:text-teal-300">Back to sign in</Link>
-        </div>
-      </motion.div>
-    </div>
+        <footer className="recovery-footer">
+          <Link to="/login" className="recovery-back"><ArrowLeft size={16} aria-hidden="true" /> Back to sign in</Link>
+        </footer>
+      </motion.section>
+    </main>
   );
 }

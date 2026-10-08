@@ -1,4 +1,5 @@
 import Skeleton from '../components/Skeleton';
+import FormLoader from '../components/FormLoader';
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -6,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 import { Link, useNavigate } from 'react-router-dom';
 
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 
 import { toast } from 'react-hot-toast';
 
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('Admin123!');
 
   const [submitting, setSubmitting] = useState(false);
+  const [loginDestination, setLoginDestination] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [lockUntil, setLockUntil] = useState(() => {
     try { return Number(sessionStorage.getItem('login-lock-until')) || 0; } catch { return 0; }
@@ -30,7 +32,7 @@ export default function LoginPage() {
     const tick = () => {
       const remaining = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
       setCountdown(remaining);
-      if (!remaining) { try { sessionStorage.removeItem('login-lock-until'); } catch {} }
+      if (!remaining) { try { sessionStorage.removeItem('login-lock-until'); } catch { /* Keep the in-memory countdown when storage is unavailable. */ } }
     };
     tick();
     const timer = window.setInterval(tick, 250);
@@ -42,20 +44,27 @@ export default function LoginPage() {
   const { login } = useAuth();
 
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
+  const signingIn = submitting || !!loginDestination;
+
+  useEffect(() => {
+    if (!loginDestination) return;
+    const timer = window.setTimeout(() => navigate(loginDestination, { replace: true }), 2000);
+    return () => window.clearTimeout(timer);
+  }, [loginDestination, navigate]);
 
 
 
   const handleSubmit = async (e) => {
 
     e.preventDefault();
-    if (submitting || lockUntil > Date.now()) return;
+    if (signingIn || lockUntil > Date.now()) return;
     setSubmitting(true);
 
     try {
 
-      await login(identifier, password, rememberMe);
-
-      navigate('/dashboard');
+      const result = await login(identifier, password, rememberMe);
+      setLoginDestination(result.data?.user?.role === 'admin' ? '/dashboard' : '/my-issued-items');
 
     } catch (error) {
 
@@ -66,7 +75,7 @@ export default function LoginPage() {
         const deadline = serverDeadline ? new Date(serverDeadline).getTime() : Date.now() + retryAfter * 1000;
         setLockUntil(deadline);
         setCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
-        try { sessionStorage.setItem('login-lock-until', String(deadline)); } catch {}
+        try { sessionStorage.setItem('login-lock-until', String(deadline)); } catch { /* The active page still enforces the server's retry deadline. */ }
       } else { toast.error(response?.data?.message || 'Login failed'); }
     } finally {
       setSubmitting(false);
@@ -85,7 +94,7 @@ export default function LoginPage() {
 
       <motion.div
 
-        initial={{ opacity: 0, y: 24 }}
+        initial={reducedMotion ? false : { opacity: 0, y: 24 }}
 
         animate={{ opacity: 1, y: 0 }}
 
@@ -95,10 +104,17 @@ export default function LoginPage() {
 
         <div className="login-card login-card--split w-full overflow-hidden rounded-2xl md:rounded-3xl">
 
-        <div className="login-card__illustration login-illustration" aria-hidden="true">
-
-          <LoginIllustration />
-
+        <div className={`login-card__illustration login-illustration ${signingIn ? 'login-card__illustration--signing-in' : ''}`}>
+          <div className={`login-illustration-stage ${signingIn ? 'login-illustration-stage--signing-in' : ''}`}>
+            <div className="login-illustration-layer login-illustration-layer--original" aria-hidden="true">
+              <LoginIllustration />
+            </div>
+            <AnimatePresence>
+              {signingIn && <motion.div key="login-laptop" className="login-illustration-layer login-illustration-layer--laptop" initial={{ opacity: 0, scale: reducedMotion ? 1 : 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: reducedMotion ? 0 : 0.35, ease: 'easeOut' }}>
+                <FormLoader loginTransition label={loginDestination ? 'Welcome to PAMS...' : 'Signing in...'} />
+              </motion.div>}
+            </AnimatePresence>
+          </div>
         </div>
 
         <div className="login-card__form p-3 md:p-5">
@@ -107,13 +123,13 @@ export default function LoginPage() {
 
             <img src="/lgu-logo.png" alt="Municipality of Carigara official seal" className="mx-auto mb-2 aspect-square h-12 w-12 rounded-full object-cover shadow-2xl ring-2 ring-white/80 md:mb-3 md:h-16 md:w-16 md:ring-2" />
 
-            <div className="text-xl font-bold tracking-wide md:text-3xl">PCMS</div>
+            <div className="text-xl font-bold tracking-wide md:text-3xl">PAMS</div>
 
             <p className="mt-1 text-xs text-white/75 md:mt-2 md:text-sm">Property Accountability Management System</p>
 
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-2.5 md:space-y-3">
+          <form onSubmit={handleSubmit} inert={signingIn ? true : undefined} aria-busy={signingIn} className="space-y-2.5 md:space-y-3">
 
             <label htmlFor="login-identifier" className="block">
 
@@ -142,7 +158,7 @@ export default function LoginPage() {
 
             </label>
 
-            <button type="submit" disabled={submitting || countdown > 0} aria-label="Sign in" aria-busy={submitting} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{submitting ? <Skeleton className="h-4 w-16" label="Signing in" /> : 'Sign in'}</button>
+            <button type="submit" disabled={signingIn || countdown > 0} aria-label="Sign in" aria-busy={signingIn} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{submitting ? <Skeleton className="h-4 w-16" label="Signing in" /> : loginDestination ? 'Opening your account...' : 'Sign in'}</button>
 
             {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
           </form>

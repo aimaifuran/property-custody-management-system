@@ -25,23 +25,25 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 
+const userRoutes = new Set(['/my-issued-items', '/my-returns']);
+
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
   const { pathname } = useLocation();
   if (!authReady || loading) return <PageSkeleton fullScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'admin' && !['/my-issued-items', '/my-returns'].includes(pathname)) return <Navigate to="/my-issued-items" replace />;
-  if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user.role !== 'admin' && !userRoutes.has(pathname)) return <Navigate to="/my-issued-items" replace />;
+  if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/my-issued-items" replace />;
   const requiredPermissions = Array.isArray(permission) ? permission : [permission];
   if (permission && user.role !== 'admin' && !requiredPermissions.some((value) => user.permissions?.includes(value))) {
-    return <Navigate to="/dashboard" replace />;
+    return <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">You do not have permission to view this section. Contact your admin to update your account permissions.</div>;
   }
   return children;
 }
 
-function RoleDashboard() {
+function RoleRedirect({ adminTo = '/dashboard', userTo = '/my-issued-items' }) {
   const { user } = useAuth();
-  return user?.role === 'admin' ? <DashboardPage /> : <MyIssuedItemsPage />;
+  return <Navigate to={user?.role === 'admin' ? adminTo : userTo} replace />;
 }
 
 const permissionRoutes = {
@@ -56,8 +58,8 @@ const permissionRoutes = {
   '/inventory': ['canViewDashboard', 'canManageInventory'],
   '/inventory-custodian': ['canViewRIS', 'canManageRIS', 'canManageInventory'],
   '/par': ['canViewRIS', 'canManageRIS', 'canManageInventory'],
-  '/transfers': ['canViewDashboard', 'canManageInventory'],
-  '/returns': ['canViewDashboard', 'canManageInventory'],
+  '/transfers': ['canViewRIS', 'canViewDashboard', 'canManageInventory'],
+  '/returns': ['canViewRIS', 'canViewDashboard', 'canManageInventory'],
   '/returned-supply': ['canViewDashboard', 'canManageInventory'],
   '/users': 'canManageUsers',
   '/profile': 'adminOnly',
@@ -73,12 +75,14 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route path="/settings" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/my-ris" element={<Navigate to="/my-issued-items" replace />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/settings" element={<RoleRedirect />} />
+          <Route path="/my-ris" element={<Navigate to="/ris" replace />} />
+          <Route path="/my-requests" element={<Navigate to="/ris" replace />} />
+          <Route path="/custody" element={<RoleRedirect adminTo="/inventory-custodian" />} />
+          <Route path="/" element={<RoleRedirect />} />
           {Object.entries(permissionRoutes).map(([path, permission]) => {
             const pages = {
-              '/dashboard': RoleDashboard,
+              '/dashboard': DashboardPage,
               '/reports/monthly': MonthlyItemsReportPage,
               '/reports/annual': AnnualOfficeItemsPage,
               '/reports/ppe-list': PpeStationReportPage,

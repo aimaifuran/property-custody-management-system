@@ -1,3 +1,6 @@
+import { sortSavedReports } from '../utils/savedReportOrder';
+import useSavedReportPage from '../utils/useSavedReportPage';
+import NewFormBadge from '../components/NewFormBadge';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
@@ -50,6 +53,7 @@ const inputDate = (value) => (value ? new Date(value).toISOString().slice(0, 10)
 export default function InventoryPage() {
     const [pageLoading, setPageLoading] = useState(true);
     const [pageLoadError, setPageLoadError] = useState('');
+    const [saving, setSaving] = useState(false);
 
     const [cards, setCards] = useState([]);
     const [editingCard, setEditingCard] = useState(null);
@@ -57,8 +61,9 @@ export default function InventoryPage() {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(cards, search);
-    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
+  const filteredReports = filterReports(sortSavedReports(cards), search);
+    const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
+    useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
     const load = async () => {
       setPageLoading(true);
       setPageLoadError('');
@@ -101,7 +106,7 @@ export default function InventoryPage() {
     };
     const update = (key, value) => setForm((previous) => ({
         ...previous,
-        [key]: value
+        [key]: key === 'serialNumber' ? value.replace(/[^0-9]/g, '') : value
     }));
     const updateItem = (index, key, value) => setForm((previous) => ({
         ...previous,
@@ -116,6 +121,8 @@ export default function InventoryPage() {
     };
     const save = async (event) => {
         event.preventDefault();
+        if (saving) return;
+        setSaving(true);
         try {
             await axios[editingCard?._id ? 'put' : 'post'](editingCard?._id ? `/property-cards/${editingCard._id}` : '/property-cards', {
                 ...form,
@@ -130,19 +137,17 @@ export default function InventoryPage() {
             });
             toast.success(editingCard?._id ? 'Property Card updated' : 'Property Card created');
             if (editingCard?._id) markUpdated(editingCard._id);
+            setSearch('');
             closeEditor();
             await load();
             scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
-        }
+        } finally { setSaving(false); }
     };
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
-    const itemLabels = ['Property No.', 'Description', 'S/N', 'Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} aria-label={label} {...(key === 'serialNumber' ? { inputMode: 'numeric', pattern: editingCard?._id && form.serialNumber === editingCard.serialNumber ? undefined : '[0-9]*', title: 'Enter numbers only' } : {})} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const itemLabels = ['Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
     const itemFields = [
-        ['propertyNumber', 'text'],
-        ['description', 'text'],
-        ['serialNumber', 'text'],
         ['date', 'date'],
         ['referenceParNo', 'text'],
         ['receiptQuantity', 'number'],
@@ -259,7 +264,7 @@ export default function InventoryPage() {
             <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { setEditingCard({}); setForm({ ...initialForm, items: [emptyItem()] }); }} editorRef={editorRef} /></SavedReportsHeader>
             <div className="mt-4 space-y-3">
               {visibleCards.map((card) => (
-                <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={card} />
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <div className="font-semibold">{card.iar?.iarNumber || 'Property Card'}</div>
@@ -285,7 +290,7 @@ export default function InventoryPage() {
             </div>
           </div>
           {editingCard ? (
-            <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
+            <form ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
               <div className="min-w-0 text-slate-900">
                 <FormEditorHeader title="Property Card" description="Record property items here. Cards linked to an Inspection and Acceptance Report are also created automatically." onClose={closeEditor} />
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -317,6 +322,7 @@ export default function InventoryPage() {
                             <td className="p-1" key={key}>
                               <input
                                 type={type}
+                                aria-label={`${itemLabels[itemFields.findIndex(([fieldKey]) => fieldKey === key)]} ${index + 1}`}
                                 value={item[key] ?? ''}
                                 onChange={(event) => updateItem(index, key, event.target.value)}
                                 className="w-full rounded-lg border border-slate-200 px-2 py-2"
@@ -338,9 +344,11 @@ export default function InventoryPage() {
                   </button>
                   <button
                     type="submit"
+                    disabled={saving}
+                    aria-busy={saving}
                     className="rounded-xl bg-teal-600 px-4 py-2 font-semibold text-white"
                   >
-                    {editingCard?._id ? 'Update Property Card' : 'Save New Form'}
+                    {saving ? 'Saving...' : editingCard?._id ? 'Update Property Card' : 'Save New Form'}
                   </button>
                 </div>
               </div>

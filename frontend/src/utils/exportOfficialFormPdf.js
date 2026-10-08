@@ -17,6 +17,7 @@ export async function exportOfficialFormPdf(type, details, print = false) {
   }
   try {
     const bytes = await getOfficialFormPdf({ type, details });
+    if (print && popup.closed) return;
     const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
     if (print) {
       popup.document.title = `${type} - Print`;

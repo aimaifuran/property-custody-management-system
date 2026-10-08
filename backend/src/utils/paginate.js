@@ -1,4 +1,5 @@
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const { recordSort } = require('./savedReportOrder');
 
 /**
  * Applies a case-insensitive substring search across a fixed set of fields
@@ -17,7 +18,7 @@ const paginateAndSearch = async (Model, req, { searchFields = [], baseFilter = {
     filter.$and = [...(filter.$and || []), { $or: searchFields.map((field) => ({ [field]: regex })) }];
   }
 
-  let query = Model.find(filter).sort({ updatedAt: -1, createdAt: -1 });
+  let query = Model.find(filter).sort(recordSort(Model));
   if (populate) query = query.populate(populate);
 
   const [data, total] = await Promise.all([
@@ -38,7 +39,7 @@ const listRecords = async (Model, req, options = {}) => {
     const { data, pagination } = await paginateAndSearch(Model, req, options);
     return { items: data, pagination };
   }
-  let query = Model.find(options.baseFilter || {}).sort({ updatedAt: -1, createdAt: -1 });
+  let query = Model.find(options.baseFilter || {}).sort(recordSort(Model));
   if (options.populate) query = query.populate(options.populate);
   return query;
 };

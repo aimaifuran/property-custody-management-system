@@ -27,37 +27,37 @@
   display: none;
 }
 
-.table-scroll > table {
+.table-scroll > .table-scroll__content > table {
   width: 100%;
 }
 
-.table-scroll > table:not(.table-fixed):not([class*='min-w-[']) {
+.table-scroll > .table-scroll__content > table:not(.table-fixed):not([class*='min-w-[']) {
   min-width: 42rem;
 }
 
-.table-scroll > table:not(.table-fixed) th,
-.table-scroll > table:not(.table-fixed) td {
+.table-scroll > .table-scroll__content > table:not(.table-fixed) th,
+.table-scroll > .table-scroll__content > table:not(.table-fixed) td {
   min-width: 5rem;
   vertical-align: top;
   overflow-wrap: break-word;
 }
 
-.table-scroll > table:not(.table-fixed) th {
+.table-scroll > .table-scroll__content > table:not(.table-fixed) th {
   line-height: 1.4;
 }
 
-.table-scroll > table:not(.table-fixed) input:not([type='radio']):not([type='checkbox']),
-.table-scroll > table:not(.table-fixed) select,
-.table-scroll > table:not(.table-fixed) textarea {
+.table-scroll > .table-scroll__content > table:not(.table-fixed) input:not([type='radio']):not([type='checkbox']),
+.table-scroll > .table-scroll__content > table:not(.table-fixed) select,
+.table-scroll > .table-scroll__content > table:not(.table-fixed) textarea {
   min-width: 7rem;
 }
 
-.table-scroll > table:not(.table-fixed) input[type='date'] {
+.table-scroll > .table-scroll__content > table:not(.table-fixed) input[type='date'] {
   min-width: 9rem;
 }
 
-.table-scroll > table:not(.table-fixed) input[aria-label*='Description'],
-.table-scroll > table:not(.table-fixed) textarea {
+.table-scroll > .table-scroll__content > table:not(.table-fixed) input[aria-label*='Description'],
+.table-scroll > .table-scroll__content > table:not(.table-fixed) textarea {
   min-width: 12rem;
 }
 
@@ -1338,9 +1338,9 @@ body { font-size: var(--app-text-size); }
 .dashboard-page .dashboard-breakdowns { align-items: stretch; height: auto; }
 .dashboard-page .dashboard-breakdowns > .minimal-surface { height: 100%; min-width: 0; }
 .dashboard-users .dashboard-user-pictorial { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; overflow: visible; align-items: center; }
-.dashboard-users .user-pictorial-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.dashboard-users .user-pictorial-row { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 0; }
 .dashboard-users .user-pictorial-icons { flex: 0 0 auto; }
-.dashboard-users .user-pictorial-icon { width: 24px; height: 28px; }
+.dashboard-users .user-pictorial-icon { width: 48px; height: 58px; }
 .dashboard-users .user-pictorial-icon svg { width: 100%; height: 100%; }
 .dashboard-users .user-pictorial-heading { flex-wrap: wrap; align-items: center; margin-top: 0; gap: 4px; min-width: 0; }
 
@@ -1398,6 +1398,12 @@ body { font-size: var(--app-text-size); }
 .form-document :is(table th, table td) { vertical-align: middle; padding: 6px 8px; border-color: #94a3b8; }
 .form-document table { border-collapse: collapse; }
 .form-document th { text-align: center; white-space: normal; }
+.form-document.ppe-station-form .ppe-input-table td { vertical-align: top; }
+.form-document.ppe-station-form .ppe-input-table td :is(input, textarea) {
+  display: block; height: 5rem; min-height: 5rem; margin: 0;
+}
+.form-document.ppe-station-form .ppe-input-table textarea { resize: none; overflow-y: auto; }
+.form-document.ppe-station-form .ppe-input-table input[type='number'] { font-variant-numeric: tabular-nums; }
 .form-document .ris-table-grid > div { display: flex; align-items: center; min-width: 0; }
 .form-document .ris-table-grid :is(input[type='radio'], input[type='checkbox']) { margin: auto; }
 .form-document .ris-table-grid input:not([type='radio']):not([type='checkbox']) { padding: 6px !important; }
@@ -1540,3 +1546,196 @@ body { font-size: var(--app-text-size); }
   flex: 0 0 auto;
 }
 .saved-record.returned-supply-record > .returned-supply-record-details { width: 100%; }
+
+/* Adapt to the actual workspace width, including tablets with an open sidebar. */
+.app-shell { height: 100dvh; }
+.app-shell main { container: workspace / inline-size; min-width: 0; }
+.app-shell main > div, .form-document, .form-document fieldset { min-width: 0; max-width: 100%; }
+.table-scroll { container: item-table / inline-size; overflow: visible; }
+.table-scroll__content {
+  min-width: 0; max-width: 100%; overflow-x: auto;
+  overscroll-behavior-x: contain; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Account recovery shares the login background, municipal branding, and green palette. */
+.forgot-password-page {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100svh; padding: 32px 20px; color: #fff;
+}
+.forgot-password-page .recovery-card {
+  width: 100%; max-width: 440px; min-width: 0; padding: 32px;
+  border-radius: 24px; background: rgba(19, 58, 39, .88);
+  border-color: rgba(226, 238, 201, .45);
+}
+.recovery-brand {
+  display: flex; flex-direction: column; align-items: center; gap: 14px; padding-bottom: 24px; text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, .16);
+}
+.recovery-brand img { flex-shrink: 0; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .18); }
+.forgot-password-page .recovery-brand__name { font-size: 22px !important; font-weight: 700; letter-spacing: .08em; }
+.forgot-password-page .recovery-brand p { margin: 4px 0 0; font-size: 12px !important; color: #d9e6cf; line-height: 1.5; }
+.recovery-heading { padding: 24px 0; }
+.recovery-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; margin-bottom: 18px; border-radius: 14px;
+  border: 1px solid rgba(192, 208, 125, .35); background: rgba(176, 194, 94, .14); color: #d5e59d;
+}
+.forgot-password-page .recovery-eyebrow { margin: 0 0 8px; color: #d5e59d; font-size: 11px !important; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.forgot-password-page .recovery-heading h1 { margin: 0; font-size: 24px !important; font-weight: 700; line-height: 1.25; }
+.forgot-password-page .recovery-heading > p:last-child { margin: 12px 0 0; color: #e0eadb; font-size: 14px !important; line-height: 1.6; }
+.recovery-form { display: grid; gap: 18px; }
+.forgot-password-page .recovery-label { display: block; margin-bottom: 8px; font-size: 13px !important; font-weight: 600; }
+.recovery-input-wrap { position: relative; }
+.recovery-input-wrap > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #c5d6ba; pointer-events: none; }
+.login-page.forgot-password-page .recovery-form .recovery-input {
+  display: block; width: 100%; min-width: 0; box-sizing: border-box;
+  min-height: 46px; border-radius: 10px; padding: 12px 14px 12px 42px;
+  font-size: 14px !important; color: #fff; outline: none;
+}
+.forgot-password-page .recovery-submit {
+  width: 100%; min-height: 46px !important; padding: 12px 16px !important;
+  border-radius: 10px !important; font-size: 14px !important; font-weight: 600;
+  color: #fff; background: linear-gradient(100deg, #42762b, #245437);
+  border-color: rgba(213, 229, 157, .6); transition: background .2s, transform .2s;
+}
+.forgot-password-page .recovery-submit:hover:not(:disabled) { background: linear-gradient(100deg, #4b8234, #2d6240); }
+.forgot-password-page .recovery-submit > svg { width: 18px; height: 18px; }
+.forgot-password-page .recovery-submit:disabled { opacity: .7; cursor: wait; }
+.recovery-help { display: flex; align-items: flex-start; gap: 9px; color: #d3e0ca; }
+.recovery-help > svg { flex-shrink: 0; margin-top: 2px; color: #c3d697; }
+.forgot-password-page .recovery-help p { margin: 0; font-size: 12px !important; line-height: 1.6; }
+.recovery-confirmation { display: flex; align-items: flex-start; gap: 12px; padding: 18px; border-radius: 12px; border: 1px solid rgba(192, 208, 125, .35); background: rgba(176, 194, 94, .1); }
+.recovery-confirmation > svg { flex-shrink: 0; margin-top: 2px; color: #d5e59d; }
+.forgot-password-page .recovery-confirmation h2 { margin: 0; font-size: 14px !important; font-weight: 600; }
+.forgot-password-page .recovery-confirmation p { margin: 10px 0 0; font-size: 13px !important; color: #e0eadb; line-height: 1.6; }
+.recovery-footer { margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, .16); text-align: center; }
+.forgot-password-page .recovery-back { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; padding: 0 8px; color: #e5eddb; font-size: 13px !important; font-weight: 600; text-decoration: none; }
+.recovery-back:hover { color: #fff; text-decoration: underline; }
+.recovery-back:focus-visible, .recovery-submit:focus-visible { outline: 2px solid #d5e59d; outline-offset: 4px; }
+.recovery-spinner { animation: recovery-spin .8s linear infinite; }
+@keyframes recovery-spin { to { transform: rotate(360deg); } }
+@media (max-width: 480px) {
+  .forgot-password-page { padding: 20px 12px; }
+  .forgot-password-page .recovery-card { padding: 24px 20px; border-radius: 20px; }
+  .login-page.forgot-password-page .recovery-form .recovery-input { font-size: 16px !important; }
+  .forgot-password-page .recovery-heading h1 { font-size: 22px !important; }
+}
+@media (max-height: 680px) {
+  .forgot-password-page { align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recovery-spinner { animation: none; }
+  .forgot-password-page .recovery-submit { transition: none; }
+  .forgot-password-page .recovery-submit:hover { transform: none; }
+}
+.table-scroll__hint { display: none; }
+.table-scroll[data-overflow='true'] > .table-scroll__hint {
+  display: block; padding: 6px 8px; color: #64748b; font-size: 12px;
+}
+.form-document :is(input, select, textarea):disabled { opacity: 1; color: #475569; }
+.form-document button:disabled { cursor: not-allowed; opacity: .55; }
+.saved-record .record-action { flex-shrink: 0; }
+
+@container workspace (max-width: 760px) {
+  .form-document .grid, .saved-record .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .form-document .grid > * { grid-column: auto !important; }
+  .form-document, .saved-records, .minimal-surface { padding: 16px !important; }
+  .saved-reports-header, .saved-reports-heading, .saved-reports-controls { width: 100%; }
+  .saved-reports-search { width: 100%; flex-basis: 100%; }
+  .saved-record > .flex, .returned-supply-record-header { flex-wrap: wrap !important; }
+  .saved-record > .flex > :last-child { flex-wrap: wrap; }
+  .dashboard-other > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-breakdowns { grid-template-columns: minmax(0, 1fr); }
+  .record-form-preview { min-height: 280px; height: 60dvh; }
+}
+
+@container item-table (max-width: 760px) {
+  .table-responsive-cards, .table-responsive-cards tbody,
+  .table-responsive-cards tfoot { display: block; width: 100% !important; min-width: 0 !important; }
+  .table-responsive-cards colgroup { display: none; }
+  .table-responsive-cards thead {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .table-responsive-cards tbody > tr {
+    display: block; min-width: 0; margin: 0 0 12px; border: 1px solid #cbd5e1;
+    border-radius: 10px; padding: 8px; background: #fff;
+  }
+  .table-responsive-cards tbody > tr > td {
+    display: block; width: 100% !important; min-width: 0 !important;
+    padding: 8px !important; border: 0; text-align: left; overflow-wrap: anywhere;
+  }
+  .table-responsive-cards td[data-label]::before {
+    display: block; content: attr(data-label); margin-bottom: 4px;
+    color: #64748b; font-weight: 600; font-size: 12px; text-align: left;
+  }
+  .table-responsive-cards :is(input, select, textarea) {
+    width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+    box-sizing: border-box; min-height: 40px;
+  }
+  .table-responsive-cards :is(input[type='checkbox'], input[type='radio']) {
+    width: auto !important; min-height: 0;
+  }
+  .table-responsive-cards :is(td, th) > .flex { flex-wrap: wrap; }
+  .table-responsive-cards tfoot > tr { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; }
+  .table-responsive-cards tfoot :is(td, th) { display: block; width: auto !important; min-width: 0 !important; }
+  .table-responsive-cards tfoot td:empty { display: none; }
+  .ris-table-grid[data-responsive-heading] { display: none; }
+  .ris-table-grid[data-responsive-row] {
+    display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr);
+    margin-bottom: 12px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 10px;
+  }
+  .form-document .ris-table-grid[data-responsive-row] > div,
+  .ris-table-grid[data-responsive-row] > div {
+    display: block; min-width: 0; border: 0; padding: 8px;
+  }
+  .ris-table-grid[data-responsive-row] > div::before {
+    display: block; content: attr(data-label); margin-bottom: 4px;
+    color: #64748b; font-weight: 600; font-size: 12px;
+  }
+  .ris-table-grid[data-responsive-row] :is(input, select, textarea):not([type='radio']):not([type='checkbox']) {
+    width: 100%; min-width: 0; min-height: 40px;
+  }
+  .user-returns-table { width: 100%; min-width: 0 !important; }
+}
+
+@media screen and (max-width: 767px) {
+  .app-shell main { padding: 12px; }
+  .app-shell .title-bar { padding: 12px; }
+  .form-document .form-editor-header .form-title-row { grid-template-columns: minmax(0, 1fr); }
+  .form-document .form-editor-header .form-title-action { justify-self: end; }
+  .saved-record > :first-child:not(button) { flex-basis: 100%; }
+  .saved-record > .flex:last-child { width: 100%; margin-left: 0; }
+  .saved-record .flex:has(> .record-action) { flex-wrap: wrap; }
+  .user-returns-table td { display: block; min-width: 0; }
+  .user-returns-table td::before { display: block; margin-bottom: 4px; }
+}
+.saved-record:has(> .recent-form-marker) {
+  border-color: #34a879 !important;
+  background: #effbf4 !important;
+  box-shadow: 0 0 0 2px rgb(52 168 121 / 14%);
+}
+
+.saved-record > :is(.recent-form-marker, .reviewed-form-marker) {
+  display: none;
+}
+
+/* Fade the login illustration into the laptop without resizing the card. */
+.login-illustration-stage { position: relative; width: 100%; height: 180px; }
+.login-illustration-layer { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.login-illustration-layer--original { opacity: 1; transform: scale(1); transition: opacity .35s ease, transform .35s ease; }
+.login-illustration-stage--signing-in .login-illustration-layer--original { opacity: 0; transform: scale(.94); pointer-events: none; }
+.login-illustration-stage--signing-in .login-illustration-layer--original * { animation-play-state: paused; }
+.login-illustration-stage .form-loader { height: 100%; min-height: 0; padding: 0; background: transparent; }
+.login-illustration-stage .form-loader .form-loader__artwork { font-size: .65px; }
+.login-illustration-stage .form-loader__label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 767px) {
+  .login-illustration-stage { height: 56px; }
+  .login-illustration-stage .form-loader .form-loader__artwork { font-size: .21px; }
+  .login-card__illustration--signing-in { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-illustration-layer--original { transition: none; }
+  .login-illustration-stage svg * { animation: none !important; }
+}

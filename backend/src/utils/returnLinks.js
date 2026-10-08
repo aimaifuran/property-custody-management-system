@@ -1,6 +1,7 @@
 const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const ReturnedSupply = require('../models/ReturnedSupply');
 const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
+const Accountability = require('../models/PropertyAccountability');
 const { resolveAccount, ownerFilter, linkLegacyRequests } = require('./accountLinks');
 
 // Connect typed admin returns to the exact issued line under the chosen account.
@@ -36,20 +37,27 @@ const linkReturnItems = async payload => {
 };
 
 // Explicit item references prevent returns from being assigned by description or name.
-const validateLinks = async (items, excludeId) => {
+const validateLinks = async (items, excludeId, session = null) => {
   const totals = new Map();
   for (const entry of items || []) {
+    if (entry.accountability) {
+      const row = await Accountability.findOne({ _id: entry.accountability, deleted: false, active: true }).session(session);
+      const quantity = Number(entry.quantity);
+      if (!row || !Number.isInteger(quantity) || quantity <= 0 || quantity > row.quantity - Number(row.returnedQuantity || 0)) throw new Error('Return exceeds the remaining property accountability');
+      if (row.pendingMovement && row.pendingMovement !== `PRS:${excludeId}`) throw new Error('This property already has a pending movement');
+      continue;
+    }
     if (!entry.ris && !entry.risItem) continue;
-    const ris = await RequisitionIssueSlip.findOne({ _id: entry.ris, deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } });
+    const ris = await RequisitionIssueSlip.findOne({ _id: entry.ris, deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } }).session(session);
     const item = ris?.items.id(entry.risItem);
     if (!item || !(item.quantityIssued > 0)) throw new Error('Select a valid issued RIS item');
     const quantity = Number(entry.quantity);
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Returned quantity must be greater than zero');
     const key = `${entry.ris}:${entry.risItem}`;
     totals.set(key, (totals.get(key) || 0) + quantity);
-    const previous = await PropertyReturnSlip.find({ deleted: false, $or: [{ status: 'RETURNED' }, { status: { $exists: false } }], ...(excludeId ? { _id: { $ne: excludeId } } : {}), 'items.ris': entry.ris });
+    const previous = await PropertyReturnSlip.find({ deleted: false, $or: [{ status: 'RETURNED' }, { status: { $exists: false } }], ...(excludeId ? { _id: { $ne: excludeId } } : {}), 'items.ris': entry.ris }).session(session);
     const returned = previous.reduce((sum, slip) => sum + slip.items.filter(row => String(row.ris) === String(entry.ris) && String(row.risItem) === String(entry.risItem)).reduce((count, row) => count + Number(row.quantity || 0), 0), 0);
-    const supplies = await ReturnedSupply.find({ deleted: false, prs: null, ris: entry.ris, risItem: entry.risItem, ...(excludeId ? { _id: { $ne: excludeId } } : {}) });
+    const supplies = await ReturnedSupply.find({ deleted: false, prs: null, ris: entry.ris, risItem: entry.risItem, ...(excludeId ? { _id: { $ne: excludeId } } : {}) }).session(session);
     const directReturned = supplies.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
     if (returned + directReturned + totals.get(key) > item.quantityIssued) throw new Error(`Returned quantity exceeds issued quantity for ${item.description || item.stockNumber}`);
   }

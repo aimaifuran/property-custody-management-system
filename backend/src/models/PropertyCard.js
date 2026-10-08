@@ -40,6 +40,7 @@ const propertyCardSchema = new mongoose.Schema({
     remarks: String,
   }],
   deleted: { type: Boolean, default: false },
+  lastEditedAt: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('PropertyCard', propertyCardSchema);

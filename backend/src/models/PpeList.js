@@ -32,6 +32,7 @@ const schema = new mongoose.Schema({
   rows: { type: [rowSchema], validate: { validator: function (rows) { return this.automatic || (rows.length > 0 && rows.length <= 500); }, message: 'Enter between 1 and 500 items' } },
   recapitulation: { type: [rowSchema], default: [], validate: { validator: function (rows) { return this.automatic || rows.length <= 500; }, message: 'Enter no more than 500 recapitulation rows' } },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  lastEditedAt: Date,
 }, { timestamps: true });
 schema.index({ month: 1 }, { unique: true, partialFilterExpression: { automatic: true } });
 

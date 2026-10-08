@@ -3,16 +3,22 @@ import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
 import { PackageCheck, CircleCheck, Clock3, RotateCcw, CircleX } from 'lucide-react';
+import { loadAccountItems, mergeAccountItems } from '../utils/accountItems';
 
 function ItemStatus({ item }) {
   let label = item.status;
   let Icon = Clock3;
   let colors = 'border-amber-200 bg-amber-50 text-amber-800';
-  if (item.status === 'Successfully returned') {
+  if (item.transferred) {
+    label = 'Transferred to another custodian';
+    colors = 'border-slate-200 bg-slate-50 text-slate-700';
+  } else if (item.status === 'Successfully returned') {
     Icon = PackageCheck;
     colors = 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  } else if (item.historyOnly && !item.pendingReturn) {
+    Icon = PackageCheck;
+    colors = 'border-slate-200 bg-slate-50 text-slate-700';
   } else if (item.pendingReturn || item.status === 'Partially returned') {
     Icon = item.pendingReturn ? Clock3 : RotateCcw;
   } else if (item.requestStatus === 'REJECTED') {
@@ -38,8 +44,8 @@ export default function MyIssuedItemsPage() {
   const load = async (background = false) => {
     if (!background) { setLoading(true); setError(''); }
     try {
-      const { data } = await axios.get('/ris/my-items');
-      setItems(data.data || []);
+      const data = await loadAccountItems(axios, '/ris/my-items');
+      setItems(previousRows => mergeAccountItems({ ...data, previousRows }));
     } catch (err) {
       if (!background) setError(err.response?.data?.message || 'Unable to load your issued items. Please try again.');
     } finally { if (!background) setLoading(false); }
@@ -58,7 +64,7 @@ export default function MyIssuedItemsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-emerald-100 p-3 text-emerald-700"><PackageCheck size={24} /></div>
-          <div><h1 className="text-2xl font-bold text-slate-800">My Issues Items</h1><p className="text-sm text-slate-500">Requests recorded under your account and items issued by the admin.</p></div>
+          <div><h1 className="text-2xl font-bold text-slate-800">My Issued Items</h1><p className="text-sm text-slate-500">Requests recorded under your account and items issued by the admin.</p></div>
         </div>
         <button type="button" onClick={() => load()} disabled={loading} className="rounded-lg border px-3 py-2 text-sm">Refresh</button>
       </div>
@@ -68,11 +74,10 @@ export default function MyIssuedItemsPage() {
       {items.length === 0 ? <p className="text-sm text-slate-500">No requests or issued items have been recorded under your account yet.</p> : <TableScroll className="overflow-x-auto">
         <table className="min-w-full text-left text-sm">
           <thead><tr className="border-b text-slate-500">{['Property / Item', 'Stock No.', 'Quantity Requested', 'Quantity Issued', 'RIS No.', 'ICS / PAR No.', 'Date Issued', 'Status'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
-          <tbody>{items.map(item => <tr key={item.risId + '-' + item.itemId} className="border-b border-slate-100">
-            <td className="p-3 font-medium">{item.description || item.stockNumber || 'Item'}</td><td className="p-3">{item.stockNumber || '—'}</td><td className="p-3">{item.quantityRequested ?? 0}</td><td className="p-3">{item.quantityIssued ?? 0}</td><td className="p-3">{item.risNumber || '—'}</td><td className="p-3">{item.documentNumber ? `${item.formType} ${item.documentNumber}` : '—'}</td><td className="p-3">{item.issuedAt ? new Date(item.issuedAt).toLocaleDateString() : '—'}</td><td className="p-3"><ItemStatus item={item} /></td>
+          <tbody>{items.map(item => <tr key={item.rowKey} className="border-b border-slate-100">
+            <td className="p-3 font-medium">{item.description || item.stockNumber || 'Item'}</td><td className="p-3">{item.stockNumber || '—'}</td><td className="p-3">{item.quantityRequested ?? '—'}</td><td className="p-3">{item.quantityIssued ?? '—'}</td><td className="p-3">{item.risNumber || '—'}</td><td className="p-3">{item.documentNumber ? `${item.formType} ${item.documentNumber}` : '—'}</td><td className="p-3">{item.issuedAt ? new Date(item.issuedAt).toLocaleDateString() : '—'}</td><td className="p-3"><ItemStatus item={item} /></td>
           </tr>)}</tbody>
         </table>
-        <Link to="/my-returns" className="mt-4 inline-block rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">View Returned Items</Link>
       </TableScroll>}
     </section>}
   </div>;

@@ -4,6 +4,8 @@ const propertyAcknowledgementReceiptSchema = new mongoose.Schema({
   iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport', index: true },
   ris: { type: mongoose.Schema.Types.ObjectId, ref: 'RequisitionIssueSlip', index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+  acceptedAt: Date,
+  acceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   entityName: { type: String, trim: true },
   office: { type: String, trim: true },
   fundCluster: { type: String, trim: true },
@@ -30,6 +32,7 @@ const propertyAcknowledgementReceiptSchema = new mongoose.Schema({
     date: { type: Date },
   },
   deleted: { type: Boolean, default: false },
+  lastEditedAt: Date,
 }, { timestamps: true });
 
 propertyAcknowledgementReceiptSchema.virtual('totalAmount').get(function getTotalAmount() {

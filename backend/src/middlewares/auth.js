@@ -1,15 +1,16 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { errorResponse } = require('../utils/response');
+const { getAccessToken, isSessionUserActive } = require('../utils/session');
 
 const authenticate = async (req, res, next) => {
   try {
-    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
+    const token = getAccessToken(req);
     if (!token) return errorResponse(res, 'Authentication required', [], 401);
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret', { algorithms: ['HS256'] });
     const user = await User.findById(decoded.id).select('-password');
-    if (!user || user.status !== 'active') return errorResponse(res, 'Invalid user session', [], 401);
+    if (!isSessionUserActive(user)) return errorResponse(res, 'Invalid user session', [], 401);
 
     req.user = user;
     next();

@@ -1,3 +1,6 @@
+import { sortSavedReports } from '../utils/savedReportOrder';
+import useSavedReportPage from '../utils/useSavedReportPage';
+import NewFormBadge from '../components/NewFormBadge';
 import FormEditorHeader from '../components/FormEditorHeader';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
@@ -47,6 +50,7 @@ const toForm = (record) => ({
 export default function ReturnedSupplyPage() {
     const [pageLoading, setPageLoading] = useState(true);
     const [pageLoadError, setPageLoadError] = useState('');
+    const [saving, setSaving] = useState(false);
 
     const [records, setRecords] = useState([]);
     const [issuedRecords, setIssuedRecords] = useState([]);
@@ -55,8 +59,9 @@ export default function ReturnedSupplyPage() {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(records, search);
-    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+  const filteredReports = filterReports(sortSavedReports(records), search);
+    const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+    useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
     const load = async () => {
       setPageLoading(true);
@@ -107,6 +112,8 @@ export default function ReturnedSupplyPage() {
 
     const save = async (event) => {
         event.preventDefault();
+        if (saving) return;
+        setSaving(true);
         try {
             await axios[editingId ? 'put' : 'post'](editingId ? `/returned-supply/${editingId}` : '/returned-supply', {
                 ...form,
@@ -117,12 +124,13 @@ export default function ReturnedSupplyPage() {
             });
             toast.success(editingId ? 'Returned supply record updated' : 'Returned supply record created');
             markUpdated(editingId);
+            setSearch('');
             cancelEdit();
-            load();
+            await load();
             scrollToRecords();
         } catch (error) {
             toast.error(error.response?.data?.message || 'Unable to save record');
-        }
+        } finally { setSaving(false); }
     };
 
     const signatoryFields = (label, section) => (
@@ -154,7 +162,7 @@ export default function ReturnedSupplyPage() {
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
                 <div className="mt-3 space-y-3">
                     {visibleRecords.map((record) => (
-                        <div key={record._id} className={`saved-record returned-supply-record rounded-xl border p-4 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                        <div key={record._id} className={`saved-record returned-supply-record rounded-xl border p-4 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
                             <div className="returned-supply-record-header flex items-start justify-between gap-3">
                                 <div>
                                     <div className="font-semibold">{record.description || 'Untitled item'}</div>
@@ -176,7 +184,7 @@ export default function ReturnedSupplyPage() {
             </motion.div>
 
             {form && (
-                <form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+                <form ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 p-6">
                     <FormEditorHeader title="Returned Supply" description="Each item on a saved Property Return Slip is logged here individually." onClose={cancelEdit} />
                     <label className="mb-4 block"><span className="mb-1 block font-semibold">Issued item to return</span><select aria-label="Issued item to return" value={form.ris && form.risItem ? `${form.ris}:${form.risItem}` : ''} onChange={event => {
                         const [risId, itemId] = event.target.value.split(':');
@@ -248,7 +256,7 @@ export default function ReturnedSupplyPage() {
                         {signatoryFields('Returned To', 'returnedTo')}
                     </div>
 
-                    <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{editingId ? 'Save Changes' : 'Save New Form'}</button>
+                    <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save New Form'}</button>
                 </form>
             )}
         </div>

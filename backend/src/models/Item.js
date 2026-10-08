@@ -5,6 +5,7 @@ const itemSchema = new mongoose.Schema({
   unit: { type: String, required: true },
   description: { type: String, required: true },
   category: { type: String, default: 'General' },
+  itemType: { type: String, enum: ['SUPPLY', 'ASSET'], default: 'ASSET' },
   cost: { type: Number, required: true, default: 0 },
   quantityOnHand: { type: Number, required: true, default: 0 },
   status: {

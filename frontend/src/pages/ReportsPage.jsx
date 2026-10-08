@@ -1,13 +1,11 @@
-import { embedFormFonts } from '../utils/formPdfFonts';
-import { FORM_PDF_FONT_SIZE } from '../utils/historicalFormPdf';
+import { buildReportsPdf } from '../utils/reportsPdf';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { PDFDocument, rgb } from 'pdf-lib';
-import { BarChart3, CalendarDays, Download, FileText, Printer } from 'lucide-react';
+import { BarChart3, CalendarDays, FileText } from 'lucide-react';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -105,168 +103,10 @@ export default function ReportsPage({ mode }) {
   ] : [];
 
   const generatePdf = async (print = false) => {
-    const pdfDoc = await PDFDocument.create();
-    const { regular: regularFont, bold: boldFont } = await embedFormFonts(pdfDoc);
-    const green = rgb(0.10, 0.38, 0.27);
-    const lightGreen = rgb(0.91, 0.96, 0.93);
-    const ink = rgb(0.12, 0.17, 0.15);
-
-    if (!isAnnual) {
-      const page = pdfDoc.addPage([595, 842]);
-      const { width, height } = page.getSize();
-      const monthlyRecords = visibleRecords;
-      const countByType = (types) => monthlyRecords.filter((record) => types.includes(record.type)).length;
-      const formRows = forms
-        .filter((formOption) => form === 'ALL' || formOption.value === form)
-        .map((formOption) => [formOption.label, monthlyRecords.filter((record) => record.type === formOption.value).length]);
-      const summaryCards = [
-        ['Received', countByType(['IAR'])],
-        ['Issued', countByType(['RIS', 'ICS'])],
-        ['Returned', countByType(['PRS', 'RETURNED SUPPLY'])],
-        ['Transferred', countByType(['PTR'])],
-        ['Property records', countByType(['PROPERTY CARD', 'PAR'])],
-      ];
-      const drawCentered = (text, y, size, font = regularFont, color = ink) => {
-        size = FORM_PDF_FONT_SIZE;
-        const textWidth = font.widthOfTextAtSize(text, size);
-        page.drawText(text, { x: (width - textWidth) / 2, y, size, font, color });
-      };
-      const drawCenteredInHeader = (text, y, size, font = regularFont, color = ink) => {
-        size = FORM_PDF_FONT_SIZE;
-        const headerLeft = 126;
-        const headerRight = width - 28;
-        const textWidth = font.widthOfTextAtSize(text, size);
-        page.drawText(text, { x: headerLeft + ((headerRight - headerLeft) - textWidth) / 2, y, size, font, color });
-      };
-      const drawSection = (label, x, y, sectionWidth) => {
-        page.drawRectangle({ x, y: y - 2, width: sectionWidth, height: 20, color: green });
-        page.drawText(label, { x: x + 8, y: y + 3, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(1, 1, 1) });
-      };
-      const drawCell = (text, x, y, cellWidth, size = FORM_PDF_FONT_SIZE) => {
-        size = FORM_PDF_FONT_SIZE;
-        page.drawText(String(text).slice(0, 32), { x: x + 6, y, size, font: regularFont, color: ink });
-        page.drawLine({ start: { x, y: y - 5 }, end: { x: x + cellWidth, y: y - 5 }, thickness: 0.4, color: rgb(0.78, 0.84, 0.80) });
-      };
-
-      page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(0.98, 0.99, 0.98) });
-      page.drawRectangle({ x: 0, y: height - 7, width, height: 7, color: green });
-      page.drawRectangle({ x: 0, y: 0, width, height: 7, color: green });
-      try {
-        const logoBytes = await fetch('/lgu-logo.png').then((response) => response.arrayBuffer());
-        const logo = await pdfDoc.embedPng(logoBytes);
-        page.drawImage(logo, { x: 48, y: 754, width: 58, height: 58 });
-      } catch {
-        // The report remains usable if the logo cannot be loaded.
-      }
-      drawCenteredInHeader('MUNICIPALITY OF CARIGARA', 788, 18, boldFont, green);
-      drawCenteredInHeader('SUPPLY OFFICE', 766, 14, boldFont, green);
-      drawCenteredInHeader('Safe and Efficient Supply Management for a Better Service', 749, 8, regularFont, rgb(0.25, 0.31, 0.28));
-      page.drawLine({ start: { x: 28, y: 738 }, end: { x: 567, y: 738 }, thickness: 1.4, color: green });
-      drawCentered('MONTHLY SUPPLY OFFICE REPORT', 706, 19, boldFont, green);
-      drawCentered(`Month: ${MONTHS[month]} ${year}    A.Y.: ${year} - ${year + 1}`, 686, 10, boldFont, ink);
-
-      drawSection('EXECUTIVE SUMMARY', 28, 654, 539);
-      const cardWidth = 99;
-      summaryCards.forEach(([label, value], index) => {
-        const x = 34 + (index * 106);
-        page.drawRectangle({ x, y: 575, width: cardWidth, height: 58, color: lightGreen, borderColor: rgb(0.78, 0.86, 0.81), borderWidth: 0.6 });
-        page.drawText(String(value), { x: x + (cardWidth - boldFont.widthOfTextAtSize(String(value), FORM_PDF_FONT_SIZE)) / 2, y: 606, size: FORM_PDF_FONT_SIZE, font: boldFont, color: green });
-        const labelWidth = regularFont.widthOfTextAtSize(label, FORM_PDF_FONT_SIZE);
-        page.drawText(label, { x: x + (cardWidth - labelWidth) / 2, y: 590, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-        const sublabel = label === 'Received' ? '(IAR)' : label === 'Issued' ? '(RIS / ICS)' : label === 'Returned' ? '(PRS)' : label === 'Transferred' ? '(PTR)' : '(PC / PAR)';
-        const sublabelWidth = regularFont.widthOfTextAtSize(sublabel, FORM_PDF_FONT_SIZE);
-        page.drawText(sublabel, { x: x + (cardWidth - sublabelWidth) / 2, y: 579, size: FORM_PDF_FONT_SIZE, font: regularFont, color: rgb(0.29, 0.38, 0.33) });
-      });
-
-      drawSection('SUPPLY TRANSACTIONS', 28, 554, 260);
-      page.drawRectangle({ x: 34, y: 394, width: 248, height: 145, color: rgb(1, 1, 1), borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      page.drawRectangle({ x: 34, y: 516, width: 248, height: 23, color: lightGreen });
-      page.drawText('Form', { x: 46, y: 524, size: FORM_PDF_FONT_SIZE, font: boldFont, color: ink });
-      page.drawText('Documents', { x: 220, y: 524, size: FORM_PDF_FONT_SIZE, font: boldFont, color: ink });
-      formRows.forEach(([formName, count], index) => {
-        const y = 502 - (index * 17);
-        drawCell(formName, 34, y, 174, 7.5);
-        drawCell(count, 208, y, 74, 7.5);
-      });
-
-      drawSection('TRANSACTIONS OVERVIEW', 307, 554, 260);
-      page.drawRectangle({ x: 313, y: 394, width: 248, height: 145, color: rgb(1, 1, 1), borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      const chartMax = Math.max(...summaryCards.map(([, value]) => value), 1);
-      const chartBottom = 414;
-      summaryCards.forEach(([label, value], index) => {
-        const barHeight = (value / chartMax) * 86;
-        const x = 328 + (index * 45);
-        page.drawRectangle({ x, y: chartBottom, width: 24, height: Math.max(barHeight, 2), color: index % 2 ? rgb(0.32, 0.57, 0.43) : rgb(0.56, 0.73, 0.62) });
-        page.drawText(String(value), { x: x + 7, y: chartBottom + barHeight + 5, size: FORM_PDF_FONT_SIZE, font: boldFont, color: ink });
-        page.drawText(label.slice(0, 8), { x: x - 3, y: 401, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-      });
-      page.drawLine({ start: { x: 322, y: chartBottom }, end: { x: 552, y: chartBottom }, thickness: 0.6, color: rgb(0.55, 0.64, 0.58) });
-
-      drawSection('FORM COVERAGE', 28, 373, 260);
-      page.drawRectangle({ x: 34, y: 245, width: 248, height: 104, color: rgb(1, 1, 1), borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      page.drawText('All monthly form records are listed above.', { x: 46, y: 326, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-      page.drawText(`Total form documents: ${monthlyRecords.length}`, { x: 46, y: 309, size: FORM_PDF_FONT_SIZE, font: boldFont, color: green });
-      page.drawText('The detailed records remain available in the', { x: 46, y: 287, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-      page.drawText('on-screen report table for document review.', { x: 46, y: 274, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-
-      drawSection('NOTABLE ACTIVITIES', 307, 373, 260);
-      page.drawRectangle({ x: 313, y: 245, width: 248, height: 104, color: rgb(1, 1, 1), borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      ['Processed form records for the selected month.', `Recorded ${monthlyRecords.length} document${monthlyRecords.length === 1 ? '' : 's'} across the selected forms.`, 'Updated supply and property accountability records.'].forEach((note, index) => page.drawText(`• ${note}`, { x: 323, y: 326 - (index * 33), size: FORM_PDF_FONT_SIZE, maxWidth: 230, lineHeight: 11, font: regularFont, color: ink }));
-
-      drawSection('REMARKS', 28, 222, 539);
-      page.drawRectangle({ x: 34, y: 139, width: 527, height: 66, color: lightGreen, borderColor: rgb(0.78, 0.84, 0.80), borderWidth: 0.6 });
-      page.drawText('The Supply Office continues to ensure the proper management of supplies', { x: 46, y: 181, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-      page.drawText('and property records. All forms are organized for review and accountability.', { x: 46, y: 166, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-
-      [['Prepared by:', 112], ['Reviewed by:', 285], ['Approved by:', 458]].forEach(([label, x]) => {
-        page.drawLine({ start: { x: x - 58, y: 91 }, end: { x: x + 58, y: 91 }, thickness: 0.7, color: rgb(0.38, 0.47, 0.42) });
-        page.drawText(label, { x: x - 28, y: 78, size: FORM_PDF_FONT_SIZE, font: regularFont, color: ink });
-      });
-    } else {
-    let page = pdfDoc.addPage([595, 842]);
-    let y = 790;
-
-    const addPageIfNeeded = () => {
-      if (y < 60) {
-        page = pdfDoc.addPage([595, 842]);
-        y = 790;
-      }
-    };
-
-    page.drawText('Property Accountability Management System', { x: 40, y, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(0.18, 0.43, 0.40) });
-    y -= 24;
-    page.drawText(`${title} - ${periodLabel}`, { x: 40, y, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(0.12, 0.16, 0.20) });
-    y -= 28;
-    page.drawText(`Issued reports recorded: ${visibleRecords.length}`, { x: 40, y, size: FORM_PDF_FONT_SIZE, font: regularFont, color: rgb(0.35, 0.39, 0.45) });
-    y -= 24;
-    page.drawLine({ start: { x: 40, y }, end: { x: 555, y }, thickness: 1, color: rgb(0.82, 0.86, 0.89) });
-    y -= 20;
-
-    const columns = [
-      { label: 'Report', x: 40 },
-      { label: 'Document number', x: 145 },
-      { label: 'Entity / office', x: 265 },
-      { label: 'Date', x: 400 },
-      { label: 'Status', x: 475 },
-    ];
-    columns.forEach((column) => page.drawText(column.label, { x: column.x, y, size: FORM_PDF_FONT_SIZE, font: boldFont, color: rgb(0.25, 0.31, 0.38) }));
-    y -= 18;
-
-    visibleRecords.forEach((record) => {
-      addPageIfNeeded();
-      const values = [
-        record.type,
-        record.documentNumber || 'Unnumbered',
-        record.entityName || '—',
-        formatDate(record.reportDate),
-        record.status || 'RECORDED',
-      ];
-      values.forEach((value, index) => page.drawText(String(value).slice(0, index === 2 ? 22 : 18), { x: columns[index].x, y, size: FORM_PDF_FONT_SIZE, font: regularFont, color: rgb(0.20, 0.24, 0.29) }));
-      y -= 19;
+    const pdfBytes = await buildReportsPdf({
+      annual: isAnnual, title, periodLabel, year, monthName: MONTHS[month],
+      records: visibleRecords, forms, selectedForm: form,
     });
-    }
-
-    const pdfBytes = await pdfDoc.save();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     if (print) {

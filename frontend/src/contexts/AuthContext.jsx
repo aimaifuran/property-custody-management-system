@@ -3,6 +3,7 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
 import { loadStickySignatories } from '../utils/stickySignatories';
+import { installSessionRefresh } from '../utils/sessionRefresh';
 
 const AuthContext = createContext(null);
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
@@ -16,24 +17,7 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
-const authTokenKey = 'pais_auth_token';
-const legacyAuthTokenKey = 'pcms_auth_token';
-
-const setAuthToken = (token) => {
-  if (token) {
-    axios.defaults.headers.common.Authorization = `Bearer ${token}`;
-    return;
-  }
-
-  delete axios.defaults.headers.common.Authorization;
-};
-
-const savedToken = localStorage.getItem(authTokenKey) || localStorage.getItem(legacyAuthTokenKey);
-if (savedToken) {
-  localStorage.setItem(authTokenKey, savedToken);
-  localStorage.removeItem(legacyAuthTokenKey);
-  setAuthToken(savedToken);
-}
+const authSession = installSessionRefresh(axios, { storage: localStorage });
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -61,10 +45,7 @@ export const AuthProvider = ({ children }) => {
     const { data } = await axios.post('/auth/login', { identifier, password, rememberMe });
     const accessToken = data.data?.accessToken;
 
-    if (accessToken) {
-      localStorage.setItem(authTokenKey, accessToken);
-      setAuthToken(accessToken);
-    }
+    authSession.setToken(accessToken);
 
     if (data.data?.user?.role === 'admin') await loadStickySignatories().catch(() => {});
     setUser(data.data?.user || null);
@@ -75,13 +56,12 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setLoggingOut(true);
     try {
+      await authSession.beginLogout();
       await axios.post('/auth/logout');
-      localStorage.removeItem(authTokenKey);
-      localStorage.removeItem(legacyAuthTokenKey);
-      setAuthToken(null);
-      setUser(null);
       toast.success('Signed out');
     } finally {
+      authSession.clearToken();
+      setUser(null);
       setLoggingOut(false);
     }
   };

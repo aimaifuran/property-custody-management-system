@@ -5,14 +5,14 @@ const crypto = require('node:crypto');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const User = require('../src/models/User');
 const RIS = require('../src/models/RequisitionIssueSlip');
 const PropertyReturnSlip = require('../src/models/PropertyReturnSlip');
 const mailer = require('../src/utils/mailer');
 
 test('merged deployment routes, list responses, login locks and password recovery remain compatible', { timeout: 60000 }, async t => {
-  const database = await MongoMemoryServer.create({ binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
+  const database = await MongoMemoryReplSet.create({ replSet: { count: 1 }, binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
   await mongoose.connect(database.getUri());
   const originalMailer = mailer.sendPasswordResetEmail;
   const originalFrontendUrl = process.env.FRONTEND_URL;

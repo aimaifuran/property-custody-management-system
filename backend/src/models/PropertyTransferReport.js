@@ -7,10 +7,16 @@ const propertyTransferReportSchema = new mongoose.Schema({
   toAccountableOfficer: { type: String, trim: true },
   ptrNumber: { type: String, required: true, unique: true, trim: true },
   date: { type: Date },
+  fromUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+  toUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+  status: { type: String, enum: ['RECORDED', 'PENDING_RECEIVER', 'PENDING_ADMIN', 'APPROVED', 'REJECTED'], default: 'RECORDED' },
+  receiverConfirmedAt: Date,
+  rejectionReason: String,
   // Holds the chosen transfer type; when the "Others" option is picked on the
   // form, this stores the free-text value the user specified instead.
   transferType: { type: String, trim: true },
   items: [{
+    accountability: { type: mongoose.Schema.Types.ObjectId, ref: 'PropertyAccountability' },
     dateAcquired: Date,
     propertyNumber: String,
     description: String,
@@ -35,6 +41,7 @@ const propertyTransferReportSchema = new mongoose.Schema({
     date: { type: Date },
   },
   deleted: { type: Boolean, default: false },
+  lastEditedAt: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('PropertyTransferReport', propertyTransferReportSchema);

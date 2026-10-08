@@ -1,9 +1,10 @@
 import { buildRisPdf } from './risPdf.js';
-import { FORM_PDF_FONT_SIZE } from './formPdfStyle.js';
+import { buildPtrPdf } from './ptrPdf.js';
 export { FORM_PDF_FONT_SIZE } from './formPdfStyle.js';
+import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_A4_PORTRAIT } from './formPdfStyle.js';
 import { embedFormFonts } from './formPdfFonts.js';
-import { useTimesNewRomanInTemplate } from './templatePdfFonts.js';
-import { PDFDocument, PDFTextField, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
+import { appendTemplateInformation, drawStandardFormHeaders, drawTemplateRows, drawTemplateTableFrame, paginateTemplateItems, templateRowLayout } from './templatePdfLayout.js';
+import { PDFDocument } from 'pdf-lib';
 
 export const FORM_TEMPLATES = { IAR: 'iar', 'PROPERTY CARD': 'pc', RIS: 'ris', ICS: 'ics', PAR: 'par', PTR: 'ptr', PRS: 'prs', 'RETURNED SUPPLY': 'prs' };
 const dateText = value => {
@@ -43,6 +44,7 @@ export function templateFieldValue(name, data, items) {
   if (key === 'stockNumber') value ??= source.stock_number ?? source.stockPropertyNumber;
   if (key === 'description') value ??= source.itemName ?? source.item;
   if (key === 'supplierName') value ??= data.supplier?.name;
+  if (key === 'acceptedBy') value ??= data.custodian ?? data.receivedBy;
   if (key === 'totalAmount' && value == null && data.totalValue != null) value = data.totalValue;
   if (key === 'totalAmount' && value == null && data.items?.length) value = data.items.reduce((sum, item) => sum + Number(item.totalCost ?? item.totalValue ?? item.amount ?? 0), 0);
   if (key.toLowerCase().includes('date') || key === 'month') return dateText(value);
@@ -50,54 +52,29 @@ export function templateFieldValue(name, data, items) {
   return text(value);
 }
 
-function normalizeTemplateFonts(document) {
-  for (const [reference, object] of document.context.enumerateIndirectObjects()) {
-      if (!(object instanceof PDFRawStream)) continue;
-      let content;
-      try { content = Array.from(decodePDFRawStream(object).decode(), byte => String.fromCharCode(byte)).join(''); } catch { continue; }
-      if (!/\/[^\s]+\s+[\d.]+\s+Tf\b/.test(content)) continue;
-      const normalized = content.replace(/(\/[^\s]+\s+)[\d.]+(\s+Tf\b)/g, `$1${FORM_PDF_FONT_SIZE}$2`);
-      const dictionary = object.dict.clone(document.context);
-      dictionary.delete(document.context.obj('Filter'));
-      dictionary.delete(document.context.obj('DecodeParms'));
-      const bytes = Uint8Array.from(normalized, character => character.charCodeAt(0));
-      document.context.assign(reference, document.context.flateStream(bytes, Object.fromEntries(dictionary.entries().filter(([key]) => key.toString() !== '/Length').map(([key, value]) => [key.decodeText(), value]))));
-    }
-}
-
-// Reuse the official form assets; render every row, including continuation pages.
-export async function buildHistoricalFormPdf(record, loadTemplate = async path => {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error('Unable to load the official PDF template');
-  return response.arrayBuffer();
-}) {
-  if (record.type === 'RIS') return buildRisPdf(record.details || {});
+// Draw the official sections once per page in one document. Reopening, flattening
+// and copying native templates for every page needlessly delayed print previews.
+export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}) {
+  if (record.type === 'RIS') return buildRisPdf(record.details || {}, options);
+  if (record.type === 'PTR') return buildPtrPdf(record.details || {}, options);
   const template = FORM_TEMPLATES[record.type];
   if (!template) throw new Error('No PDF template is available for this record type');
   const data = { ...(record.details || {}), _template: template };
   const items = Array.isArray(data.items) ? data.items : record.type === 'RETURNED SUPPLY' ? [data] : [];
-  const templateBytes = await loadTemplate(`/forms/templates/${template}-template.pdf`);
-  const sample = await PDFDocument.load(templateBytes);
-  const rowNumbers = sample.getForm().getFields().map(field => field.getName().match(/^(?:quantity|date|stockNumber|description)\d+$/)?.[0]).filter(Boolean).map(name => Number(name.match(/\d+$/)[0]));
-  const capacity = Math.max(1, ...rowNumbers);
   const output = await PDFDocument.create();
-  for (let offset = 0; offset < Math.max(1, items.length); offset += capacity) {
-    const document = await PDFDocument.load(templateBytes);
-    const fonts = await embedFormFonts(document);
-    useTimesNewRomanInTemplate(document, fonts);
-    normalizeTemplateFonts(document);
-    const form = document.getForm();
-    for (const field of form.getFields()) {
-      if (field instanceof PDFTextField) { field.setText(templateFieldValue(field.getName(), data, items.slice(offset, offset + capacity))); field.setFontSize(FORM_PDF_FONT_SIZE); }
-    }
-    form.updateFieldAppearances(fonts.regular);
-    form.flatten({ updateFieldAppearances: false });
-    const pages = await output.copyPages(document, document.getPageIndices());
-    pages.forEach(page => output.addPage(page));
+  const fonts = await embedFormFonts(output, ['regular', 'bold']);
+  const layout = templateRowLayout(template, fonts.bold);
+  const itemOverflow = [];
+  const itemPages = paginateTemplateItems(items, layout, fonts.regular, (key, item) => templateFieldValue(`${key}1`, data, [item]), { onOverflow: entry => itemOverflow.push(entry) });
+  let overflow = [];
+  for (const [pageIndex, rows] of itemPages.entries()) {
+    const page = output.addPage(template === 'pc' ? FORM_PDF_A4_LANDSCAPE : FORM_PDF_A4_PORTRAIT);
+    drawTemplateTableFrame(page, fonts, rows, layout, { ...options, page: pageIndex });
+    const headerOverflow = drawStandardFormHeaders(page, fonts, layout, key => templateFieldValue(key, data, []), data, { ...options, page: pageIndex });
+    if (pageIndex === 0) overflow = [...headerOverflow, ...itemOverflow];
+    drawTemplateRows(page, fonts.regular, rows, layout, { ...options, page: pageIndex });
   }
-  // Flattening can generate additional appearance streams. Normalize the saved
-  // document too so both static captions and field text have one fixed size.
-  const finalDocument = await PDFDocument.load(await output.save());
-  normalizeTemplateFonts(finalDocument);
-  return finalDocument.save();
+  const number = data.iarNumber || data.icsNumber || data.parNumber || data.prsNumber || data.propertyNumber;
+  await appendTemplateInformation(output, overflow, record.type, number, async () => fonts, options);
+  return output.save();
 }

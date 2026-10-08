@@ -47,6 +47,7 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
   inventoryCustodianSlip: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryCustodianSlip' },
   propertyAcknowledgementReceipt: { type: mongoose.Schema.Types.ObjectId, ref: 'PropertyAcknowledgementReceipt' },
   signatureHash: { type: String },
+  returnRevision: { type: Number, default: 0 },
   items: [{
     stockNumber: { type: String, default: null },
     unit: String,
@@ -58,13 +59,14 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
     totalCost: Number,
     remarks: String,
     unitCost: Number,
-    formType: { type: String, enum: ['ICS', 'PAR'] },
+    formType: { type: String, enum: ['ICS', 'PAR', 'SUPPLY'] },
     documentNumber: String,
     issuanceForm: mongoose.Schema.Types.ObjectId,
     accountability: { type: mongoose.Schema.Types.ObjectId, ref: 'PropertyAccountability' },
   }],
   totalQuantity: { type: Number, default: 0 },
   deleted: { type: Boolean, default: false },
+  lastEditedAt: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('RequisitionIssueSlip', requisitionIssueSlipSchema);

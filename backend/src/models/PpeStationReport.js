@@ -18,5 +18,6 @@ const schema = new mongoose.Schema({
   reviewedDesignation: { type: String, maxlength: 200 },
   rows: { type: [row], validate: { validator: rows => rows.length >= 1 && rows.length <= 500, message: 'Enter between 1 and 500 PPE rows' } },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  lastEditedAt: Date,
 }, { timestamps: true });
 module.exports = mongoose.model('PpeStationReport', schema);

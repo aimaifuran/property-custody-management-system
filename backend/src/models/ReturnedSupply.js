@@ -7,6 +7,7 @@ const returnedSupplySchema = new mongoose.Schema({
   lguName: { type: String, trim: true },
   purpose: { type: String, trim: true },
   quantity: { type: Number },
+  condition: { type: String, enum: ['Serviceable', 'Unserviceable'] },
   unit: { type: String },
   description: { type: String },
   propertyNumber: { type: String },
@@ -26,6 +27,7 @@ const returnedSupplySchema = new mongoose.Schema({
     designation: { type: String, trim: true },
   },
   deleted: { type: Boolean, default: false },
+  lastEditedAt: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('ReturnedSupply', returnedSupplySchema);

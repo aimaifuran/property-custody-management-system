@@ -6,6 +6,7 @@ const Accountability = require('../models/PropertyAccountability');
 const ICS = require('../models/InventoryCustodianSlip');
 const PAR = require('../models/PropertyAcknowledgementReceipt');
 const PropertyCard = require('../models/PropertyCard');
+const PTR = require('../models/PropertyTransferReport');
 
 const itemGroup = description => {
   const value = String(description || '').trim();
@@ -24,13 +25,14 @@ async function annualOfficeItems(year, acquiredOnly = false) {
   const start = new Date(Date.UTC(year, 0, 1) - 8 * 60 * 60 * 1000);
   const beforeEnd = date => date && new Date(date) < end;
   const inPeriod = date => beforeEnd(date) && (!acquiredOnly || new Date(date) >= start);
-  const [slips, returns, properties, accountabilities, ics, pars, cards, supplies] = await Promise.all([
+  const [slips, returns, properties, accountabilities, ics, pars, cards, supplies, transfers] = await Promise.all([
     RIS.find({ deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } }).lean(),
     PRS.find({ deleted: false, status: 'RETURNED' }).lean(),
     Property.find({ deleted: false }).lean(),
     Accountability.find({ deleted: false }).populate({ path: 'inventory', populate: { path: 'item' } }).lean(),
     ICS.find({ deleted: false }).lean(), PAR.find({ deleted: false }).lean(), PropertyCard.find({ deleted: false }).lean(),
     ReturnedSupply.find({ deleted: false, prs: null, ris: { $ne: null } }).lean(),
+    PTR.find({ deleted: false, status: 'APPROVED', fromUser: { $exists: true } }).lean(),
   ]);
   const returned = new Map();
   for (const record of returns) {
@@ -59,18 +61,24 @@ async function annualOfficeItems(year, acquiredOnly = false) {
     if (!beforeEnd(date)) continue;
     if (slip.iar) coveredIars.add(String(slip.iar));
     if (!inPeriod(date)) continue;
-    for (const item of slip.items || []) add({ id: `${slip._id}:${item._id}`, description: item.description, unit: item.unit, stockNumber: item.stockNumber, quantity: Math.max(0, Number(item.quantityIssued || 0) - (returned.get(`${slip._id}:${item._id}`) || 0)), office: slip.office, custodian: slip.receivedBy?.name || slip.requestedBy?.name, documentNumber: slip.risNumber || 'Unnumbered RIS', date, source: 'RIS' });
+    for (const item of slip.items || []) {
+      const accountability = accountabilities.find(row => String(row.ris) === String(slip._id) && String(row.risItem) === String(item._id));
+      const movements = (accountability?.transferHistory || []).filter(row => beforeEnd(row.date)).sort((a, b) => new Date(a.date) - new Date(b.date));
+      const movement = movements.at(-1);
+      const transfer = movement && transfers.find(row => String(row._id) === String(movement.ptr));
+      add({ id: `${slip._id}:${item._id}`, description: item.description, unit: item.unit, stockNumber: item.stockNumber, propertyNumber: accountability?.propertyNumber || accountability?.inventory?.propertyNumber, quantity: Math.max(0, Number(item.quantityIssued || 0) - (returned.get(`${slip._id}:${item._id}`) || 0)), office: transfer?.receivedBy?.designation || slip.office, custodian: transfer?.toAccountableOfficer || slip.receivedBy?.name || slip.requestedBy?.name, documentNumber: movement?.toDocumentNumber || slip.risNumber || 'Unnumbered RIS', date, source: transfer ? accountability.formType : 'RIS' });
+    }
   }
   for (const record of accountabilities) {
     const inventory = record.inventory;
-    if (!inventory || inventory.deleted || coveredIars.has(String(inventory.inspectionAcceptanceReport)) || !inPeriod(record.issueDate)) continue;
+    if (!inventory || inventory.deleted || record.ris || coveredIars.has(String(inventory.inspectionAcceptanceReport)) || !inPeriod(record.issueDate)) continue;
     // Inactive legacy accountabilities do not retain dated return/transfer history.
     if (!record.active) continue;
     add({ id: String(record._id), description: inventory.item?.description, stockNumber: inventory.item?.stockNumber, unit: inventory.item?.unit, propertyNumber: record.propertyNumber || inventory.propertyNumber, quantity: inventory.quantity, office: record.office, custodian: record.employee, documentNumber: record.documentNumber, date: record.issueDate, source: record.formType });
   }
   for (const [records, type] of [[ics, 'ICS'], [pars, 'PAR']]) {
     for (const record of records) {
-      if (record.iar || !inPeriod(record.receivedBy?.date || record.createdAt)) continue;
+      if (record.iar || record.ris || !inPeriod(record.receivedBy?.date || record.createdAt)) continue;
       for (const item of record.items || []) {
         const number = item.propertyNumber || item.inventoryItemNo;
         if (number && propertyNumbers.has(number)) continue;

@@ -10,10 +10,13 @@ const ActivityLog = require('../models/ActivityLog');
 const User = require('../models/User');
 const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const ReturnedSupply = require('../models/ReturnedSupply');
+const Accountability = require('../models/PropertyAccountability');
+const { notifyAdmins, notifyUsers } = require('../utils/workflowNotifications');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
 const { listRecords } = require('../utils/paginate');
+const { reserveDocumentNumber } = require('../utils/documentNumber');
 const router = express.Router();
 
 const RIS_SEARCH_FIELDS = [
@@ -75,7 +78,9 @@ router.post('/my-requests', authenticate, async (req, res) => {
     requestedItems.push({ stockNumber: entry.stockNumber, description, unit: entry.unit || item?.unit || '', quantityRequested: quantity, quantityIssued: 0 });
   }
   const person = { user: req.user._id, name: getUserLabel(req.user), designation: req.user.office, date: new Date() };
-  const ris = await RequisitionIssueSlip.create({ risNumber: `RIS-${new Date().getFullYear()}-${crypto.randomUUID()}`, entityName: (await Setting.findOne().sort({ createdAt: 1 }).lean())?.entityName || 'LGU Carigara', division: req.user.division, office: req.user.office, purpose: String(purpose).trim(), requestedBy: person, receivedBy: person, items: requestedItems, status: 'PENDING_REVIEW' });
+  const risNumber = await reserveDocumentNumber(RequisitionIssueSlip, 'risNumber');
+  const ris = await RequisitionIssueSlip.create({ risNumber, entityName: (await Setting.findOne().sort({ createdAt: 1 }).lean())?.entityName || 'LGU Carigara', division: req.user.division, office: req.user.office, purpose: String(purpose).trim(), requestedBy: person, receivedBy: person, items: requestedItems, status: 'PENDING_REVIEW' });
+  await notifyAdmins('New supply/property request', `${getUserLabel(req.user)} submitted ${ris.risNumber}.`, '/ris');
   await ActivityLog.create({ user: req.user._id, action: 'RIS created', details: `RIS ${ris.risNumber} submitted by user for admin review`, ipAddress: req.ip, browser: req.get('user-agent') });
   return successResponse(res, 'Request submitted for admin review', ris, 201);
 });
@@ -110,7 +115,7 @@ router.get('/returnable-items', authenticate, authorize('canManageInventory'), a
 });
 
 router.get('/request-items', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const items = await Item.find({ deleted: false }).select('stockNumber description name unit').sort({ stockNumber: 1 });
+  const items = await Item.find({ deleted: false }).select('stockNumber description name unit itemType quantityOnHand').sort({ stockNumber: 1 });
   return successResponse(res, 'Requestable items retrieved', items);
 });
 
@@ -120,14 +125,17 @@ router.get(['/my-items', '/my-returns'], authenticate, (req, res, next) => req.p
   const records = await RequisitionIssueSlip.find({ deleted: false, ...ownRisFilter(req.user), ...(!includeRequests ? { status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } } : {}) }).sort({ createdAt: -1 });
   const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': { $in: records.map(record => record._id) } }).sort({ createdAt: -1 });
   const directReturns = await ReturnedSupply.find({ deleted: false, prs: null, ris: { $in: records.map(record => record._id) } });
-  const items = records.flatMap(ris => ris.items.filter(item => includeRequests || item.quantityIssued > 0).map(item => {
+  const custody = await Accountability.find({ deleted: false, ris: { $in: records.map(record => record._id) } }).lean();
+  const items = records.flatMap(ris => ris.items.filter(item => { const row = custody.find(row => String(row.ris) === String(ris._id) && String(row.risItem) === String(item._id)); return includeRequests || (item.quantityIssued > 0 && (!row || String(row.user) === String(req.user._id))); }).map(item => {
+    const asset = custody.find(row => String(row.ris) === String(ris._id) && String(row.risItem) === String(item._id));
+    const transferred = asset && String(asset.user) !== String(req.user._id);
     const issued = ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(ris.status);
     const returns = slips.flatMap(slip => slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: slip.prsNumber, status: slip.status || 'RETURNED', rejectionReason: slip.rejectionReason, date: slip.returnedTo?.date || slip.createdAt, receivedBy: slip.returnedTo?.name, note: slip.note })));
     returns.push(...directReturns.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: 'Returned Supply', status: 'RETURNED', date: entry.returnedTo?.date || entry.createdAt, receivedBy: entry.returnedTo?.name, note: entry.note })));
     const quantityReturned = returns.filter(entry => entry.status === 'RETURNED').reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
     const pendingReturn = returns.some(entry => entry.status === 'PENDING');
     const requestStatuses = { DRAFT: 'Recorded request', PENDING_REVIEW: 'Pending admin review', PENDING_APPROVAL: 'Pending approval', REVIEWED: 'Reviewed — awaiting issuance', APPROVED: 'Approved — awaiting issuance', REJECTED: 'Request rejected' };
-    return { risId: ris._id, itemId: item._id, risNumber: ris.risNumber, requestStatus: ris.status, recordedAt: ris.createdAt, quantityRequested: item.quantityRequested, issued, formType: item.formType, documentNumber: item.documentNumber, formId: item.issuanceForm, unitCost: item.unitCost, description: item.description, stockNumber: item.stockNumber, quantityIssued: issued ? item.quantityIssued : 0, issuedAt: issued ? ris.issuedAt : null, quantityReturned, pendingReturn, quantityRemaining: issued ? Math.max(0, item.quantityIssued - quantityReturned) : 0, status: !issued ? requestStatuses[ris.status] || 'Recorded request' : pendingReturn ? 'Awaiting admin confirmation' : quantityReturned >= item.quantityIssued && item.quantityIssued > 0 ? 'Successfully returned' : quantityReturned > 0 ? 'Partially returned' : item.quantityIssued > 0 ? 'Not returned' : 'Not issued', returns };
+    return { risId: ris._id, itemId: item._id, risNumber: ris.risNumber, requestStatus: ris.status, recordedAt: ris.createdAt, quantityRequested: item.quantityRequested, issued, formType: item.formType, documentNumber: item.documentNumber, formId: item.issuanceForm, unitCost: item.unitCost, description: item.description, unit: item.unit, stockNumber: item.stockNumber, quantityIssued: issued ? item.quantityIssued : 0, issuedAt: issued ? ris.issuedAt : null, quantityReturned, pendingReturn: pendingReturn || !!asset?.pendingMovement, transferred, acceptedAt: asset?.acceptedAt, quantityRemaining: issued && !transferred ? Math.max(0, item.quantityIssued - quantityReturned) : 0, status: transferred ? 'Transferred to another custodian' : !issued ? requestStatuses[ris.status] || 'Recorded request' : pendingReturn ? 'Awaiting admin confirmation' : quantityReturned >= item.quantityIssued && item.quantityIssued > 0 ? 'Successfully returned' : quantityReturned > 0 ? 'Partially returned' : item.quantityIssued > 0 ? 'Not returned' : 'Not issued', returns };
   }));
   return successResponse(res, 'Your item return status retrieved', items);
 });
@@ -148,17 +156,29 @@ router.post('/my-returns', authenticate, async (req, res) => {
   const inventory = stock ? await Inventory.findOne({ item: stock._id, deleted: false }).sort({ createdAt: -1 }) : null;
   const unitValue = Number(inventory?.unitCost ?? stock?.cost ?? 0);
   try {
-    const report = await PropertyReturnSlip.create({ prsNumber: `PRS-${new Date().getFullYear()}-${crypto.randomUUID()}`, lguName: ris.entityName || 'LGU Carigara', purpose: 'Returned To Stock', submittedBy: req.user._id, status: 'PENDING', pendingKey: `${ris._id}:${item._id}`, items: [{ ris: ris._id, risItem: item._id, quantity, unit: item.unit, description: item.description, propertyNumber: inventory?.propertyNumber || '', mrNumber: ris.risNumber, unitValue, totalValue: quantity * unitValue }], returnedBy: { name: getUserLabel(req.user), designation: req.user.office, date: new Date() } });
+    const report = await mongoose.connection.transaction(async session => {
+      const asset = await Accountability.findOne({ ris: ris._id, risItem: item._id, deleted: false }).session(session);
+      if (asset && (!asset.active || String(asset.user) !== String(req.user._id))) throw new Error('This property is no longer under your accountability');
+      if (asset?.pendingMovement) throw Object.assign(new Error('This property already has a pending movement'), { code: 11000 });
+      const prsNumber = await reserveDocumentNumber(PropertyReturnSlip, 'prsNumber', new Date(), session);
+      const [created] = await PropertyReturnSlip.create([{ prsNumber, lguName: ris.entityName || 'LGU Carigara', purpose: 'Returned To Stock', submittedBy: req.user._id, status: 'PENDING', pendingKey: `${ris._id}:${item._id}`, items: [{ ris: ris._id, risItem: item._id, quantity, unit: item.unit, description: item.description, propertyNumber: inventory?.propertyNumber || '', mrNumber: ris.risNumber, unitValue, totalValue: quantity * unitValue }], returnedBy: { user: req.user._id, name: getUserLabel(req.user), designation: req.user.office, date: new Date() } }], { session });
+      if (asset) {
+        created.items[0].accountability = asset._id;
+        asset.pendingMovement = `PRS:${created._id}`;
+        await asset.save({ session }); await created.save({ session });
+      }
+      await notifyAdmins('Return awaiting receipt', `${getUserLabel(req.user)} submitted ${created.prsNumber}.`, '/returns', session);
+      return created;
+    });
     await ActivityLog.create({ user: req.user._id, action: 'Return submitted', details: `Return ${report.prsNumber} submitted for admin confirmation`, ipAddress: req.ip, browser: req.get('user-agent') });
     return successResponse(res, 'Return slip sent to admin', report, 201);
   } catch (error) {
     if (error.code === 11000) return errorResponse(res, 'This item already has a return awaiting admin confirmation', [], 409);
-    throw error;
+    return errorResponse(res, error.message, [], 400);
   }
 });
 
 router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
-  body('risNumber').notEmpty().withMessage('RIS number is required'),
   body('entityName').notEmpty().withMessage('Entity name is required'),
   body('fundCluster').notEmpty().withMessage('Fund cluster is required'),
   body('division').notEmpty().withMessage('Division is required'),
@@ -171,6 +191,7 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
   if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
   const payload = { ...req.body };
+  delete payload.lastEditedAt;
   const settings = await Setting.findOne().sort({ createdAt: 1 }).lean();
   if (settings?.entityName) payload.entityName = settings.entityName;
   try {
@@ -179,6 +200,8 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
     payload.receivedBy = await resolvePersonUser(payload.receivedBy);
     if (payload.requestedBy?.name && !payload.requestedBy.user) return errorResponse(res, 'Requested by does not match a user account. Select the Linked user account under Requested by so the RIS appears in that account.', [], 400);
   } catch (error) { return errorResponse(res, error.message, [], 400); }
+  if (payload.autoNumber === true || !String(payload.risNumber || '').trim()) payload.risNumber = await reserveDocumentNumber(RequisitionIssueSlip, 'risNumber');
+  delete payload.autoNumber;
   const ris = await RequisitionIssueSlip.create({
     ...payload,
     status: 'PENDING_REVIEW',
@@ -199,7 +222,7 @@ router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), as
   const existing = await RequisitionIssueSlip.findOne({ _id: req.params.id, deleted: false });
   if (!existing) return errorResponse(res, 'RIS not found', [], 404);
   if (['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(existing.status)) return errorResponse(res, 'Issued RIS records are locked to preserve their linked stock and accountability. Use the return workflow for issued items.', [], 409);
-  const updates = { ...req.body };
+  const updates = { ...req.body, lastEditedAt: new Date() };
   for (const key of ['inventoryCustodianSlip', 'propertyAcknowledgementReceipt', 'issuedAt', 'signatureHash']) delete updates[key];
   if (['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(updates.status)) return errorResponse(res, 'Use the issuance action to issue a RIS', [], 400);
   try {
@@ -208,6 +231,8 @@ router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), as
     if (updates.receivedBy) updates.receivedBy = await resolvePersonUser(updates.receivedBy);
     if (updates.requestedBy?.name && !updates.requestedBy.user) return errorResponse(res, 'Requested by does not match a user account. Select the Linked user account under Requested by.', [], 400);
   } catch (error) { return errorResponse(res, error.message, [], 400); }
+  if (!String(existing.risNumber || '').trim() && !String(updates.risNumber || '').trim()) updates.risNumber = await reserveDocumentNumber(RequisitionIssueSlip, 'risNumber');
+  delete updates.autoNumber;
   if (updates.items) updates.items = updates.items.map((entry) => ({ ...entry, totalCost: entry.totalCost ?? null }));
   const ris = await RequisitionIssueSlip.findOneAndUpdate({ _id: req.params.id, deleted: false, status: { $nin: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } }, updates, { new: true, runValidators: true });
   if (!ris) return errorResponse(res, 'RIS not found', [], 404);
@@ -279,17 +304,12 @@ router.post('/:id/reject', authenticate, [
   const errors = validationResult(req);
   if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
-  const ris = await RequisitionIssueSlip.findById(req.params.id);
-  if (!ris || ris.deleted) return errorResponse(res, 'RIS not found', [], 404);
-  if (ris.status !== 'PENDING_APPROVAL') return errorResponse(res, 'RIS is not pending approval', [], 400);
-
+  const reason = String(req.body.rejectionReason).trim();
+  if (!reason) return errorResponse(res, 'Rejection reason is required', [], 400);
   const rejecter = getUserLabel(req.user);
-  ris.status = 'REJECTED';
-  ris.rejectionReason = req.body.rejectionReason;
-  ris.rejectedBy = rejecter;
-  ris.rejectedAt = new Date();
-  ris.signatureHash = createSignatureHash({ risId: ris._id.toString(), action: 'REJECTED', userId: req.user._id.toString(), reason: req.body.rejectionReason, at: Date.now() });
-  await ris.save();
+  const ris = await RequisitionIssueSlip.findOneAndUpdate({ _id: req.params.id, deleted: false, status: { $in: ['PENDING_REVIEW', 'PENDING_APPROVAL', 'REVIEWED', 'APPROVED'] } }, { $set: { status: 'REJECTED', rejectionReason: reason, rejectedBy: rejecter, rejectedAt: new Date(), signatureHash: createSignatureHash({ risId: req.params.id, action: 'REJECTED', userId: String(req.user._id), reason, at: Date.now() }) } }, { returnDocument: 'after' });
+  if (!ris) return errorResponse(res, 'RIS is no longer awaiting approval', [], 409);
+  await notifyUsers([ris.requestedBy?.user || ris.receivedBy?.user], 'Request rejected', `${ris.risNumber}: ${reason}`, '/ris');
 
   await ActivityLog.create({
     user: req.user._id,

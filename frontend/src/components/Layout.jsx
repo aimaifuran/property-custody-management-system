@@ -6,6 +6,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
+import { preloadFormFonts } from '../utils/formPdfFonts';
 
 const issueItems = [
   { to: '/iar', label: 'Inspection and Acceptance Report', icon: FileCheck2, permissions: ['canViewIAR', 'canManageIAR'], adminOnly: true },
@@ -23,12 +24,12 @@ const reportItems = [
 ];
 
 const navItems = [
-  { to: '/my-issued-items', label: 'My Issues Items', icon: Archive, permissions: ['canViewRIS'], userOnly: true },
+  { to: '/my-issued-items', label: 'Issued Items', icon: Archive, permissions: ['canViewRIS'], userOnly: true },
   { to: '/my-returns', label: 'Returned Items', icon: RotateCcw, permissions: ['canViewRIS'], userOnly: true },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissions: ['canViewDashboard'] },
   { to: '__issue__', label: 'Issue', icon: FileText, permissions: [] },
-  { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewDashboard', 'canManageInventory'], adminOnly: true },
-  { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewDashboard', 'canManageInventory'], adminOnly: true },
+  { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
+  { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '/returned-supply', label: 'Returned Supply', icon: ClipboardList, permissions: ['canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
   { to: '/users', label: 'User Management', icon: Users, permissions: ['canManageUsers'] },
@@ -39,7 +40,7 @@ const canAccessNavItem = (user, item) => {
   if (item.userOnly) return user?.role === 'user' && item.permissions?.some((permission) => user?.permissions?.includes(permission));
   if (user?.role === 'admin') return true;
   if (item.adminOnly) return false;
-  if (item.to === '__issue__') return issueItems.some(childItem => childItem.userOnly && canAccessNavItem(user, childItem));
+  if (item.to === '__issue__') return issueItems.some(childItem => canAccessNavItem(user, childItem));
   return false;
 };
 
@@ -48,6 +49,16 @@ export default function Layout() {
   const location = useLocation();
   const [pendingResets, setPendingResets] = useState(0);
   const notifiedResets = useRef(new Set());
+
+  useEffect(() => {
+    const warmFonts = () => { preloadFormFonts(['regular', 'bold']).catch(() => {}); };
+    if (window.requestIdleCallback) {
+      const task = window.requestIdleCallback(warmFonts, { timeout: 1000 });
+      return () => window.cancelIdleCallback(task);
+    }
+    const timer = window.setTimeout(warmFonts, 200);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (user?.role !== 'admin') return undefined;
@@ -76,7 +87,8 @@ export default function Layout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
-    setMobileSidebarOpen(false);
+    const frame = requestAnimationFrame(() => setMobileSidebarOpen(false));
+    return () => cancelAnimationFrame(frame);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -205,7 +217,7 @@ export default function Layout() {
             return (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => `flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-slate-500 hover:bg-white/70 hover:text-emerald-800'}`}>
                 <Icon size={18} />
-                {item.label}
+                {item.to === '/custody' ? user?.role === 'admin' ? 'Workflow Approvals (PTR / PRS)' : 'My ICS / PAR · PTR / PRS' : item.label}
                 {item.to === '/users' && pendingResets > 0 && <span aria-label={`${pendingResets} password reset requests awaiting approval`} className="ml-auto rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{pendingResets}</span>}
               </NavLink>
             );

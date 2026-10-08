@@ -1,3 +1,7 @@
+import { sortSavedReports } from '../utils/savedReportOrder';
+import useSavedReportPage from '../utils/useSavedReportPage';
+import NewFormBadge from '../components/NewFormBadge';
+import { useAuth } from '../contexts/AuthContext';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import UserAccountSelect from '../components/UserAccountSelect';
@@ -20,10 +24,12 @@ import { getStickySignatory, saveStickySignatory } from '../utils/stickySignator
 import Pagination from '../components/Pagination';
 import { FileText, Printer } from 'lucide-react';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
+import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
 
 const FIXED_PURPOSES = ['Disposal', 'Repair', 'Returned To Stock'];
 
 const emptyItem = () => ({
+    accountability: '',
     ris: '',
     risItem: '',
     quantity: '',
@@ -38,6 +44,7 @@ const emptyItem = () => ({
 const emptySignatory = () => ({ date: '', name: '', designation: '' });
 
 const initial = {
+    prsNumber: '',
     lguName: '',
     purposeChoice: null,
     purposeOther: '',
@@ -69,10 +76,12 @@ const toFormSignatory = (signatory = {}) => ({
 });
 
 const toForm = (record) => ({
+    prsNumber: record.prsNumber || '',
     lguName: record.lguName || '',
     purposeChoice: FIXED_PURPOSES.includes(record.purpose) ? record.purpose : 'Other',
     purposeOther: FIXED_PURPOSES.includes(record.purpose) ? '' : (record.purpose || ''),
     items: record.items && record.items.length ? record.items.map((item) => ({
+        accountability: item.accountability || '',
         ris: item.ris || '',
         risItem: item.risItem || '',
         quantity: item.quantity ?? '',
@@ -80,6 +89,7 @@ const toForm = (record) => ({
         description: item.description || '',
         propertyNumber: item.propertyNumber || '',
         mrNumber: item.mrNumber || '',
+        condition: item.condition || 'Serviceable',
         unitValue: item.unitValue ?? '',
         totalValue: item.totalValue ?? 0
     })) : [emptyItem()],
@@ -89,27 +99,39 @@ const toForm = (record) => ({
 });
 
 export default function PrsPage() {
+    const { user } = useAuth();
+    const isUser = user?.role !== 'admin';
+    const makeForm = () => ({ ...newForm(), ...(isUser ? { returnedBy: { user: user?._id, name: [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username, designation: user?.office, date: new Date().toISOString().slice(0, 10) } } : {}) });
+    const [decision, setDecision] = useState('receive');
+    const [rejectionReason, setRejectionReason] = useState('');
     const [pageLoading, setPageLoading] = useState(true);
     const [pageLoadError, setPageLoadError] = useState('');
 
     const [reports, setReports] = useState([]);
     const [processing, setProcessing] = useState('');
-    const [rejectionReasons, setRejectionReasons] = useState({});
+    const [conditions, setConditions] = useState({});
     const [issuedRecords, setIssuedRecords] = useState([]);
     const [approvedRecords, setApprovedRecords] = useState([]);
     const [finalizingRis, setFinalizingRis] = useState('');
     const [issuanceError, setIssuanceError] = useState('');
     const [issuedLoading, setIssuedLoading] = useState(true);
     const [issuedError, setIssuedError] = useState('');
-    const [form, setForm] = useState(newForm);
+    const [form, setForm] = useState(makeForm);
+    const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('PRS', 'prsNumber', setForm);
     const [editingId, setEditingId] = useState(null);
+    const activeRecord = reports.find(record => record._id === editingId);
+    const workflow = !!activeRecord?.submittedBy;
+    const readOnly = !!activeRecord && (isUser || workflow);
+    const canReceive = !isUser && workflow && activeRecord.status === 'PENDING';
+    const canCorrectSignatory = !isUser && workflow && activeRecord.status === 'RETURNED';
     const [editorOpen, setEditorOpen] = useState(true);
     const loadingRecords = useRef(false);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(reports, search);
-    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+  const filteredReports = filterReports(sortSavedReports(reports), search);
+    const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+    useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
     const load = async (background = false) => {
       if (loadingRecords.current) return;
@@ -130,10 +152,18 @@ export default function PrsPage() {
 
     useEffect(() => {
         load();
+        refreshNumberPreview();
     }, []);
     const loadIssued = async () => {
         setIssuedLoading(true); setIssuedError('');
         try {
+            if (isUser) {
+                const [assets, issued] = await Promise.all([axios.get('/custody/assets'), axios.get('/ris/my-returns')]);
+                const person = makeForm().returnedBy;
+                const assetRows = (assets.data.data || []).map(asset => ({ _id: asset.ris || asset._id, risNumber: asset.documentNumber, requestedBy: person, items: [{ _id: asset.risItem || asset._id, accountability: asset._id, description: asset.inventory?.item?.description, unit: asset.inventory?.item?.unit, quantityRemaining: asset.quantityRemaining, unitCost: asset.inventory?.unitCost, propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber, pendingMovement: asset.pendingMovement }] }));
+                const otherRows = (issued.data.data || []).filter(row => row.quantityRemaining > 0 && !assetRows.some(record => String(record._id) === String(row.risId) && record.items.some(item => String(item._id) === String(row.itemId)))).map(row => ({ _id: row.risId, risNumber: row.risNumber, requestedBy: person, items: [{ _id: row.itemId, description: row.description, unit: row.unit || '', quantityRemaining: row.quantityRemaining, unitCost: row.unitCost || 0, propertyNumber: row.stockNumber, pendingMovement: row.pendingReturn }] }));
+                setIssuedRecords([...assetRows, ...otherRows]); setApprovedRecords([]); return;
+            }
             const [{ data }, { data: requests }] = await Promise.all([axios.get('/ris/returnable-items', { params: editingId ? { exclude: editingId } : {} }), axios.get('/ris')]);
             setApprovedRecords((requests.data || []).filter(record => record.status === 'APPROVED'));
             setIssuedRecords(data.data || []);
@@ -185,32 +215,36 @@ export default function PrsPage() {
     const total = form.items.reduce((sum, item) => sum + Number(item.totalValue || 0), 0);
 
     const startEdit = (record) => {
+        cancelNumberPreview();
         setEditorOpen(true);
         setEditingId(record._id);
-        setForm(toForm(record));
-    };
-
-    const processReturn = async (record, action) => {
-        setProcessing(record._id);
-        try {
-            await axios.post(`/prs/${record._id}/${action}`, action === 'reject' ? { reason: rejectionReasons[record._id] } : {});
-            toast.success(action === 'confirm' ? 'Return confirmed and automatically recorded' : 'Return rejected');
-            await load(true);
-        } catch (error) { toast.error(error.response?.data?.message || 'Unable to process return'); }
-        finally { setProcessing(''); }
+        const nextForm = toForm(record);
+        if (!isUser && record.submittedBy && record.status === 'PENDING') {
+            nextForm.returnedTo = {
+                ...nextForm.returnedTo,
+                name: nextForm.returnedTo.name || [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '',
+                designation: nextForm.returnedTo.designation || user?.office || '',
+                date: nextForm.returnedTo.date || new Date().toISOString().slice(0, 10),
+            };
+        }
+        setForm(nextForm); setDecision('receive'); setRejectionReason('');
     };
 
     const cancelEdit = () => {
         setEditingId(null);
-        setForm(newForm());
+        setForm(makeForm()); setDecision('receive'); setRejectionReason('');
+        refreshNumberPreview();
     };
 
     const save = async (event) => {
         event.preventDefault();
-        if (accountId(form.returnedBy) && (issuedLoading || issuedError)) return toast.error('Wait for the issued items to load, or retry loading them.');
-        if (accountId(form.returnedBy) && form.items.some(item => !item.ris || !item.risItem)) return toast.error('Select an issued item in each row. A recorded request must be issued before it can be returned.');
+        if (processing) return;
+        if (!readOnly && accountId(form.returnedBy) && (issuedLoading || issuedError)) return toast.error('Wait for the issued items to load, or retry loading them.');
+        if (!readOnly && accountId(form.returnedBy) && form.items.some(item => !item.accountability && (!item.ris || !item.risItem))) return toast.error('Select an issued item in each row. A recorded request must be issued before it can be returned.');
         const purpose = form.purposeChoice === 'Other' ? form.purposeOther : form.purposeChoice;
         const payload = {
+            prsNumber: form.prsNumber,
+            ...(!editingId ? { autoNumber: true } : {}),
             lguName: form.lguName,
             purpose,
             items: form.items.filter((item) => item.propertyNumber || item.description).map((item) => ({
@@ -222,8 +256,21 @@ export default function PrsPage() {
             returnedBy: form.returnedBy,
             returnedTo: form.returnedTo
         };
+        setProcessing(editingId || 'new');
         try {
-            if (editingId) {
+            if (canReceive) {
+                await axios.post(`/prs/${editingId}/${decision === 'reject' ? 'reject' : 'confirm'}`, decision === 'reject' ? { reason: rejectionReason } : { conditions, returnedTo: form.returnedTo });
+                toast.success(decision === 'reject' ? 'Return rejected' : 'Physical receipt confirmed; stock and accountability updated');
+            } else if (canCorrectSignatory) {
+                await axios.put(`/prs/${editingId}`, { returnedTo: form.returnedTo });
+                toast.success('Returned To signatory updated');
+                markUpdated(editingId);
+            } else if (isUser && !editingId) {
+                const entry = payload.items[0];
+                if (!entry) throw new Error('Select a property or supply to return');
+                await axios.post(entry.accountability ? '/custody/returns' : '/ris/my-returns', entry.accountability ? { accountability: entry.accountability, quantity: entry.quantity, note: form.note } : { risId: entry.ris, itemId: entry.risItem, quantity: entry.quantity });
+                toast.success('PRS submitted; awaiting admin receipt');
+            } else if (editingId) {
                 await axios.put(`/prs/${editingId}`, payload);
                 toast.success('PRS updated');
                 markUpdated(editingId);
@@ -231,34 +278,34 @@ export default function PrsPage() {
                 await axios.post('/prs', payload);
                 toast.success('PRS created. Each item logged to Returned Supply.');
             }
-            setEditingId(null);
-            setForm(newForm());
+            setSearch('');
+            cancelEdit();
             load(true);
             loadIssued();
             if (editingId) scrollToRecords();
         } catch (error) {
-            toast.error(error?.response?.data?.message || 'Unable to save PRS');
-        }
+            toast.error(error?.response?.data?.message || error.message || 'Unable to save PRS');
+        } finally { setProcessing(''); }
     };
 
-    const signatoryFields = (label, section) => (
-        <div className="rounded-xl border border-slate-200 p-4">
+    const signatoryFields = (label, section, disabled = false) => (
+        <fieldset disabled={disabled} className="min-w-0 rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input aria-label={`${label} Date`} type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input aria-label={`${label} Name`} value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
-                    <input value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input aria-label={`${label} Designation`} value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
             </div>
-        </div>
+        </fieldset>
     );
 
     const formatDate = (date) => {
@@ -405,7 +452,7 @@ export default function PrsPage() {
                 <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
                 {visibleReports.map((item) => (
-                    <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                    <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
                         <div>
                             <b>{item.lguName || 'No LGU'}</b>
                             <div className="text-sm text-slate-500">
@@ -416,8 +463,7 @@ export default function PrsPage() {
                             {item.rejectionReason && <div className="text-sm text-rose-700">{item.rejectionReason}</div>}
                         </div>
                         <div className="flex gap-2">
-                            {!item.submittedBy && <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(item)} />}
-                            {item.status === 'PENDING' && <div className="flex flex-wrap items-center gap-2"><button type="button" disabled={!!processing} onClick={() => processReturn(item, 'confirm')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white disabled:opacity-50">{processing === item._id ? <Skeleton className="h-4 w-24" /> : 'Confirm receipt'}</button><input aria-label="Return rejection reason" placeholder="Reason if rejected" value={rejectionReasons[item._id] || ''} onChange={event => setRejectionReasons(prev => ({ ...prev, [item._id]: event.target.value }))} className="rounded-lg border p-2 text-sm" /><button type="button" disabled={!!processing || !rejectionReasons[item._id]?.trim()} onClick={() => processReturn(item, 'reject')} className="rounded-lg bg-rose-100 px-3 py-2 text-sm text-rose-700 disabled:opacity-50">{processing === item._id ? <Skeleton className="h-4 w-12" /> : 'Reject'}</button></div>}
+                            <RecordActionButton action="edit" title={item.submittedBy ? "Open return form" : "Update record"} onClick={() => startEdit(item)} />
                             {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
                             <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(item, true)} />
@@ -427,9 +473,14 @@ export default function PrsPage() {
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            {editorOpen && (<motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+            {editorOpen && (<motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={Boolean(processing)} inert={processing ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Return Slip" description="Saving a PRS automatically logs each item individually to Returned Supply." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
+                <fieldset disabled={readOnly} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-2">
+                    <label className="block">
+                        <span className="mb-1 block text-sm font-semibold text-slate-700">PRS No.</span>
+                        <input aria-label="PRS No." readOnly={!editingId} value={form.prsNumber} onChange={(e) => update('prsNumber', e.target.value)} placeholder="Assigned on save" className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    </label>
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
                         <input value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
@@ -463,12 +514,12 @@ export default function PrsPage() {
                 </div>
 
                 <div className="mt-4">
-                    <UserAccountSelect person={form.returnedBy} onChange={person => setForm(prev => ({ ...prev, returnedBy: person, items: prev.items.map(item => ({ ...item, ris: '', risItem: '', mrNumber: '' })) }))} />
+                    {!isUser && <UserAccountSelect person={form.returnedBy} onChange={person => setForm(prev => ({ ...prev, returnedBy: person, items: prev.items.map(item => ({ ...item, ris: '', risItem: '', mrNumber: '' })) }))} />}
                     {issuedLoading ? <Skeleton className="h-4 w-48" label="Loading issued items" /> : issuedError ? <p role="alert" className="text-rose-700">{issuedError} <button type="button" onClick={loadIssued}>Retry</button></p> : accountId(form.returnedBy) && !eligibleRecords.length ? <p role="alert" className="text-amber-800">{awaitingIssuance.length ? 'This account has an approved RIS awaiting completed issuance.' : 'No outstanding issued items are available for this account.'}</p> : <p className="text-slate-500">Select the exact issued item below. Its details and remaining quantity will fill automatically.</p>}
                 </div>
                 {!issuedLoading && awaitingIssuance.map(record => <div key={record._id} className="mt-2 flex flex-wrap items-center gap-2">
-                    <span>RIS {record.risNumber} ? approved, awaiting issuance</span>
-                    <button type="button" disabled={Boolean(finalizingRis)} onClick={() => finalizeIssuance(record)} className="rounded-lg bg-teal-600 px-3 py-2 text-white disabled:opacity-50">{finalizingRis === record._id ? 'Completing issuance?' : 'Complete issuance'}</button>
+                    <span>RIS {record.risNumber} - approved, awaiting issuance</span>
+                    <button type="button" disabled={Boolean(finalizingRis)} onClick={() => finalizeIssuance(record)} className="rounded-lg bg-teal-600 px-3 py-2 text-white disabled:opacity-50">{finalizingRis === record._id ? 'Completing issuance...' : 'Complete issuance'}</button>
                     <a href="/ris" className="underline">Edit RIS quantities</a>
                 </div>)}
                 {issuanceError && <p role="alert" className="mt-2 text-rose-700">{issuanceError} Open the RIS and correct its quantities before completing issuance.</p>}
@@ -495,7 +546,7 @@ export default function PrsPage() {
                                             const record = issuedRecords.find(row => row._id === risId);
                                             const issued = record?.items.find(row => row._id === itemId);
                                             const quantity = issued ? Math.min(Number(item.quantity) || issued.quantityRemaining, issued.quantityRemaining) : item.quantity;
-                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
                                         }} className="w-64 rounded-xl border border-slate-200 px-2 py-2">
                                             <option value="">{accountId(form.returnedBy) ? 'Select issued item to return' : 'Select issued item / manual historical return'}</option>
                                             {eligibleRecords.flatMap(record => record.items.map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.requestedBy?.name || record.receivedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (remaining {row.quantityRemaining})</option>))}
@@ -527,7 +578,7 @@ export default function PrsPage() {
                         </tbody>
                     </table>
                 </TableScroll>
-                <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
+                {!isUser && !readOnly && <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>}
 
                 <div className="mt-4 flex justify-end">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold">
@@ -542,14 +593,16 @@ export default function PrsPage() {
                     </label>
                 </div>
 
+                </fieldset>
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    {signatoryFields('Returned By', 'returnedBy')}
-                    {signatoryFields('Returned To', 'returnedTo')}
+                    {signatoryFields('Returned By', 'returnedBy', readOnly)}
+                    {signatoryFields('Returned To', 'returnedTo', readOnly && !canReceive && !canCorrectSignatory)}
                 </div>
-
-                <button type="submit" disabled={Boolean(accountId(form.returnedBy)) && (issuedLoading || Boolean(issuedError) || !eligibleRecords.length)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">
+                {activeRecord && <p className="mt-4 text-sm">Status: {activeRecord.status || 'RETURNED'}{activeRecord.rejectionReason ? ` - ${activeRecord.rejectionReason}` : ''}</p>}
+                {canReceive && <div className="mt-4 space-y-3"><label className="block">Receipt decision<select value={decision} onChange={event => setDecision(event.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="receive">Confirm physical receipt</option><option value="reject">Reject return</option></select></label>{decision === 'receive' ? activeRecord.items.map(entry => <label key={entry._id} className="block">{entry.description}: inspected condition<select value={conditions[entry._id] || 'Serviceable'} onChange={event => setConditions(previous => ({ ...previous, [entry._id]: event.target.value }))} className="mt-1 w-full rounded-lg border p-2"><option>Serviceable</option><option>Unserviceable</option></select></label>) : <label className="block">Reason for rejection<textarea required value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>}</div>}
+                <button type="submit" disabled={!!processing || (readOnly && !canReceive && !canCorrectSignatory) || (!readOnly && Boolean(accountId(form.returnedBy)) && (issuedLoading || Boolean(issuedError) || !eligibleRecords.length))} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">
                     <RotateCcw size={16} />
-                    {editingId ? 'Update PRS' : 'Create PRS'}
+                    {processing ? 'Saving...' : canReceive ? decision === 'reject' ? 'Reject PRS' : 'Confirm Receipt' : canCorrectSignatory ? 'Update PRS' : readOnly ? 'Recorded Return' : isUser ? 'Submit PRS' : editingId ? 'Update PRS' : 'Create PRS'}
                 </button>
             </motion.form>)}
         </div>

@@ -18,7 +18,7 @@ router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
 router.post('/', authenticate, authorize('canManageInventory'), require('../utils/createFormRecord')(PropertyCard, ['month', 'poNumber', 'entityName', 'fundCluster', 'propertyPlantAndEquipment', 'propertyNumber', 'description', 'serialNumber', 'items'], 'Property Card', 'items'));
 
 router.put('/:id', authenticate, authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
-  const card = await PropertyCard.findOneAndUpdate({ _id: req.params.id, deleted: false }, req.body, { new: true, runValidators: true });
+  const card = await PropertyCard.findOneAndUpdate({ _id: req.params.id, deleted: false }, { ...req.body, lastEditedAt: new Date() }, { new: true, runValidators: true });
   if (!card) return errorResponse(res, 'Property card not found', [], 404);
   return successResponse(res, 'Property card updated', card);
 });

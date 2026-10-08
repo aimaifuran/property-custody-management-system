@@ -1,0 +1,392 @@
+/* Laptop artwork adapted from Uiverse.io by Ashon-G. */
+.form-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 320px;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.form-loader--full-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.form-loader--login-transition {
+  background: radial-gradient(ellipse at center, #f1f7e9, #d3e3c8);
+}
+
+.form-loader--login-transition .form-loader__progress::after {
+  width: 78em;
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: form-loader-login-progress 1.65s 0.35s ease-out both;
+}
+
+@keyframes form-loader-login-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.form-loader--overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  background: rgba(243, 249, 241, 0.94);
+  backdrop-filter: blur(3px);
+}
+
+.form-loader__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.form-loader .form-loader__artwork {
+  position: relative;
+  flex: none;
+  width: 228em;
+  height: 260em;
+  font-size: 1px;
+}
+
+.form-loader__artwork .form-loader__laptop,
+.form-loader__artwork .form-loader__laptop * {
+  font-size: inherit;
+}
+
+.form-loader__laptop {
+  position: relative;
+  width: 228em;
+  height: 260em;
+}
+
+.form-loader__screen-frame {
+  position: absolute;
+  z-index: 0;
+  top: 34em;
+  left: 0;
+  width: 128em;
+  height: 116em;
+  border-radius: 6em;
+  transform-origin: center;
+  background: linear-gradient(-135deg, #cbd8d2 52%, #869d91 56%);
+  transform: skewY(-30deg);
+  animation: form-loader-screen-assemble 0.6s ease-out both;
+}
+
+.form-loader__screen-frame::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: 8em;
+  left: 6em;
+  width: 100%;
+  height: 100%;
+  border-radius: 6em;
+  background: #142e27;
+}
+
+.form-loader__screen-frame::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  bottom: -7em;
+  left: 8em;
+  width: 168em;
+  height: 12em;
+  transform-origin: left bottom;
+  transform: rotate(-42deg) skew(-4deg);
+  background: linear-gradient(-135deg, #cbd8d2 52%, #869d91 56%);
+}
+
+.form-loader__display {
+  position: absolute;
+  z-index: 2;
+  top: 17em;
+  left: 12em;
+  width: calc(100% - 12em);
+  height: calc(100% - 18em);
+  background: linear-gradient(45deg, #22834f, #0d9488);
+}
+
+.form-loader__display::before {
+  content: '';
+  position: absolute;
+  z-index: 5;
+  top: -9em;
+  left: -6em;
+  width: calc(100% + 12em);
+  height: calc(100% + 18em);
+  border-radius: 6em;
+  background: linear-gradient(60deg, transparent 60%, rgba(255, 255, 255, 0.24) 60%);
+}
+
+.form-loader__progress {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(45deg, rgba(15, 49, 35, 0.78), rgba(7, 77, 70, 0.72));
+}
+
+.form-loader__progress::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 80em;
+  height: 6em;
+  border: 1em solid rgba(255, 255, 255, 0.8);
+  border-radius: 3em;
+  box-sizing: border-box;
+}
+
+.form-loader__progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 18em;
+  margin: auto;
+  width: 26em;
+  height: 4em;
+  border-radius: 2em;
+  background: #d9ffe7;
+  animation: form-loader-progress 1.35s ease-in-out infinite;
+}
+
+.form-loader__base {
+  position: relative;
+  left: 42em;
+  bottom: -145em;
+  width: 150em;
+  height: 90em;
+  border-radius: 6em;
+  transform-origin: center;
+  transform: rotate(-30deg) skew(30deg);
+  background: linear-gradient(-45deg, #cbd8d2 61%, #869d91 66%);
+  animation: form-loader-base-assemble 0.55s ease-out both;
+}
+
+.form-loader__base::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  top: -8em;
+  left: 8em;
+  width: 100%;
+  height: 100%;
+  border-radius: 6em;
+  background: #e1e9e4;
+}
+
+.form-loader__base::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: -8em;
+  left: 12em;
+  width: 170em;
+  height: 15em;
+  transform-origin: top left;
+  background: linear-gradient(-45deg, #cbd8d2 61%, #869d91 66%);
+  transform: rotate(31deg) skew(-16deg);
+}
+
+.form-loader__keyboard-frame {
+  position: relative;
+  top: 0;
+  left: 16em;
+  z-index: 3;
+  width: calc(100% - 16em);
+  height: 45em;
+  border-radius: 3em;
+  background: #c3d2c9;
+}
+
+.form-loader__keyboard-frame::before {
+  content: '';
+  position: absolute;
+  bottom: -30em;
+  left: 0;
+  right: 0;
+  width: 40em;
+  height: 25em;
+  margin: 0 auto;
+  border-radius: 3em;
+  background: #c3d2c9;
+}
+
+.form-loader__keyboard {
+  position: relative;
+  top: 2em;
+  left: 2em;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 3em);
+  height: calc(100% - 4em);
+}
+
+.form-loader__touchbar {
+  width: 100%;
+  height: 6em;
+  border-radius: 3em;
+  background: #142e27;
+}
+
+.form-loader__key-box {
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  grid-template-rows: 3fr 1fr;
+  width: 100%;
+  height: 24em;
+  margin: 1em 0 0;
+  padding: 0 0 0 1em;
+  box-sizing: border-box;
+  list-style: none;
+}
+
+.form-loader__key {
+  position: relative;
+  width: 8em;
+  height: 7em;
+  margin: 1em;
+  padding: 0;
+  background: #142e27;
+}
+
+.form-loader__key-box .form-loader__key {
+  grid-row: 1 / 2;
+  animation: form-loader-key-assemble 0.45s ease-out both;
+}
+
+.form-loader__key-box .form-loader__key::before,
+.form-loader__key-box .form-loader__key::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #142e27;
+}
+
+.form-loader__key-box .form-loader__key::before {
+  top: 8em;
+  animation: form-loader-key-assemble 0.5s ease-out both;
+}
+
+.form-loader__key-box .form-loader__key::after {
+  top: 16em;
+  animation: form-loader-key-assemble 0.6s ease-out both;
+}
+
+.form-loader__key-box .form-loader__key--12::before {
+  width: 10em;
+}
+
+.form-loader__key-box .form-loader__key--13::before {
+  height: 10em;
+}
+
+.form-loader__key-box-bottom {
+  display: flex;
+  margin: 0;
+  padding: 0 0 0 1em;
+  box-sizing: border-box;
+  list-style: none;
+}
+
+.form-loader__key-box-bottom .form-loader__key {
+  flex-shrink: 0;
+  animation: form-loader-key-assemble 0.65s ease-out both;
+}
+
+.form-loader__key--19 {
+  width: 28em;
+}
+
+.form-loader__label {
+  max-width: 100%;
+  margin: 0;
+  color: #285b47;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+@keyframes form-loader-screen-assemble {
+  0% { transform: scale(0.86) skewY(-30deg); }
+  65% { transform: scale(1.03) skewY(-30deg); }
+  100% { transform: scale(1) skewY(-30deg); }
+}
+
+@keyframes form-loader-base-assemble {
+  0% { transform: scale(0.86) rotate(-30deg) skew(30deg); }
+  65% { transform: scale(1.03) rotate(-30deg) skew(30deg); }
+  100% { transform: scale(1) rotate(-30deg) skew(30deg); }
+}
+
+@keyframes form-loader-key-assemble {
+  0% { transform: translate(8em, -8em); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes form-loader-progress {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(52em); }
+}
+
+@media (max-width: 480px) {
+  .form-loader {
+    min-height: 290px;
+    padding: 20px 12px;
+  }
+
+  .form-loader .form-loader__artwork {
+    font-size: 0.85px;
+  }
+
+  .form-loader--full-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .form-loader--overlay {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-loader__screen-frame,
+  .form-loader__base,
+  .form-loader__key-box .form-loader__key,
+  .form-loader__key-box .form-loader__key::before,
+  .form-loader__key-box .form-loader__key::after,
+  .form-loader__key-box-bottom .form-loader__key,
+  .form-loader__progress::after {
+    animation: none;
+  }
+
+  .form-loader__progress::after {
+    width: 78em;
+    transform: none;
+  }
+
+  .form-loader--login-transition .form-loader__progress::after {
+    animation: none;
+    transform: none;
+  }
+}

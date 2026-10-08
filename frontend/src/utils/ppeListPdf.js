@@ -1,16 +1,18 @@
-import { embedFormFonts } from './formPdfFonts.js';
-import { FORM_PDF_FONT_SIZE } from './historicalFormPdf.js';
+﻿import { embedFormFonts } from './formPdfFonts.js';
+import { FORM_PDF_A4_PORTRAIT, FORM_PDF_MARGIN } from './formPdfStyle.js';
+import { signatoryText } from './formPdfSignatories.js';
 import { PDFDocument, rgb } from 'pdf-lib';
+import { drawReportGridHeader, drawReportGridRow, drawReportLines, reportColumns, REPORT_CELL_PADDING, REPORT_LINE_HEIGHT, wrapReportText } from './reportPdfLayout.js';
 
 export const PPE_COLUMNS = [
-  ['risNumber', 'RIS No.', 9],
-  ['responsibilityCenter', 'Responsibility Center Code', 9],
-  ['stockNumber', 'Stock No.', 7],
-  ['item', 'Item', 36],
-  ['unit', 'Unit', 6],
-  ['quantity', 'Quantity Issued', 8],
-  ['unitCost', 'Unit Cost', 10],
-  ['amount', 'Amount', 15],
+  ['risNumber', 'RIS No.', 13], ['responsibilityCenter', 'Responsibility Center Code', 15],
+  ['stockNumber', 'Stock No.', 7], ['item', 'Item', 26], ['unit', 'Unit', 8],
+  ['quantity', 'Quantity Issued', 9], ['unitCost', 'Unit Cost', 10], ['amount', 'Amount', 12],
+];
+const RECAP_COLUMNS = [
+  ['stockNumber', 'Stock No.', 12], ['item', 'Item', 34], ['unit', 'Unit', 8],
+  ['quantity', 'Quantity', 8], ['unitCost', 'Unit Cost', 10],
+  ['totalCost', 'Total Cost', 15], ['accountCode', 'Account Code', 13],
 ];
 export const PPE_TITLE = 'REPORT OF SUPPLIES AND MATERIALS ISSUED';
 export const ppeAmount = row => row.unitCost === '' || row.unitCost == null ? '' : (Number(row.quantity) * Number(row.unitCost)).toFixed(2);
@@ -23,98 +25,98 @@ export const ppePeriod = record => {
   }
   return `For the Period ${ppeDate(record.periodStart)} - ${ppeDate(record.periodEnd)}`;
 };
-const printable = value => String(value ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2013\u2014]/g, '-').replace(/[^\x20-\x7e\n]/g, '?');
 
-// Legal portrait matches the tall, eight-column report supplied as a reference.
-export async function buildPpePdf(record) {
+export async function buildPpePdf(record, { onDraw } = {}) {
   const pdf = await PDFDocument.create();
   const { regular, bold, italic } = await embedFormFonts(pdf);
-  const width = 612, height = 1008, left = 30, tableWidth = 552;
-  const edges = [left];
-  PPE_COLUMNS.forEach(([, , percentage]) => edges.push(edges.at(-1) + tableWidth * percentage / 100));
-  let page, y;
-  const wrap = (value, available, font = regular, size = FORM_PDF_FONT_SIZE) => {
-    const lines = [];
-    for (const paragraph of printable(value).split('\n')) {
-      let line = '';
-      for (const character of paragraph) {
-        if (line && font.widthOfTextAtSize(line + character, size) > available) { lines.push(line); line = ''; }
-        line += character;
-      }
-      lines.push(line);
+  const [width, height] = FORM_PDF_A4_PORTRAIT;
+  const left = FORM_PDF_MARGIN, tableWidth = width - 2 * left;
+  const columns = reportColumns(PPE_COLUMNS, left, tableWidth);
+  const recapColumns = reportColumns(RECAP_COLUMNS, left, tableWidth);
+  const layout = { page: null, y: 0, bottom: left, rowCapacity: 0, onDraw };
+  let recapping = false;
+  const paragraph = (value, x, top, w, font = regular, align = 'center') => drawReportLines(layout.page, wrapReportText(value, w - 8, font), x, top, w, font, { align });
+  const header = (withTable = true) => {
+    layout.page = pdf.addPage(FORM_PDF_A4_PORTRAIT);
+    layout.y = height - left;
+    layout.y -= paragraph(PPE_TITLE, left, layout.y, tableWidth, bold);
+    layout.y -= paragraph(ppePeriod(record), left, layout.y, tableWidth) + 10;
+    for (const values of [[`LGU: ${record.lgu || ''}`, `Serial No.: ${record.serialNumber || ''}`], [`Fund: ${record.fund || ''}`, `Date: ${ppeDate(record.reportDate)}`]]) {
+      const first = paragraph(values[0], left, layout.y, tableWidth * .6, regular, 'left');
+      const second = paragraph(values[1], left + tableWidth * .6, layout.y, tableWidth * .4, regular, 'left');
+      layout.y -= Math.max(first, second);
     }
-    return lines;
+    layout.y -= 8;
+    if (withTable && recapping) {
+      layout.y -= paragraph('Recapitulation', left, layout.y, tableWidth, bold);
+      drawReportGridHeader(layout, recapColumns, bold);
+    } else if (withTable) {
+      const supplyWidth = columns[6].x - left;
+      const accountingWidth = tableWidth - supplyWidth;
+      const captions = ['To be filled up by the Supply and/or Property Division/Unit', 'To be filled up by the Accounting Division/Unit'];
+      const cellLines = [wrapReportText(captions[0], supplyWidth - 2 * REPORT_CELL_PADDING, italic), wrapReportText(captions[1], accountingWidth - 2 * REPORT_CELL_PADDING, italic)];
+      const h = Math.max(...cellLines.map(lines => lines.length)) * REPORT_LINE_HEIGHT + 2 * REPORT_CELL_PADDING;
+      [supplyWidth, accountingWidth].forEach((w, index) => {
+        const x = index ? left + supplyWidth : left;
+        layout.page.drawRectangle({ x, y: layout.y - h, width: w, height: h, borderWidth: .65, borderColor: rgb(0, 0, 0) });
+        drawReportLines(layout.page, cellLines[index], x, layout.y, w, italic, { align: 'center', padding: REPORT_CELL_PADDING, height: h, verticalAlign: 'center' });
+      });
+      layout.y -= h;
+      drawReportGridHeader(layout, columns, bold);
+    }
+    layout.rowCapacity = layout.y - layout.bottom;
+    if (layout.rowCapacity < 32) throw new Error('The report header is too long for A4. Shorten its header fields.');
   };
-  const text = (value, x, top, available, options = {}) => {
-    const { size = FORM_PDF_FONT_SIZE, font = regular, align = 'center' } = options;
-    const lines = wrap(value, available - 6, font, size);
-    lines.forEach((line, index) => page.drawText(line, { x: align === 'left' ? x + 3 : x + (available - font.widthOfTextAtSize(line, size)) / 2, y: top - size - 3 - index * (size + 2), size, font, color: rgb(0, 0, 0) }));
-    return lines.length;
-  };
-  const box = (x, top, w, h) => page.drawRectangle({ x, y: top - h, width: w, height: h, borderWidth: .65, borderColor: rgb(0, 0, 0) });
-  const newPage = (includeHeader = true) => {
-    page = pdf.addPage([width, height]);
-    if (!includeHeader) { y = height - 30; return; }
-    text(PPE_TITLE, left, height - 54, tableWidth, { size: FORM_PDF_FONT_SIZE, font: bold });
-    text(ppePeriod(record), left, height - 72, tableWidth, { size: FORM_PDF_FONT_SIZE });
-    text(`LGU: ${record.lgu}`, left, height - 105, tableWidth * .6, { align: 'left', size: FORM_PDF_FONT_SIZE });
-    text(`Fund: ${record.fund || ''}`, left, height - 122, tableWidth * .6, { align: 'left', size: FORM_PDF_FONT_SIZE });
-    text(`Serial No.: ${record.serialNumber}`, left + tableWidth * .6, height - 105, tableWidth * .4, { align: 'left', size: FORM_PDF_FONT_SIZE });
-    text(`Date: ${ppeDate(record.reportDate)}`, left + tableWidth * .6, height - 122, tableWidth * .4, { align: 'left', size: FORM_PDF_FONT_SIZE });
-    y = height - 148;
-    const supplyWidth = edges[6] - left;
-    box(left, y, supplyWidth, 30);
-    box(edges[6], y, edges[8] - edges[6], 30);
-    text('To be filled up by the Supply and/or Property Division/Unit', left, y, supplyWidth, { font: italic });
-    text('To be filled up by the Accounting Division/Unit', edges[6], y, edges[8] - edges[6], { size: FORM_PDF_FONT_SIZE, font: italic });
-    y -= 30;
-    PPE_COLUMNS.forEach(([, label], index) => { box(edges[index], y, edges[index + 1] - edges[index], 42); text(label, edges[index], y, edges[index + 1] - edges[index], { font: bold }); });
-    y -= 42;
-  };
-  newPage();
-  const drawRow = values => {
-    const sizes = values.map(() => FORM_PDF_FONT_SIZE);
-    const rowHeight = Math.max(14, ...values.map((value, index) => wrap(value, edges[index + 1] - edges[index] - 6, regular, sizes[index]).length * (sizes[index] + 2) + 5));
-    if (rowHeight > height - 248) throw new Error('An item is too long to fit on a printed page. Shorten its description.');
-    if (y - rowHeight < 48) newPage(!record.referenceLayout);
-    values.forEach((value, index) => { box(edges[index], y, edges[index + 1] - edges[index], rowHeight); text(value, edges[index], y, edges[index + 1] - edges[index], { size: sizes[index] }); });
-    y -= rowHeight;
-  };
-  for (const [index, row] of record.rows.entries()) {
-    if (record.referenceLayout && index === 52) newPage(false);
-    const values = PPE_COLUMNS.map(([key]) => key === 'amount' ? ppeAmount(row) : key === 'unitCost' ? (row.unitCost === '' || row.unitCost == null ? '' : Number(row.unitCost).toFixed(2)) : row[key]);
-    drawRow(values);
+  header();
+  const money = value => value === '' || value == null ? '' : Number(value).toFixed(2);
+  for (const row of record.rows || []) {
+    const values = PPE_COLUMNS.map(([key]) => key === 'amount' ? ppeAmount(row) : key === 'unitCost' ? money(row.unitCost) : row[key]);
+    drawReportGridRow(layout, columns, values, regular, header);
   }
   if (record.recapitulation?.length) {
-    drawRow(['', '', '', '', '', 'TOTAL', '', ppeTotal(record.rows)]);
-    if (y < 108) newPage(!record.referenceLayout);
-    box(left, y, edges[3] - left, 18);
-    box(edges[3], y, edges[5] - edges[3], 18);
-    box(edges[5], y, edges[8] - edges[5], 18);
-    text('Recapitulation:', left, y, edges[3] - left, { font: bold });
-    text('Recapitulation:', edges[5], y, edges[8] - edges[5], { font: bold });
-    y -= 18;
-    drawRow(['', 'Stock No.', 'Quantity', '', '', 'Unit Cost', 'Total Cost', 'Account Code']);
-    for (const [index, row] of record.recapitulation.entries()) {
-      if (record.referenceLayout && index === 11) newPage(false);
-      const money = value => value === '' || value == null ? '' : Number(value).toFixed(2);
-      drawRow(['', row.stockNumber || '', row.quantity, row.item, row.unit, money(row.unitCost), money(row.totalCost), row.accountCode || '']);
+    drawReportGridRow(layout, columns, ['', '', '', '', '', 'TOTAL', '', ppeTotal(record.rows || [])], bold, header);
+    recapping = true;
+    const captionHeight = 20;
+    const recapHeaderHeight = Math.max(...recapColumns.map(column => wrapReportText(column.label, column.width - 2 * REPORT_CELL_PADDING, bold).length)) * REPORT_LINE_HEIGHT + 2 * REPORT_CELL_PADDING;
+    if (layout.y - captionHeight - recapHeaderHeight - 32 < left) header();
+    else {
+      layout.y -= paragraph('Recapitulation', left, layout.y, tableWidth, bold);
+      drawReportGridHeader(layout, recapColumns, bold);
+      // New-page capacity is measured by header() when another page is needed.
+      layout.rowCapacity = layout.y - layout.bottom;
+    }
+    for (const row of record.recapitulation) {
+      const values = RECAP_COLUMNS.map(([key]) => ['unitCost', 'totalCost'].includes(key) ? money(row[key]) : row[key]);
+      drawReportGridRow(layout, recapColumns, values, regular, header);
     }
   }
-  if (y < 154) newPage(!record.referenceLayout);
-  box(left, y, edges[6] - left, 102);
-  box(edges[6], y, edges[8] - edges[6], 102);
-  text('I hereby certify to the correctness of the above information.', left + 4, y - 8, edges[6] - left - 8, { align: 'left', size: FORM_PDF_FONT_SIZE });
-  text(record.custodian || '_________________________', left, y - 33, edges[6] - left, { font: bold, size: FORM_PDF_FONT_SIZE });
-  text('Signature over Printed Name of Supply', left, y - 51, edges[6] - left, { size: FORM_PDF_FONT_SIZE });
-  text('and/or Property Custodian', left, y - 68, edges[6] - left, { size: FORM_PDF_FONT_SIZE });
-  text('Posted by:', edges[6], y - 5, edges[8] - edges[6], { align: 'left', size: FORM_PDF_FONT_SIZE });
-  const staffWidth = (edges[8] - edges[6]) * .7;
-  text(record.accountingStaff || '_____________________', edges[6], y - 37, staffWidth, { size: FORM_PDF_FONT_SIZE });
-  text(ppeDate(record.postedDate) || '_________', edges[6] + staffWidth, y - 37, edges[8] - edges[6] - staffWidth, { size: FORM_PDF_FONT_SIZE });
-  text('Signature over Printed Name of', edges[6], y - 55, staffWidth, { size: FORM_PDF_FONT_SIZE });
-  text('Designated Accounting Staff', edges[6], y - 77, staffWidth, { size: FORM_PDF_FONT_SIZE });
-  text('Date', edges[6] + staffWidth, y - 67, edges[8] - edges[6] - staffWidth, { size: FORM_PDF_FONT_SIZE });
-  pdf.getPages().forEach((sheet, index) => sheet.drawText(`Page ${index + 1} of ${pdf.getPageCount()}`, { x: width - 83, y: 22, size: FORM_PDF_FONT_SIZE, font: regular }));
+  const blocks = [
+    { x: left, width: tableWidth * .6, fields: [
+      [signatoryText('I hereby certify to the correctness of the above information.'), regular, 14],
+      [signatoryText(record.custodian) || '_________________________', bold, 4],
+      [signatoryText('Signature over Printed Name of Supply\nand/or Property Custodian'), regular, 0],
+    ] },
+    { x: left + tableWidth * .6, width: tableWidth * .4, fields: [
+      [signatoryText('Posted by:'), regular, 14],
+      [signatoryText(record.accountingStaff) || '_____________________', bold, 4],
+      [signatoryText('Signature over Printed Name of\nDesignated Accounting Staff'), regular, 4],
+      [`DATE: ${ppeDate(record.postedDate) || '________________'}`, regular, 0],
+    ] },
+  ];
+  const signatureHeight = Math.max(...blocks.map(block => block.fields.reduce((sum, [value, font, gap]) => sum + wrapReportText(value, block.width - 16, font).length * REPORT_LINE_HEIGHT + 8 + gap, 16)));
+  if (layout.y - signatureHeight < left) header(false);
+  if (layout.y - signatureHeight < left) throw new Error('The signatory details are too long for A4. Shorten the signatory fields.');
+  for (const block of blocks) {
+    layout.page.drawRectangle({ x: block.x, y: layout.y - signatureHeight, width: block.width, height: signatureHeight, borderWidth: .65, borderColor: rgb(0, 0, 0) });
+    let top = layout.y - 8;
+    for (const [value, font, gap] of block.fields) {
+      const lines = wrapReportText(value, block.width - 16, font);
+      const fieldHeight = lines.length * REPORT_LINE_HEIGHT + 8;
+      const bounds = { x: block.x + 4, y: top - fieldHeight, width: block.width - 8, height: fieldHeight };
+      top -= drawReportLines(layout.page, lines, bounds.x, top, bounds.width, font, {
+        align: 'center', onDraw: text => onDraw?.({ kind: 'signature', ...text, bounds, value }),
+      }) + gap;
+    }
+  }
   return pdf.save();
 }

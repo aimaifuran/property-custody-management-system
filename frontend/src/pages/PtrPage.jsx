@@ -1,3 +1,7 @@
+import { sortSavedReports } from '../utils/savedReportOrder';
+import useSavedReportPage from '../utils/useSavedReportPage';
+import NewFormBadge from '../components/NewFormBadge';
+import { useAuth } from '../contexts/AuthContext';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
@@ -20,6 +24,7 @@ import FundClusterField from '../components/FundClusterField';
 import Pagination from '../components/Pagination';
 import { FileText, Printer, RotateCcw } from 'lucide-react';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
+import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
 
 const FIXED_TRANSFER_TYPES = ['Donation', 'Reassignment', 'Relocation'];
 
@@ -95,26 +100,39 @@ const toForm = (record) => ({
 });
 
 export default function PtrPage() {
+    const { user } = useAuth();
+    const isUser = user?.role !== 'admin';
+    const makeForm = () => ({ ...newForm(), fromAccountableOfficer: isUser ? [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username : '', toUser: '' });
+    const [assets, setAssets] = useState([]);
+    const [people, setPeople] = useState([]);
+    const [saving, setSaving] = useState(false);
+    const [decision, setDecision] = useState('confirm');
+    const [rejectionReason, setRejectionReason] = useState('');
     const [pageLoading, setPageLoading] = useState(true);
     const [pageLoadError, setPageLoadError] = useState('');
 
     const [reports, setReports] = useState([]);
-    const [form, setForm] = useState(newForm);
+    const [form, setForm] = useState(makeForm);
+    const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('PTR', 'ptrNumber', setForm);
     const [editingId, setEditingId] = useState(null);
+    const activeRecord = reports.find(record => record._id === editingId);
+    const workflow = !!activeRecord?.fromUser;
+    const canProcess = workflow && (isUser ? String(activeRecord.toUser) === String(user?._id) && activeRecord.status === 'PENDING_RECEIVER' : ['PENDING_RECEIVER', 'PENDING_ADMIN'].includes(activeRecord.status) && (decision === 'reject' || activeRecord.status === 'PENDING_ADMIN'));
     const [editorOpen, setEditorOpen] = useState(true);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(reports, search);
-    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+  const filteredReports = filterReports(sortSavedReports(reports), search);
+    const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+    useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
     const load = async () => {
       setPageLoading(true);
       setPageLoadError('');
       try {
 
-        const { data } = await axios.get('/ptr');
-        setReports(data.data || []);
+        const [records, inventory, users] = await Promise.all([axios.get('/ptr'), axios.get('/custody/assets'), axios.get('/custody/people')]);
+        setReports(records.data.data || []); setAssets(inventory.data.data || []); setPeople(users.data.data || []);
 
       } catch (error) {
         setPageLoadError(error.response?.data?.message || 'Unable to load records.');
@@ -123,18 +141,10 @@ export default function PtrPage() {
       }
     };
 
-    const assignNextNumber = async () => {
-        try {
-            const { data } = await axios.get('/document-numbers/PTR');
-            setForm((previous) => previous.ptrNumber ? previous : { ...previous, ptrNumber: data.data.nextNumber });
-        } catch {
-            // Keep the input editable when a number cannot be retrieved.
-        }
-    };
 
     useEffect(() => {
         load();
-        assignNextNumber();
+        refreshNumberPreview();
     }, []);
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
@@ -155,21 +165,24 @@ export default function PtrPage() {
     const addItem = () => update('items', [...form.items, emptyItem()]);
 
     const startEdit = (record) => {
+        cancelNumberPreview();
         setEditorOpen(true);
         setEditingId(record._id);
-        setForm(toForm(record));
+        setForm(toForm(record)); setDecision('confirm'); setRejectionReason('');
     };
 
     const cancelEdit = () => {
         setEditingId(null);
-        setForm(newForm());
-        assignNextNumber();
+        setForm(makeForm()); setDecision('confirm'); setRejectionReason('');
+        refreshNumberPreview();
     };
 
     const save = async (event) => {
         event.preventDefault();
+        if (saving) return;
         const transferType = form.transferTypeChoice === 'Other' ? form.transferTypeOther : form.transferTypeChoice;
         const payload = {
+            ...(!editingId ? { autoNumber: true } : {}),
             entityName: form.entityName,
             fundCluster: form.fundCluster,
             fromAccountableOfficer: form.fromAccountableOfficer,
@@ -187,8 +200,16 @@ export default function PtrPage() {
             issuedBy: form.issuedBy,
             receivedBy: form.receivedBy
         };
+        setSaving(true);
         try {
-            if (editingId) {
+            if (workflow) {
+                const action = decision === 'reject' ? 'reject' : isUser ? 'receive' : 'approve';
+                await axios.post(`/custody/transfers/${editingId}/${action}`, action === 'reject' ? { reason: rejectionReason } : {});
+                toast.success(action === 'receive' ? 'Receipt confirmed; awaiting admin approval' : action === 'approve' ? 'Transfer approved and accountability reassigned' : 'Transfer rejected');
+            } else if (isUser) {
+                await axios.post('/custody/transfers', { accountability: form.items[0]?.accountability, toUser: form.toUser, reason: form.reasonForTransfer, entityName: form.entityName, fundCluster: form.fundCluster, transferType, remarks: form.remarks });
+                toast.success('PTR sent to the receiving custodian');
+            } else if (editingId) {
                 await axios.put(`/ptr/${editingId}`, payload);
                 toast.success('PTR updated');
                 markUpdated(editingId);
@@ -196,20 +217,21 @@ export default function PtrPage() {
                 await axios.post('/ptr', payload);
                 toast.success('PTR created');
             }
+            setSearch('');
             setEditingId(null);
-            setForm(newForm());
-            assignNextNumber();
+            setForm(makeForm()); setDecision('confirm'); setRejectionReason('');
+            refreshNumberPreview();
             load();
             if (editingId) scrollToRecords();
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Unable to save PTR');
-        }
+        } finally { setSaving(false); }
     };
 
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
+    const field = (label, key, type = 'text') => key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '' })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'e.g., 2026-10-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -358,15 +380,15 @@ export default function PtrPage() {
                 <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
                 {visibleReports.map((item) => (
-                    <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}>
+                    <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
                         <div>
-                            <b>{item.ptrNumber}</b>
+                            <b>{item.ptrNumber}</b><p className="mt-1 text-sm">{item.status?.replaceAll('_', ' ')}</p>
                             <div className="text-sm text-slate-500">
                                 {item.fromAccountableOfficer || 'N/A'} {'->'} {item.toAccountableOfficer || 'N/A'} · {item.transferType || 'N/A'}
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <RecordActionButton action="edit" title="Update record" onClick={() => startEdit(item)} />
+                            <RecordActionButton action="edit" title={item.fromUser ? "Open transfer form" : "Update record"} onClick={() => startEdit(item)} />
                             {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
                             <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(item, true)} />
@@ -376,8 +398,9 @@ export default function PtrPage() {
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            {editorOpen && (<motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+            {editorOpen && (<motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Transfer Report" description="Transfer an accountable asset to another custodian." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
+                <fieldset disabled={workflow} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-3">
                     {field('Entity Name', 'entityName')}
                     <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
@@ -428,26 +451,26 @@ export default function PtrPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <input aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input readOnly={isUser} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = assets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select your accepted property</option>{assets.map(asset => <option key={asset._id} value={asset._id} disabled={!asset.acceptedAt || !!asset.pendingMovement}>{asset.inventory?.item?.description} - {asset.documentNumber}{!asset.acceptedAt ? ' (accept ICS/PAR first)' : asset.pendingMovement ? ' (pending movement)' : ''}</option>)}</select> : <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input readOnly={isUser} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Amount" type="number" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input readOnly={isUser} aria-label="Amount" type="number" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Condition of PPE" value={item.condition} onChange={(e) => updateItem(index, 'condition', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input readOnly={isUser} aria-label="Condition of PPE" value={item.condition} onChange={(e) => updateItem(index, 'condition', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </TableScroll>
-                <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
+                {!isUser && !workflow && <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>}
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
                     <label className="block">
@@ -466,9 +489,13 @@ export default function PtrPage() {
                     {signatoryFields('Received By', 'receivedBy')}
                 </div>
 
-                <button type="submit" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
+                </fieldset>
+                {workflow && <p className="mt-4 text-sm">Status: {activeRecord.status.replaceAll('_', ' ')}{activeRecord.rejectionReason ? ` - ${activeRecord.rejectionReason}` : ''}</p>}
+                {workflow && (isUser ? String(activeRecord.toUser) === String(user?._id) && activeRecord.status === 'PENDING_RECEIVER' : ['PENDING_RECEIVER', 'PENDING_ADMIN'].includes(activeRecord.status)) && <label className="mt-4 block">Decision<select value={decision} onChange={event => setDecision(event.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="confirm">{isUser ? 'Confirm physical receipt' : 'Approve transfer after receiver confirmation'}</option><option value="reject">Reject transfer</option></select></label>}
+                {workflow && decision === 'reject' && <label className="mt-3 block">Reason for rejection<textarea required value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>}
+                <button type="submit" disabled={saving || (workflow && !canProcess)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
                     <Send size={16} />
-                    {editingId ? 'Update PTR' : 'Create PTR'}
+                    {saving ? 'Saving...' : workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : isUser ? 'Submit PTR' : editingId ? 'Update PTR' : 'Create PTR'}
                 </button>
             </motion.form>)}
         </div>

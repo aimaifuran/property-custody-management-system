@@ -11,6 +11,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { loginLimiter, forgotPasswordLimiter } = require('../middlewares/rateLimiter');
 const { sendPasswordResetEmail, sendEmailChangeCode } = require('../utils/mailer');
 const { authenticate } = require('../middlewares/auth');
+const { getAccessToken, isSessionUserActive } = require('../utils/session');
 const router = express.Router();
 
 const publicUser = (user) => {
@@ -24,15 +25,13 @@ const hashSecret = (token) => crypto.createHash('sha256').update(token).digest('
 const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 30 * 1000;
 
-const createToken = (user) => jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '1h' });
-const createRefreshToken = (user) => jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { expiresIn: '7d' });
+const createToken = (user, expiresIn = 3600) => jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'dev-secret', { expiresIn });
+const createRefreshToken = (user) => jwt.sign({ id: user._id, jti: crypto.randomUUID() }, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { expiresIn: '7d' });
 const cookieOptions = () => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
 });
-
-const getTokenFromRequest = (req) => req.cookies?.token || req.headers.authorization?.split(' ')[1];
 
 router.post('/login', loginLimiter, [
   body('identifier').notEmpty().withMessage('Username or email is required'),
@@ -89,12 +88,14 @@ router.post('/login', loginLimiter, [
 
     res.cookie('token', accessToken, {
       ...cookieOptions(),
-      maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
     });
 
     res.cookie('refreshToken', refreshToken, {
       ...cookieOptions(),
-      maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 60 * 60 * 1000,
+      // Keep a non-remembered session alive while its browser is open. The
+      // signed refresh token still expires after seven days in either case.
+      ...(rememberMe ? { maxAge: 7 * 24 * 60 * 60 * 1000 } : {}),
     });
 
     await ActivityLog.create({ user: user._id, action: 'Login', ipAddress: req.ip, browser: req.get('user-agent') });
@@ -111,33 +112,54 @@ router.post('/login', loginLimiter, [
   }
 });
 
+router.post('/refresh', async (req, res) => {
+  const refreshToken = req.cookies?.refreshToken;
+  if (!refreshToken) return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { algorithms: ['HS256'] });
+    const user = await User.findOne({ _id: decoded.id, refreshToken });
+    if (!isSessionUserActive(user)) return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
+    const remainingSeconds = Math.floor(decoded.exp - Date.now() / 1000);
+    if (!Number.isFinite(remainingSeconds) || remainingSeconds < 1) return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
+    const expiresIn = Math.min(3600, remainingSeconds);
+    const accessToken = createToken(user, expiresIn);
+    res.cookie('token', accessToken, { ...cookieOptions(), maxAge: expiresIn * 1000 });
+    // Reuse the verified refresh token without extending its original deadline.
+    return successResponse(res, 'Session refreshed', { user: publicUser(user), accessToken });
+  } catch (error) {
+    return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
+  }
+});
+
 router.post('/logout', async (req, res) => {
-  const token = getTokenFromRequest(req);
+  const token = getAccessToken(req);
+  let user;
   if (token) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-      await User.findByIdAndUpdate(decoded.id, { refreshToken: null });
-      await ActivityLog.create({ user: decoded.id, action: 'Logout', ipAddress: req.ip, browser: req.get('user-agent') });
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret', { algorithms: ['HS256'] });
+      user = await User.findByIdAndUpdate(decoded.id, { refreshToken: null });
     } catch (error) {
-      // ignore
+      // An expired access token can still be logged out through its verified,
+      // stored refresh session. An expired access token never authorizes work.
     }
   }
+  if (!user && req.cookies?.refreshToken) {
+    try {
+      const refreshToken = req.cookies.refreshToken;
+      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { algorithms: ['HS256'] });
+      user = await User.findOneAndUpdate({ _id: decoded.id, refreshToken }, { refreshToken: null });
+    } catch (error) {
+      // Logout also clears local cookies when no valid session remains.
+    }
+  }
+  if (user) await ActivityLog.create({ user: user._id, action: 'Logout', ipAddress: req.ip, browser: req.get('user-agent') });
   res.clearCookie('token', cookieOptions());
   res.clearCookie('refreshToken', cookieOptions());
   return successResponse(res, 'Logout successful');
 });
 
-router.get('/me', async (req, res) => {
-  const token = getTokenFromRequest(req);
-  if (!token) return errorResponse(res, 'Authentication required', [], 401);
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-    const user = await User.findById(decoded.id).select('-password');
-    if (!user || user.deleted || user.status !== 'active') return errorResponse(res, 'Invalid user session', [], 401);
-    return successResponse(res, 'User fetched', { user: publicUser(user) });
-  } catch (error) {
-    return errorResponse(res, 'Invalid token', [], 401);
-  }
+router.get('/me', authenticate, async (req, res) => {
+  return successResponse(res, 'User fetched', { user: publicUser(req.user) });
 });
 
 // User recovery requires administrator approval. Admin accounts retain email recovery.

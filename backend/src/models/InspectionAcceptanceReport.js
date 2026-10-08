@@ -32,6 +32,7 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
     default: 'PENDING_INSPECTION',
   },
   items: [{
+    itemType: { type: String, enum: ['SUPPLY', 'ASSET'], default: 'ASSET' },
     stockNumber: String,
     stockPropertyNumber: String,
     description: String,
@@ -47,6 +48,7 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
     remarks: String,
   }],
   deleted: { type: Boolean, default: false },
+  lastEditedAt: Date,
 }, { timestamps: true });
 
 module.exports = mongoose.model('InspectionAcceptanceReport', inspectionAcceptanceReportSchema);

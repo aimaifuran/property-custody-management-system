@@ -1,5 +1,6 @@
 const Setting = require('../models/Setting');
 const { successResponse, errorResponse } = require('./response');
+const { reserveDocumentNumber } = require('./documentNumber');
 
 // Explicit fields keep record IDs, deletion flags, and automatic source links server-owned.
 const createFormRecord = (Model, fields, label, itemsField = 'items') => async (req, res) => {
@@ -18,7 +19,7 @@ const createFormRecord = (Model, fields, label, itemsField = 'items') => async (
       if (settings?.entityName) payload.entityName = settings.entityName;
     }
     const numberField = ['icsNumber', 'parNumber', 'ptrNumber', 'prsNumber', 'risNumber', 'iarNumber'].find(field => fields.includes(field));
-    if (numberField && !String(payload[numberField] || '').trim()) payload[numberField] = await require('./documentNumber').nextDocumentNumber(Model, numberField);
+    if (numberField && (req.body.autoNumber === true || !String(payload[numberField] || '').trim())) payload[numberField] = await reserveDocumentNumber(Model, numberField);
     const record = await Model.create(payload);
     return successResponse(res, `${label} created`, record, 201);
   } catch (error) {

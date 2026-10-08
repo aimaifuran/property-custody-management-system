@@ -1,3 +1,7 @@
+import NewFormBadge from '../components/NewFormBadge';
+import ClientPagination from '../components/Pagination';
+import { sortSavedReports } from '../utils/savedReportOrder';
+import useSavedReportPage from '../utils/useSavedReportPage';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
@@ -21,8 +25,13 @@ import { saveAs } from "file-saver";
 import { ChevronLeft, ChevronRight, FileText, Printer, RotateCcw } from 'lucide-react';
 import FundClusterField from '../components/FundClusterField';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
+import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
+import { useAuth } from '../contexts/AuthContext';
+import { Link } from 'react-router-dom';
 
 const emptyItem = () => ({
+    serialNumber: '',
+    propertyNumber: '',
     stockPropertyNumber: '',
     description: '',
     unit: '',
@@ -52,6 +61,19 @@ const initial = {
 
 const newForm = () => ({ ...initial, inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [emptyItem()] });
 
+const readDraft = key => {
+    try {
+        const draft = JSON.parse(sessionStorage.getItem(key) || 'null');
+        if (!draft?.form || !Array.isArray(draft.form.items) || !draft.form.items.length) return null;
+        // Give an unsaved draft from the previous numbering format a current
+        // preview while keeping all received items and other entered details.
+        if (!draft.editingId && draft.form.iarNumber && (/[^0-9]/.test(draft.form.iarNumber) || String(draft.form.iarNumber).length > 4)) {
+            return { ...draft, form: { ...draft.form, iarNumber: '' }, numberEdited: false };
+        }
+        return draft;
+    } catch { return null; }
+};
+
 const toDateInputValue = (date) => {
     if (!date) return '';
     const parsed = new Date(date);
@@ -77,6 +99,9 @@ const toForm = (record) => ({
     acceptanceQuantity: record.acceptanceQuantity ?? '',
     custodian: record.custodian || record.receivedBy || record.acceptedBy || '',
     items: record.items && record.items.length ? record.items.map((item) => ({
+        itemType: item.itemType || 'ASSET',
+        serialNumber: item.serialNumber || '',
+        propertyNumber: item.propertyNumber || '',
         stockPropertyNumber: item.stockPropertyNumber || item.stockNumber || '',
         description: item.description || item.item || '',
         unit: item.unit || '',
@@ -87,22 +112,38 @@ const toForm = (record) => ({
 });
 
 export default function IarPage() {
+    const { user } = useAuth();
+    const draftKey = `pams.iar-draft.${user._id}`;
+    const [restoredDraft] = useState(() => readDraft(draftKey));
     const [pageLoading, setPageLoading] = useState(true);
     const [pageLoadError, setPageLoadError] = useState('');
 
     const [iar, setIar] = useState([]);
-    const [form, setForm] = useState(newForm);
-    const [editingId, setEditingId] = useState(null);
+    const [form, setForm] = useState(() => restoredDraft?.form || newForm());
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
+    const [numberEdited, setNumberEdited] = useState(restoredDraft?.numberEdited || false);
+    const [sessionExpired, setSessionExpired] = useState(false);
+    const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('IAR', 'iarNumber', setForm);
+    const [editingId, setEditingId] = useState(restoredDraft?.editingId || null);
     const [editorOpen, setEditorOpen] = useState(true);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
-    const { editorRef, recordsRef, updatedId, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
+    const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
     const update = (key, value) => {
+        setSaveError('');
+        if (key === 'iarNumber') {
+            cancelNumberPreview();
+            value = value.replace(/[^0-9]/g, '').slice(0, 4);
+            setNumberEdited(true);
+        }
         if (['inspectedBy', 'custodian'].includes(key)) saveStickySignatory(key, { name: value }, 'name');
         setForm(prev => ({ ...prev, [key]: value }));
     };
-    const updateItem = (index, key, value) => setForm((prev) => {
+    const updateItem = (index, key, value) => {
+      setSaveError('');
+      setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? {
             ...item,
             [key]: value
@@ -112,10 +153,10 @@ export default function IarPage() {
             ...prev,
             items
         };
-    });
-    const load = async () => {
-      setPageLoading(true);
-      setPageLoadError('');
+      });
+    };
+    const load = async (background = false) => {
+      if (!background) { setPageLoading(true); setPageLoadError(''); }
       try {
 
         const {
@@ -124,72 +165,103 @@ export default function IarPage() {
         setIar(data.data || []);
 
       } catch (error) {
-        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+        if (background) toast.error('The IAR was saved, but the record list could not refresh.');
+        else setPageLoadError(error.response?.data?.message || 'Unable to load records.');
       } finally {
-        setPageLoading(false);
+        if (!background) setPageLoading(false);
       }
     };
-    useEffect(() => { load(); }, []);
-
-    // useEffect(() => {
-    //     load();
-    //     axios.get('/document-numbers/IAR')
-    //       .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
-    //       .catch(() => {});
-    // }, []);
+    useEffect(() => { load(); if (!restoredDraft || (!restoredDraft.editingId && !restoredDraft.form.iarNumber)) refreshNumberPreview(); }, []);
     const filteredReports = useMemo(() => {
       const keyword = search.trim().toLowerCase();
-      return keyword ? iar.filter((report) => [report.iarNumber, report.entityName, report.supplierName, report.poNumber, report.invoiceNumber].some((value) => String(value || '').toLowerCase().includes(keyword))) : iar;
+      const ordered = sortSavedReports(iar);
+      return keyword ? ordered.filter((report) => [report.iarNumber, report.entityName, report.supplierName, report.poNumber, report.invoiceNumber].some((value) => String(value || '').toLowerCase().includes(keyword))) : ordered;
     }, [iar, search]);
+    useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
     const totalPages = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
     const updateSearch = (value) => { setSearch(value); setPage(1); };
     const updatePerPage = (value) => { setPerPage(Number(value)); setPage(1); };
     const startEdit = (item) => {
+        cancelNumberPreview();
+        setSaveError(''); setNumberEdited(false);
         setEditorOpen(true);
         setEditingId(item._id);
         setForm(toForm(item));
     };
 
     const cancelEdit = () => {
+        try { sessionStorage.removeItem(draftKey); } catch { /* The form can still be used when storage is unavailable. */ }
+        setSessionExpired(false);
+        setSaveError(''); setNumberEdited(false);
         setEditingId(null);
         setForm(newForm());
-        axios.get('/document-numbers/IAR')
-          .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
-          .catch(() => {});
+        refreshNumberPreview();
     };
 
     const save = async (event) => {
         event.preventDefault();
+        if (saving) return;
         const payload = {
             ...form,
-            items: form.items.filter((item) => item.stockPropertyNumber || item.description).map((item) => ({
-                ...item,
-                quantity: Number(item.quantity || 0),
-                unitCost: Number(item.unitCost || 0)
-            }))
+            iarNumber: form.iarNumber.trim(),
+            ...(!editingId ? { autoNumber: !numberEdited } : {}),
+            items: form.items.filter((item) => item.stockPropertyNumber || item.description).map((item) => {
+                const { unitCost, ...receivedItem } = item;
+                return {
+                    ...receivedItem,
+                    quantity: Number(item.quantity || 0),
+                    ...(unitCost !== '' && unitCost != null ? { unitCost: Number(unitCost) } : {})
+                };
+            })
         };
+        if (!payload.items.length) { setSaveError('Enter at least one received item before saving the IAR.'); return; }
+        setSaveError('');
+        setSaving(true);
         try {
+            let savedRecord;
             if (editingId) {
-                await axios.put(`/iar/${editingId}`, payload);
+                const { data } = await axios.put(`/iar/${editingId}`, payload);
+                savedRecord = data.data;
                 toast.success('IAR updated');
-              markUpdated(editingId);
             } else {
-                await axios.post('/iar', payload);
+                const { data } = await axios.post('/iar', payload);
+                savedRecord = data.data;
                 toast.success('IAR saved. Property Card and RIS draft created. ICS/PAR will be generated when issued.');
             }
-            setEditingId(null);
-            setForm(newForm());
-            axios.get('/document-numbers/IAR')
-              .then(({ data }) => setForm((previous) => previous.iarNumber ? previous : { ...previous, iarNumber: data.data.nextNumber }))
-              .catch(() => {});
-            load();
-            if (editingId) scrollToRecords();
+            if (savedRecord?._id) {
+                setIar(previous => [savedRecord, ...previous.filter(record => record._id !== savedRecord._id)]);
+                markUpdated(savedRecord._id);
+            }
+            setSearch(''); setPage(1);
+            cancelEdit();
+            await load(true);
+            scrollToRecords();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Unable to save IAR');
-        }
+            const expired = error.response?.status === 401;
+            if (expired) {
+                setSessionExpired(true);
+                try { sessionStorage.setItem(draftKey, JSON.stringify({ form, editingId, numberEdited })); } catch { /* Keep the current form mounted if browser storage is unavailable. */ }
+            }
+            const message = expired ? 'Your session has expired. Sign in again and reopen IAR to continue with your saved entries.' : error.response?.data?.message || 'Unable to save IAR. Check the connection and try again.';
+            setSaveError(message);
+            toast.error(message);
+        } finally { setSaving(false); }
     };
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'iarNumber' ? 'e.g., 2026-10-001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => {
+        if (key === 'entityName') return <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} />;
+        // Already issued document numbers remain intact until explicitly changed.
+        const legacyNumber = key === 'iarNumber' && editingId && !/^[0-9]{3,4}$/.test(form.iarNumber) && iar.some(record => record._id === editingId && record.iarNumber === form.iarNumber);
+        const numberProps = key === 'iarNumber' ? {
+            inputMode: 'numeric',
+            minLength: 3,
+            maxLength: 4,
+            pattern: legacyNumber ? undefined : '[0-9]{3,4}',
+            title: 'Enter a 3 or 4 digit IAR number',
+            autoComplete: 'off'
+        } : {};
+        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? '001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    };
 
     const formatDate = (date) => {
       if (!date) return '';
@@ -294,13 +366,13 @@ export default function IarPage() {
     };
 
     if (pageLoading) return <PageSkeleton />;
-    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
+    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={() => load()} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
       <>
         <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
           <SavedReportsHeader search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
           {visibleReports.map((item) =>
-            <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}>
+            <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}><NewFormBadge record={item} />
               <div>
                 <b className="text-sm tracking-tight text-[#285943]">{item.iarNumber}</b>
                 <div className="mt-1 text-xs text-slate-500">
@@ -315,10 +387,11 @@ export default function IarPage() {
               </div>
             </div>
           )}
+          <ClientPagination showPageSize={false} page={page} pageCount={totalPages} perPage={perPage} onPageChange={setPage} onPerPageChange={updatePerPage} />
         </div>
         <hr className="border-slate-300 border-2 my-8" />
         <div className="space-y-6">
-          {editorOpen && (<form ref={editorRef} onSubmit={save} className="form-document form-frame scroll-mt-6 p-6">
+          {editorOpen && (<form ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => setSaveError(`${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`)} className="form-document form-frame scroll-mt-6 p-6">
             <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock and creates a Property Card and RIS draft. ICS/PAR are generated during issuance.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
@@ -347,12 +420,12 @@ export default function IarPage() {
                     <tr key={index}>
                       {['stockPropertyNumber', 'description', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
-                          <input aria-label={key} value={item[key]} onChange={(e) =>
+                          <input required={key !== 'unit'} aria-label={key} value={item[key]} onChange={(e) =>
                             updateItem(index, key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                         </td>
                       )}
                       <td className="p-2">
-                        <input aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                        <input required aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                       </td>
                     </tr>
                   )}
@@ -376,7 +449,8 @@ export default function IarPage() {
               {field('Partial Quantity (if applicable)', 'acceptanceQuantity', 'number')}
               {field('Supply/Property Custodian', 'custodian')}
             </div>
-            <button type="submit" className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end">{editingId ? 'Update IAR' : 'Save IAR'}</button>
+            {saveError && <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{saveError}{sessionExpired && <Link to="/login" className="ml-2 font-semibold underline">Sign in again</Link>}</p>}
+            <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end disabled:opacity-50">{saving ? 'Saving...' : editingId ? 'Update IAR' : 'Save IAR'}</button>
           </form>)}
         </div>
       </>

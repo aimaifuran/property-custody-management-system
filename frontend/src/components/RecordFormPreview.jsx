@@ -16,6 +16,6 @@ export default function RecordFormPreview({ record }) {
     return () => { active = false; if (url) URL.revokeObjectURL(url); };
   }, [record]);
   if (preview.error) return <p role="alert" className="rounded-lg border border-rose-200 p-4 text-rose-700">{preview.error}</p>;
-  if (!preview.url) return <Skeleton className="h-[60vh] w-full" label="Loading official form preview" />;
+  if (!preview.url) return <Skeleton className="h-[60vh] w-full" label="Loading form preview..." />;
   return <div><iframe title={`${record.title || record.type} form preview`} className="record-form-preview" src={`${preview.url}#view=FitH`} /><a href={preview.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-emerald-700 underline">Open form preview</a></div>;
 }
