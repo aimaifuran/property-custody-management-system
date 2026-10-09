@@ -194,3 +194,17 @@
   .app-shell .my-profile-page .profile-picture-trigger { width: 128px; height: 128px; }
   .my-profile-facts { gap: 16px; }
 }
+.registration-requests { margin-bottom: 24px; padding: 22px; }
+.registration-requests h2 { font-size: 18px; font-weight: 700; color: #294f3b; }
+.registration-requests > p { margin-top: 6px; color: #75877b; }
+.registration-request-card { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 18px; border: 1px solid #dce8da; border-radius: 12px; }
+.registration-request-card > div { min-width: 0; }
+.registration-request-card h3 { font-weight: 600; color: #294f3b; }
+.registration-request-card p, .registration-request-card dd { overflow-wrap: anywhere; }
+.registration-request-card dl { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
+.registration-request-card dt { font-size: 11px; color: #819186; }
+.registration-request-card dd { font-size: 13px; font-weight: 500; }
+.registration-review-actions { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.registration-review-actions input { min-width: 0; max-width: 100%; padding: 8px; border: 1px solid #dce8da; border-radius: 8px; }
+.app-shell .registration-review-actions .registration-approve { background: #2f704b; color: #fff; }
+.user-card-position { margin-top: 5px; font-size: 12px; color: #6b8176; }

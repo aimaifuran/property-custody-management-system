@@ -67,6 +67,7 @@ const { authenticate, adminOnly } = require('./middlewares/auth');
 app.use(['/api/suppliers', '/api/inventory', '/api/property-cards', '/api/items', '/api/iar', '/api/accountabilities', '/api/returned-supply', '/api/users', '/api/properties'], authenticate, adminOnly);
 app.use('/api/settings', authenticate, (req, res, next) => req.method === 'GET' && req.path === '/entity-name' ? next() : adminOnly(req, res, next));
 app.use('/api/auth', authRoutes);
+app.use('/api/registration', require('./routes/registration'));
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/property-cards', propertyCardRoutes);

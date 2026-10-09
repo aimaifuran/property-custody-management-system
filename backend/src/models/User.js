@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   profilePicture: { type: String },
   office: { type: String, required: true },
   division: { type: String, required: true },
+  position: { type: String, trim: true, maxlength: 150 },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   locked: { type: Boolean, default: false },

@@ -1887,3 +1887,14 @@ body { font-size: var(--app-text-size); }
   .dashboard-main .dashboard-annual .annual-report-summary { margin-top: 0; }
   .dashboard-main .annual-report-year, .dashboard-main .annual-report-count { padding-top: 0; padding-bottom: 0; }
 }
+/* Keep the sidebar brand divider level with the workspace header. */
+.app-shell .sidebar-brand { align-items: center; }
+.app-shell .sidebar-brand .sidebar-brand__title { font-size: 20px !important; line-height: 1; }
+@media (min-width: 768px) {
+  .app-shell .sidebar-shell { padding-top: 12px; }
+  .app-shell .sidebar-brand { box-sizing: border-box; height: 68px; margin-bottom: 12px; padding: 0 4px 12px; }
+  .app-shell .title-bar { box-sizing: border-box; height: 80px; min-height: 80px; display: flex; align-items: center; }
+  .app-shell .title-bar > div { width: 100%; }
+}
+/* Login fields are required even while initially readonly to prevent autofill. */
+.login-page label:has(input:required:not(:disabled)) > span:first-child::after { content: ' *'; color: #dc2626; font-weight: 700; }

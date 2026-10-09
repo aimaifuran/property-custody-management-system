@@ -1,5 +1,5 @@
 import ValidatedForm from '../components/ValidatedForm';
-import Skeleton from '../components/Skeleton';
+import HourglassLoader from '../components/HourglassLoader';
 import FormLoader from '../components/FormLoader';
 import { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
@@ -200,11 +200,12 @@ export default function LoginPage() {
 
             </label>
 
-            <button type="submit" disabled={signingIn || countdown > 0} aria-label="Sign in" aria-busy={signingIn} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{submitting ? <Skeleton className="h-4 w-16" label="Signing in" /> : loginDestination ? 'Opening your account...' : 'Sign in'}</button>
+            <button type="submit" disabled={signingIn || countdown > 0} aria-label="Sign in" aria-busy={signingIn} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{signingIn ? <span className="login-button-content"><HourglassLoader /><span>{loginDestination ? 'Opening your account...' : 'Signing in...'}</span></span> : 'Sign in'}</button>
 
             {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
           </ValidatedForm>
           <Link to="/forgot-password" className="mt-3 block py-1 text-center text-xs text-white/85 underline md:mt-3 md:py-0 md:text-sm">Forgot your password?</Link>
+          <div className="mt-4 border-t border-white/20 pt-3 text-center"><p className="text-xs text-white/75">Don't have an account?</p><Link to="/register" className="mt-2 block rounded-lg border border-white/50 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">Register</Link></div>
 
         </div>
 

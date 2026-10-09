@@ -1,4 +1,4 @@
-import { PageSkeleton } from './components/Skeleton';
+import HourglassLoader from './components/HourglassLoader';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -25,13 +25,14 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AboutPage from './pages/AboutPage';
+import RegisterPage from './pages/RegisterPage';
 
 const userRoutes = new Set(['/my-issued-items', '/my-returns', '/about']);
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
   const { pathname } = useLocation();
-  if (!authReady || loading) return <PageSkeleton fullScreen />;
+  if (!authReady || loading) return <div className="auth-loading-screen" role="status" aria-label="Checking session"><HourglassLoader /><span className="sr-only">Checking session...</span></div>;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'admin' && !userRoutes.has(pathname)) return <Navigate to="/my-issued-items" replace />;
   if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/my-issued-items" replace />;
@@ -73,6 +74,7 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>

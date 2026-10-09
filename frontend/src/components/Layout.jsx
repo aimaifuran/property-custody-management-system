@@ -60,6 +60,8 @@ export default function Layout() {
   }, [accountMenuOpen]);
   const [pendingResets, setPendingResets] = useState(0);
   const notifiedResets = useRef(new Set());
+  const [pendingRegistrations, setPendingRegistrations] = useState(0);
+  const notifiedRegistrations = useRef(new Set());
 
   useEffect(() => {
     const warmFonts = () => { preloadFormFonts(['regular', 'bold']).catch(() => {}); };
@@ -92,6 +94,29 @@ export default function Layout() {
     window.addEventListener('focus', refresh);
     window.addEventListener('password-recovery-updated', refresh);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('password-recovery-updated', refresh); };
+  }, [user?._id, user?.role]);
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    const controller = new AbortController();
+    const refresh = async () => {
+      try {
+        const { data } = await axios.get('/registration', { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        const requests = Array.isArray(data.data) ? data.data : [];
+        setPendingRegistrations(requests.length);
+        requests.forEach(request => {
+          if (!notifiedRegistrations.current.has(request._id)) {
+            notifiedRegistrations.current.add(request._id);
+            toast(`New registration request from ${request.firstName} ${request.lastName}. Review in User Management.`, { id: `registration-${request._id}`, duration: 6000 });
+          }
+        });
+      } catch { /* Retry on focus or the next refresh. */ }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('registration-updated', refresh);
+    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('registration-updated', refresh); };
   }, [user?._id, user?.role]);
   const [issueOpen, setIssueOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
@@ -147,7 +172,6 @@ export default function Layout() {
           <img src="/lgu-logo.png" alt="Municipality of Carigara official seal" className="sidebar-brand__logo h-16 w-16 rounded-full object-cover" />
           <div className="min-w-0">
             <div className="sidebar-brand__title text-lg font-bold tracking-wide">PAMS</div>
-            <p className="mt-1 text-xs leading-relaxed text-white/65">Property Accountability Management System</p>
           </div>
         </div>
         <div className="sidebar-section-label">Workspace</div>
@@ -266,11 +290,11 @@ export default function Layout() {
                 <span className="title-bar-account-details"><strong>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</strong><span>Admin</span></span>
                 <span className="title-bar-account-avatar">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : <span aria-hidden="true">{`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || user.username?.slice(0, 2).toUpperCase()}</span>}</span>
               </NavLink> : <span className="text-sm text-white">User</span>}
-              <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" /></button>
+              <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" title={pendingRegistrations ? `${pendingRegistrations} registration requests awaiting approval` : 'Account menu'} aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" /></button>
               {accountMenuOpen && <div id="header-account-menu" className="title-bar-account-menu" role="menu" aria-label="Account actions">
                 {user?.role === 'admin' && <>
                   <NavLink to="/profile" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />My Profile</NavLink>
-                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{pendingResets > 0 && <span className="account-menu-notification" aria-label={`${pendingResets} password reset requests awaiting approval`}>{pendingResets}</span>}</NavLink>
+                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{pendingResets + pendingRegistrations > 0 && <span className="account-menu-notification" aria-label={`${pendingResets + pendingRegistrations} account requests awaiting approval`}>{pendingResets + pendingRegistrations}</span>}</NavLink>
                 </>}
                 <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); logout(); }}><LogOut size={16} aria-hidden="true" />Logout</button>
               </div>}

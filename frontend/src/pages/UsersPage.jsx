@@ -1,4 +1,5 @@
 import AddAdminDialog from '../components/AddAdminDialog';
+import RegistrationRequests from '../components/RegistrationRequests';
 import UserRecordsDialog from '../components/UserRecordsDialog';
 import ValidatedForm from '../components/ValidatedForm';
 import AccountLockButton from '../components/AccountLockButton';
@@ -189,6 +190,7 @@ export default function UsersPage() {
         <div className="user-management-heading"><span className="user-management-eyebrow"><ShieldCheck size={14} aria-hidden="true" /> ACCOUNT DIRECTORY</span><h1>User Management</h1><p>Your team, their offices, and the access they need.</p></div>
         {currentUser?.role === 'admin' && <div className="user-management-create-actions"><button ref={adminTriggerRef} type="button" className="user-create-button" aria-haspopup="dialog" aria-expanded={addingAdmin} onClick={() => { setOpenMenu(null); setAddingAdmin(true); }}><Plus size={16} aria-hidden="true" /> Add Admin</button><button type="button" className="user-create-button" aria-haspopup="dialog" aria-expanded={editorOpen && !editingUser} onClick={createUser}><Plus size={16} aria-hidden="true" /> Create User</button></div>}
       </header>
+      {currentUser?.role === 'admin' && <RegistrationRequests onApproved={load} />}
       <section aria-labelledby="admin-accounts-heading" className="admin-account-section">
         <h2 id="admin-accounts-heading" className="account-section-heading">Administrator accounts</h2>
         <div className="user-account-grid" aria-label="Administrator accounts">{admins.map(admin => <article key={admin._id} className="user-account-record">
@@ -207,6 +209,7 @@ export default function UsersPage() {
             <h2>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</h2>
             <p className="user-card-username" title={user.email}>@{user.username}</p>
             <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{user.office || user.division || 'Office not assigned'}</span></p>
+            {user.position && <p className="user-card-position">{user.position}</p>}
             {user.email && <p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{user.email}</span></p>}
             <div className="user-card-labels"><span className="user-role user-role--user">User</span>{user.locked && <span className="user-locked-label">Locked</span>}</div>
           </div>

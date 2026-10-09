@@ -80,6 +80,7 @@ try {
   ];
   let expireNextIarSave = false;
   let refreshDenied = false;
+  let registrationRequests = [];
   const fixture = path => {
     const user = { _id: id, firstName: 'Cherie Mae', lastName: 'Long Accountable Officer Name', username: 'responsive-test', role, office: person.designation, division: 'Finance', email: 'test@example.test', permissions: ['canViewRIS', 'canViewDashboard', 'canManageUsers', 'canManageInventory', 'canViewIAR', 'canManageIAR'] };
     if (path === '/auth/me') return { user };
@@ -88,6 +89,7 @@ try {
     if (path.startsWith('/settings')) return {};
     if (path === '/users/password-reset-requests') return [];
     if (path === '/users') return managedUsers;
+    if (path === '/registration') return registrationRequests;
     if (path === '/items' || path === '/ris/request-items') return [stock];
     if (path === '/ris') return [ris];
     if (path === '/ris/returnable-items') return [{ ...ris, status: 'ISSUED' }];
@@ -138,6 +140,18 @@ try {
       let data = request.method === 'GET' ? fixture(path) : {};
       let responseCode = request.method === 'OPTIONS' ? 204 : 200;
       let responseMessage = 'Recorded';
+      if (request.method === 'POST' && path === '/registration') {
+        const payload = JSON.parse(request.postData);
+        delete payload.password; delete payload.confirmPassword;
+        registrationRequests.push({ ...payload, _id: `registration-${registrationRequests.length}`, createdAt: date, status: 'PENDING' });
+        responseCode = 201;
+      }
+      if (request.method === 'POST' && /^\/registration\/[^/]+\/(approve|reject)$/.test(path)) {
+        const requestId = path.split('/')[2];
+        const registration = registrationRequests.find(row => row._id === requestId);
+        if (path.endsWith('/approve')) managedUsers.push({ ...registration, _id: `approved-${requestId}`, role: 'user', status: 'active', permissions: ['canViewRIS'] });
+        registrationRequests = registrationRequests.filter(row => row._id !== requestId);
+      }
       if (request.method === 'POST' && path === '/auth/login') {
         if (rejectLogin) { responseCode = 401; responseMessage = 'Invalid login details'; }
         else data = { accessToken: 'login-transition-fixture', user: fixture('/auth/me').user };
@@ -234,7 +248,7 @@ try {
     await send('Page.navigate', { url: `${origin}${path}` });
     await delay(150);
     try {
-      await waitFor(`location.pathname === ${JSON.stringify(expectedPath)} && document.readyState === 'complete' && !!document.querySelector('main') && !document.querySelector('[aria-label="Loading page"], [data-form-loading]')`);
+      await waitFor(`location.pathname === ${JSON.stringify(expectedPath)} && document.readyState === 'complete' && !!document.querySelector(${JSON.stringify(['/login', '/register'].includes(expectedPath) ? '.login-page' : 'main')}) && !document.querySelector('[aria-label="Loading page"], [data-form-loading]')`);
     } catch (error) {
       const state = await evaluate(`({ path: location.pathname, ready: document.readyState, main: !!document.querySelector('main'), text: document.body.textContent.slice(0, 300) })`);
       throw new Error(`${path} expected ${expectedPath}: ${error.message}; state ${JSON.stringify(state)}; exceptions ${JSON.stringify(failures)}`, { cause: error });
@@ -287,11 +301,12 @@ try {
       assert.ok(layout.horizontal && layout.bodyFits && layout.panels.every(Boolean), `${width}x${height}: all dashboard panels fit the viewport ${JSON.stringify(layout)}`);
       assert.ok(layout.charts.every(size => size >= 40), `${width}x${height}: charts remain visible ${JSON.stringify(layout)}`);
       assert.equal(layout.activityScrolls, true, 'Activity history scrolls inside its panel');
+      assert.ok(await evaluate(`Math.abs(document.querySelector('.title-bar').getBoundingClientRect().bottom - document.querySelector('.sidebar-brand').getBoundingClientRect().bottom) <= 1`), 'Header lines up with the sidebar divider');
       console.log(`PASS dashboard fits ${width}x${height} without browser zoom or page scrolling.`);
     }
   } else if (process.env.FORM_VALIDATION_ONLY) {
     const writes = () => calls.filter(call => ['POST', 'PUT', 'PATCH'].includes(call.method));
-    for (const route of ['/iar', '/inventory', '/ris', '/inventory-custodian', '/par', '/transfers', '/returns', '/returned-supply', '/users', '/suppliers', '/reports/monthly', '/reports/ppe-list', '/profile']) {
+    for (const route of ['/iar', '/inventory', '/ris', '/inventory-custodian', '/par', '/transfers', '/returns', '/returned-supply', '/users', '/suppliers', '/reports/monthly', '/reports/ppe-list', '/register']) {
       await navigate(route);
       await evaluate(`(document.querySelector('button[aria-label="New Form"]') || [...document.querySelectorAll('button')].find(button => button.textContent.includes('Create User')))?.click()`);
       await waitFor(`!!document.querySelector('form input:required, form textarea:required')`);
@@ -305,7 +320,7 @@ try {
       await delay(100);
       const before = writes().length;
       await evaluate(`window.validationField.form.requestSubmit()`);
-      await waitFor(`window.validationField.getAttribute('aria-invalid') === 'true' && !!document.querySelector('form [role="alert"]')`);
+      await waitFor(`window.validationField.getAttribute('aria-invalid') === 'true' && !document.querySelector('.form-validation-errors')`);
       assert.equal(writes().length, before, `${route}: missing required text must not send a save request`);
       assert.equal(await evaluate(`getComputedStyle(window.validationField).outlineColor`), 'rgb(220, 38, 38)', `${route}: invalid field is red`);
       assert.equal(await evaluate(`document.activeElement.getAttribute('aria-invalid')`), 'true', `${route}: focus first error`);
@@ -364,7 +379,8 @@ try {
   assert.deepEqual(await evaluate(`[document.getElementById('login-identifier').value, document.getElementById('login-password').value]`), ['', ''], 'Focusing clears browser-restored credentials before typing');
   const initialLoginRequests = calls.filter(call => call.path === '/auth/login').length;
   await evaluate(`document.querySelector('form').requestSubmit()`);
-  await waitFor(`!!document.querySelector('form [role="alert"]')`);
+  await waitFor(`!!document.querySelector('form [aria-invalid="true"]')`);
+  assert.equal(await evaluate(`document.querySelector('.form-validation-errors, .form-required-hint')`), null, 'Login highlights required fields without validation messages');
   assert.equal(calls.filter(call => call.path === '/auth/login').length, initialLoginRequests, 'Empty credentials must not submit a login request');
   await typeLoginCredentials('incorrect-account');
   rejectLogin = true;
@@ -386,6 +402,8 @@ try {
     const started = Date.now();
     assert.equal(await evaluate(`!!document.querySelector('.login-card__form') && !!document.querySelector('.login-card__illustration .form-loader--login-transition')`), true, 'Laptop appears beside the existing login form');
     assert.equal(await evaluate(`document.querySelector('button[aria-label="Sign in"]').disabled`), true, 'Successful login keeps duplicate submits disabled');
+    assert.equal(await evaluate(`!!document.querySelector('button[aria-label="Sign in"] .login-hourglass .hourglassBackground')`), true, 'Login button uses the circular hourglass loader');
+    assert.equal(await evaluate(`document.querySelector('button[aria-label="Sign in"] .skeleton')`), null, 'Login button has no skeleton');
     assert.equal(await evaluate(`document.querySelector('.form-loader--full-screen')`), null, 'Login animation stays inside the illustration panel');
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('.form-loader__progress'), '::after').animationIterationCount`), '1', 'Login animation plays once');
     await delay(1000);
@@ -396,6 +414,32 @@ try {
   }
   role = 'admin';
   console.log('PASS inline desktop/mobile login animation, admin/user timing, and failed-login restoration.');
+  await navigate('/login');
+  assert.equal(await evaluate(`document.querySelector('.form-required-hint')`), null, 'Sign in has no required-fields sentence');
+  assert.equal(await evaluate(`!!document.querySelector('a[href="/register"]')`), true, 'Sign in links to registration');
+  await navigate('/register');
+  await waitFor(`!!document.querySelector('input[name="position"]')`);
+  for (const width of [320, 375, 768, 1440]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+    assert.ok(await evaluate(`document.documentElement.scrollWidth <= innerWidth + 1`), `Registration @${width} fits viewport`);
+  }
+  const beforeRegistration = calls.filter(call => call.path === '/registration' && call.method === 'POST').length;
+  await evaluate(`document.querySelector('form').requestSubmit()`);
+  assert.equal(calls.filter(call => call.path === '/registration' && call.method === 'POST').length, beforeRegistration, 'Blank registration is blocked');
+  const applicant = { firstName: 'Applicant', lastName: 'Registration Test', email: 'registration-browser@example.test', username: 'registration-browser', office: 'Municipal Planning Office', division: 'Planning', position: 'Administrative Officer', password: 'Registration123!', confirmPassword: 'Registration123!' };
+  await evaluate(`(() => { for (const [key, value] of Object.entries(${JSON.stringify(applicant)})) { const input = document.querySelector('input[name="' + key + '"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); } })()`);
+  await evaluate(`document.querySelector('form').requestSubmit()`);
+  await waitFor(`document.querySelector('main') === null && document.body.textContent.includes('Request sent')`);
+  assert.equal(await evaluate(`document.querySelector('form')`), null, 'Registration success clears password form');
+  assert.equal(JSON.parse(calls.findLast(call => call.path === '/registration' && call.method === 'POST').body).position, applicant.position, 'Registration includes LGU position');
+  await navigate('/users');
+  await waitFor(`!!document.querySelector('.registration-request-card')`);
+  assert.ok(await evaluate(`document.querySelector('.registration-request-card').textContent.includes('Administrative Officer')`), 'Admin sees LGU position in the request');
+  await evaluate(`document.querySelector('.registration-request-card .registration-approve').click()`);
+  await waitFor(`!document.querySelector('.registration-request-card') && document.querySelector('[aria-label="Office accounts"]').textContent.includes('@registration-browser')`);
+  assert.ok(calls.some(call => call.path === '/registration/registration-0/approve' && call.method === 'POST'), 'Admin approval creates the user in the directory');
+  console.log('PASS registration link, responsive form, required validation, request submission and admin approval.');
+
   if (!process.env.LOGIN_ONLY) {
   const widths = [320, 375, 768, 1024, 1440];
   const routes = {
