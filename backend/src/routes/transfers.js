@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const PropertyTransferReport = require('../models/PropertyTransferReport');
 const ActivityLog = require('../models/ActivityLog');
@@ -21,7 +22,7 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canViewDashboard', 'canM
   return successResponse(res, 'PTR retrieved', reports);
 });
 
-router.post('/', authenticate, authorize('canManageInventory'), async (req, res) => {
+router.post('/', authenticate, validateAdminForm('ptr'), authorize('canManageInventory'), async (req, res) => {
   const payload = { ...req.body };
   delete payload.lastEditedAt;
   if (payload.autoNumber === true || !String(payload.ptrNumber || '').trim()) payload.ptrNumber = await reserveDocumentNumber(PropertyTransferReport, 'ptrNumber');
@@ -41,7 +42,7 @@ router.post('/', authenticate, authorize('canManageInventory'), async (req, res)
   return successResponse(res, 'PTR created', report, 201);
 });
 
-router.put('/:id', authenticate, authorize('canManageInventory'), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('ptr'), authorize('canManageInventory'), async (req, res) => {
   const existing = await PropertyTransferReport.findOne({ _id: req.params.id, deleted: false });
   if (existing?.fromUser) return errorResponse(res, 'Use the receiver confirmation and admin approval actions for a transfer request', [], 409);
   const payload = { ...req.body, lastEditedAt: new Date() };

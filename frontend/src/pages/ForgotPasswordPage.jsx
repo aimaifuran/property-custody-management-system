@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
@@ -61,7 +62,7 @@ export default function ForgotPasswordPage() {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="recovery-form">
+          <ValidatedForm onSubmit={handleSubmit} className="recovery-form">
             <label htmlFor="forgot-identifier" className="block">
               <span className="recovery-label">Username or email</span>
               <div className="recovery-input-wrap">
@@ -88,7 +89,7 @@ export default function ForgotPasswordPage() {
               <ShieldCheck size={18} aria-hidden="true" />
               <p>User requests need administrator approval. Admin accounts receive a recovery email directly.</p>
             </div>
-          </form>
+          </ValidatedForm>
         )}
 
         <footer className="recovery-footer">

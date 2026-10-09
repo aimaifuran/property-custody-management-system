@@ -1,3 +1,5 @@
+const { accountRecords } = require('../utils/accountRecords');
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const Setting = require('../models/Setting');
 const express = require('express');
 const mongoose = require('mongoose');
@@ -122,21 +124,7 @@ router.get('/request-items', authenticate, authorize('canViewRIS'), async (req, 
 router.get(['/my-items', '/my-returns'], authenticate, (req, res, next) => req.path === '/my-items' ? next() : authorize('canViewRIS')(req, res, next), async (req, res) => {
   await linkLegacyRequests();
   const includeRequests = req.path === '/my-items';
-  const records = await RequisitionIssueSlip.find({ deleted: false, ...ownRisFilter(req.user), ...(!includeRequests ? { status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } } : {}) }).sort({ createdAt: -1 });
-  const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': { $in: records.map(record => record._id) } }).sort({ createdAt: -1 });
-  const directReturns = await ReturnedSupply.find({ deleted: false, prs: null, ris: { $in: records.map(record => record._id) } });
-  const custody = await Accountability.find({ deleted: false, ris: { $in: records.map(record => record._id) } }).lean();
-  const items = records.flatMap(ris => ris.items.filter(item => { const row = custody.find(row => String(row.ris) === String(ris._id) && String(row.risItem) === String(item._id)); return includeRequests || (item.quantityIssued > 0 && (!row || String(row.user) === String(req.user._id))); }).map(item => {
-    const asset = custody.find(row => String(row.ris) === String(ris._id) && String(row.risItem) === String(item._id));
-    const transferred = asset && String(asset.user) !== String(req.user._id);
-    const issued = ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(ris.status);
-    const returns = slips.flatMap(slip => slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: slip.prsNumber, status: slip.status || 'RETURNED', rejectionReason: slip.rejectionReason, date: slip.returnedTo?.date || slip.createdAt, receivedBy: slip.returnedTo?.name, note: slip.note })));
-    returns.push(...directReturns.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: 'Returned Supply', status: 'RETURNED', date: entry.returnedTo?.date || entry.createdAt, receivedBy: entry.returnedTo?.name, note: entry.note })));
-    const quantityReturned = returns.filter(entry => entry.status === 'RETURNED').reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
-    const pendingReturn = returns.some(entry => entry.status === 'PENDING');
-    const requestStatuses = { DRAFT: 'Recorded request', PENDING_REVIEW: 'Pending admin review', PENDING_APPROVAL: 'Pending approval', REVIEWED: 'Reviewed — awaiting issuance', APPROVED: 'Approved — awaiting issuance', REJECTED: 'Request rejected' };
-    return { risId: ris._id, itemId: item._id, risNumber: ris.risNumber, requestStatus: ris.status, recordedAt: ris.createdAt, quantityRequested: item.quantityRequested, issued, formType: item.formType, documentNumber: item.documentNumber, formId: item.issuanceForm, unitCost: item.unitCost, description: item.description, unit: item.unit, stockNumber: item.stockNumber, quantityIssued: issued ? item.quantityIssued : 0, issuedAt: issued ? ris.issuedAt : null, quantityReturned, pendingReturn: pendingReturn || !!asset?.pendingMovement, transferred, acceptedAt: asset?.acceptedAt, quantityRemaining: issued && !transferred ? Math.max(0, item.quantityIssued - quantityReturned) : 0, status: transferred ? 'Transferred to another custodian' : !issued ? requestStatuses[ris.status] || 'Recorded request' : pendingReturn ? 'Awaiting admin confirmation' : quantityReturned >= item.quantityIssued && item.quantityIssued > 0 ? 'Successfully returned' : quantityReturned > 0 ? 'Partially returned' : item.quantityIssued > 0 ? 'Not returned' : 'Not issued', returns };
-  }));
+  const items = await accountRecords(req.user, includeRequests);
   return successResponse(res, 'Your item return status retrieved', items);
 });
 
@@ -178,7 +166,7 @@ router.post('/my-returns', authenticate, async (req, res) => {
   }
 });
 
-router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
+router.post('/', authenticate, validateAdminForm('ris'), authorize(['canCreateRIS', 'canManageRIS']), [
   body('entityName').notEmpty().withMessage('Entity name is required'),
   body('fundCluster').notEmpty().withMessage('Fund cluster is required'),
   body('division').notEmpty().withMessage('Division is required'),
@@ -218,7 +206,7 @@ router.post('/', authenticate, authorize(['canCreateRIS', 'canManageRIS']), [
   return successResponse(res, 'RIS created', ris, 201);
 });
 
-router.put('/:id', authenticate, authorize(['canCreateRIS', 'canManageRIS']), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('ris'), authorize(['canCreateRIS', 'canManageRIS']), async (req, res) => {
   const existing = await RequisitionIssueSlip.findOne({ _id: req.params.id, deleted: false });
   if (!existing) return errorResponse(res, 'RIS not found', [], 404);
   if (['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(existing.status)) return errorResponse(res, 'Issued RIS records are locked to preserve their linked stock and accountability. Use the return workflow for issued items.', [], 409);

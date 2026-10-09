@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const PropertyCard = require('../models/PropertyCard');
 const { successResponse, errorResponse } = require('../utils/response');
@@ -15,9 +16,9 @@ router.get('/', authenticate, authorize('canViewRIS'), async (req, res) => {
   return successResponse(res, 'Property cards retrieved', cards);
 });
 
-router.post('/', authenticate, authorize('canManageInventory'), require('../utils/createFormRecord')(PropertyCard, ['month', 'poNumber', 'entityName', 'fundCluster', 'propertyPlantAndEquipment', 'propertyNumber', 'description', 'serialNumber', 'items'], 'Property Card', 'items'));
+router.post('/', authenticate, validateAdminForm('property-cards'), authorize('canManageInventory'), require('../utils/createFormRecord')(PropertyCard, ['month', 'poNumber', 'entityName', 'fundCluster', 'propertyPlantAndEquipment', 'propertyNumber', 'description', 'serialNumber', 'items'], 'Property Card', 'items'));
 
-router.put('/:id', authenticate, authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('property-cards'), authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
   const card = await PropertyCard.findOneAndUpdate({ _id: req.params.id, deleted: false }, { ...req.body, lastEditedAt: new Date() }, { new: true, runValidators: true });
   if (!card) return errorResponse(res, 'Property card not found', [], 404);
   return successResponse(res, 'Property card updated', card);

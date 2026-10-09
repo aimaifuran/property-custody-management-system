@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const ReturnedSupply = require('../models/ReturnedSupply');
 const { successResponse, errorResponse } = require('../utils/response');
@@ -49,7 +50,7 @@ const saveSupply = async (req, res) => {
   const record = existing ? await ReturnedSupply.findByIdAndUpdate(existing._id, { ...payload, lastEditedAt: new Date() }, { returnDocument: 'after', runValidators: true }) : await ReturnedSupply.create(payload);
   return successResponse(res, existing ? 'Returned supply updated' : 'Returned supply record created', record, existing ? 200 : 201);
 };
-router.post('/', authenticate, authorize('canManageInventory'), saveSupply);
-router.put('/:id', authenticate, authorize('canManageInventory'), saveSupply);
+router.post('/', authenticate, validateAdminForm('returned-supply'), authorize('canManageInventory'), saveSupply);
+router.put('/:id', authenticate, validateAdminForm('returned-supply'), authorize('canManageInventory'), saveSupply);
 
 module.exports = router;

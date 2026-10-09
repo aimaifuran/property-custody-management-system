@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import NewFormBadge from '../components/NewFormBadge';
 import ClientPagination from '../components/Pagination';
 import { sortSavedReports } from '../utils/savedReportOrder';
@@ -260,7 +261,7 @@ export default function IarPage() {
             title: 'Enter a 3 or 4 digit IAR number',
             autoComplete: 'off'
         } : {};
-        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? '001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? '001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     };
 
     const formatDate = (date) => {
@@ -391,7 +392,7 @@ export default function IarPage() {
         </div>
         <hr className="border-slate-300 border-2 my-8" />
         <div className="space-y-6">
-          {editorOpen && (<form ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => setSaveError(`${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`)} className="form-document form-frame scroll-mt-6 p-6">
+          {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => setSaveError(`${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`)} className="form-document form-frame scroll-mt-6 p-6">
             <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock and creates a Property Card and RIS draft. ICS/PAR are generated during issuance.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
@@ -409,10 +410,10 @@ export default function IarPage() {
               <table className="min-w-full text-sm">
                 <thead>
                     <tr className="bg-slate-50 text-left">
-                    <th className="p-2">Stock/Property No.</th>
-                    <th className="p-2">Description</th>
-                    <th className="p-2">Unit</th>
-                    <th className="p-2">Quantity</th>
+                    <th className="p-2">Stock/Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -420,7 +421,7 @@ export default function IarPage() {
                     <tr key={index}>
                       {['stockPropertyNumber', 'description', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
-                          <input required={key !== 'unit'} aria-label={key} value={item[key]} onChange={(e) =>
+                          <input required aria-label={key} value={item[key]} onChange={(e) =>
                             updateItem(index, key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                         </td>
                       )}
@@ -451,7 +452,7 @@ export default function IarPage() {
             </div>
             {saveError && <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{saveError}{sessionExpired && <Link to="/login" className="ml-2 font-semibold underline">Sign in again</Link>}</p>}
             <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end disabled:opacity-50">{saving ? 'Saving...' : editingId ? 'Update IAR' : 'Save IAR'}</button>
-          </form>)}
+          </ValidatedForm>)}
         </div>
       </>
     )

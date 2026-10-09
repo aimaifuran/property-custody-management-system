@@ -90,6 +90,7 @@ app.use('/api/ppe-station-reports', require('./routes/ppeStationReports'));
 app.use('/api/properties', propertyRoutes);
 app.use('/api/document-numbers', documentNumberRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/about', require('./routes/about'));
 
 const getHealthPayload = () => ({
   ok: true,

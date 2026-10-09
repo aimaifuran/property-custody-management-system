@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
 import NewFormBadge from '../components/NewFormBadge';
@@ -185,7 +186,7 @@ export default function IcsPage() {
     const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input aria-label={label} readOnly={key === 'icsNumber' && !editingId} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input required aria-label={label} readOnly={key === 'icsNumber' && !editingId} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -195,15 +196,15 @@ export default function IcsPage() {
             <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Position</span>
-                    <input value={form[section].position} onChange={(e) => updateSignatory(section, 'position', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required value={form[section].position} onChange={(e) => updateSignatory(section, 'position', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
             </div>
         </div>
@@ -342,7 +343,7 @@ export default function IcsPage() {
             </div>
 
             {form && (
-                <form ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
+                <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                     <FormEditorHeader title="Inventory Custodian Slip" description="Linked RIS issuances for items with a unit cost below ₱50,000 are recorded here under the requester account." onClose={cancelEdit} />
                     <fieldset disabled={readOnly} className="min-w-0">
                     <div className="grid gap-3 md:grid-cols-3">
@@ -354,38 +355,38 @@ export default function IcsPage() {
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-left">
-                                    <th className="p-2">Quantity</th>
-                                    <th className="p-2">Unit</th>
-                                    <th className="p-2">Unit Cost</th>
+                                    <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Unit Cost <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Total Cost</th>
-                                    <th className="p-2">Description</th>
-                                    <th className="p-2">Inventory Item No.</th>
-                                    <th className="p-2">Estimated Useful Life</th>
+                                    <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Inventory Item No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Estimated Useful Life <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {form.items.map((item, index) => (
                                     <tr key={index}>
                                         <td className="p-2">
-                                            <input aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required data-positive="true" min="0" step="any" aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input aria-label="Unit Cost" type="number" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input aria-label="Total Cost" readOnly value={item.totalCost} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                            <input required aria-label="Total Cost" readOnly value={item.totalCost} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                     </tr>
                                 ))}
@@ -402,7 +403,7 @@ export default function IcsPage() {
 
                     <div className="mt-4">
                         <label className="block">
-                            <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks</span>
+                            <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks (optional)</span>
                             <textarea value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
                         </label>
                     </div>
@@ -415,7 +416,7 @@ export default function IcsPage() {
                     </fieldset>
                     <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : readOnly ? 'Awaiting custodian acceptance' : ''}</p>
                     <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : readOnly ? 'Issued Form' : editingId ? 'Save Changes' : 'Save New Form'}</button>
-                </form>
+                </ValidatedForm>
             )}
         </div>
     );

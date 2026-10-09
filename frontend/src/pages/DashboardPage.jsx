@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import {
-  FileText, ClipboardList, Users, UserRound, FileCheck2, ArrowLeftRight, RotateCcw, Archive, Clock,
+  FileText, ClipboardList, FileCheck2, ArrowLeftRight, RotateCcw, Archive, Clock,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, PieChart, Pie, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -22,10 +22,8 @@ const secondaryCards = [
   { key: 'ptr', title: 'Property Transfer Report', icon: ArrowLeftRight, iconBg: 'bg-blue-50', iconColor: 'text-blue-700' },
   { key: 'prs', title: 'Property Return Slip', icon: RotateCcw, iconBg: 'bg-rose-50', iconColor: 'text-rose-700' },
   { key: 'returnedSupply', title: 'Returned Supply', icon: ClipboardList, iconBg: 'bg-amber-50', iconColor: 'text-amber-700' },
-  { key: 'users', title: 'User Management', icon: Users, iconBg: 'bg-violet-50', iconColor: 'text-violet-700' },
 ];
 
-const CHART_COLORS = ['#2f6f68', '#b49a5a', '#7b8fa8', '#a86f78', '#6f7d62', '#c58b5c'];
 const RETURN_SLIP_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#db2777', '#16a34a', '#ea580c'];
 const RETURN_SUPPLY_COLORS = ['#d97706', '#059669', '#e11d48', '#4f46e5', '#0284c7', '#9333ea'];
 const REPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -54,7 +52,7 @@ export default function DashboardPage() {
   const [counts, setCounts] = useState(null);
 
   const [recentActivity, setRecentActivity] = useState([]);
-  const [chartData, setChartData] = useState({ returnSlip: [], returnedSupply: [], users: [] });
+  const [chartData, setChartData] = useState({ returnSlip: [], returnedSupply: [] });
   const [issuedReports, setIssuedReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,7 +71,6 @@ export default function DashboardPage() {
         setChartData({
           returnSlip: data.data.returnSlipBreakdown || [],
           returnedSupply: data.data.returnedSupplyBreakdown || [],
-          users: data.data.userBreakdown || [],
         });
       } catch (err) {
         setError(err.response?.data?.message || 'Unable to load dashboard data');
@@ -145,25 +142,9 @@ export default function DashboardPage() {
 
       <div className="dashboard-results grid items-stretch gap-4 xl:grid-cols-3">
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
-          <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-3">
+          <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-2">
             <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="65%" label>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={RETURN_SLIP_COLORS[index % RETURN_SLIP_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
             <div className="dashboard-return-summary dashboard-return-supply minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2>{chartData.returnedSupply.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={RETURN_SUPPLY_COLORS[index % RETURN_SUPPLY_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
-            <div className="dashboard-users minimal-surface h-fit p-4">
-              <h2 className="text-sm font-semibold">User Management</h2>
-              <div className="dashboard-user-pictorial">
-                {loading ? <Skeleton className="h-4 w-20" /> : chartData.users.length === 0 ? <p>No user records yet.</p> : [...chartData.users].sort((first, second) => {
-                  const roleOrder = { admin: 0, user: 1 };
-                  return (roleOrder[first.label.toLowerCase()] ?? 2) - (roleOrder[second.label.toLowerCase()] ?? 2);
-                }).map((entry) => (
-                  <div key={entry.label} className="user-pictorial-row" aria-label={`${entry.label}: ${entry.count} users`}>
-                    <div className="user-pictorial-icons" aria-hidden="true">
-                      <span className="user-pictorial-icon"><UserRound style={{ color: entry.label.toLowerCase() === 'admin' ? '#b49a5a' : '#2f6f68' }} /></span>
-                    </div>
-                    <div className="user-pictorial-heading"><span>{entry.label}</span><strong>{entry.count}</strong></div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           <div className="dashboard-reports grid gap-4 sm:grid-cols-2">
@@ -174,7 +155,7 @@ export default function DashboardPage() {
             </div>
             <div className="dashboard-annual minimal-surface p-4">
               <h2 className="text-sm font-semibold">Annual Reports</h2>
-              <p className="text-xs text-slate-500">Issued reports by year{annualChartData.some((entry) => entry.example) ? " · Gold bars are examples" : ""}</p>
+              <p className="text-xs text-slate-500">By year{annualChartData.some((entry) => entry.example) ? " · Gold: examples" : ""}</p>
               <div className="annual-report-body">
                 <div className="annual-bar-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={annualChartData} maxBarSize={56} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} /><XAxis dataKey="year" tick={{ fontSize: 9 }} height={22} /><YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={24} /><Tooltip formatter={(value, name, item) => [value, item.payload.example ? "Example reports" : "Reports"]} /><Bar dataKey="reports" name="Reports" fill="#55c5cf" radius={[3, 3, 0, 0]}>{annualChartData.map((entry) => <Cell key={entry.year} fill={entry.example ? "#b49a5a" : "#55c5cf"} />)}</Bar></BarChart></ResponsiveContainer></div>
               </div>
@@ -216,9 +197,8 @@ export default function DashboardPage() {
 
       <div className="dashboard-other">
         <h2 className="mb-3 text-lg font-semibold text-slate-700">Other Records</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           {secondaryCards.map((card) => {
-            if (card.key === 'users' && counts?.users == null) return null;
             const Icon = card.icon;
             return (
               <div key={card.key} className="minimal-surface flex items-start justify-between gap-3 p-4">

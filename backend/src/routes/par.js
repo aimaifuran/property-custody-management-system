@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgementReceipt');
 const { successResponse, errorResponse } = require('../utils/response');
@@ -16,9 +17,9 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canManageRIS', 'canManag
   return successResponse(res, 'Property Acknowledgement Receipts retrieved', records);
 });
 
-router.post('/', authenticate, authorize('canManageInventory'), require('../utils/createFormRecord')(PropertyAcknowledgementReceipt, ['entityName', 'office', 'fundCluster', 'parNumber', 'items', 'remarks', 'receivedBy', 'issuedBy'], 'Property Acknowledgement Receipt', 'items'));
+router.post('/', authenticate, validateAdminForm('par'), authorize('canManageInventory'), require('../utils/createFormRecord')(PropertyAcknowledgementReceipt, ['entityName', 'office', 'fundCluster', 'parNumber', 'items', 'remarks', 'receivedBy', 'issuedBy'], 'Property Acknowledgement Receipt', 'items'));
 
-router.put('/:id', authenticate, authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('par'), authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
   const existing = await PropertyAcknowledgementReceipt.findOne({ _id: req.params.id, deleted: false });
   if (existing?.user) return errorResponse(res, 'Linked accountability forms are locked. Use acceptance, transfer or return actions.', [], 409);
   const record = await PropertyAcknowledgementReceipt.findOneAndUpdate({ _id: req.params.id, deleted: false }, { ...req.body, lastEditedAt: new Date() }, { new: true, runValidators: true });

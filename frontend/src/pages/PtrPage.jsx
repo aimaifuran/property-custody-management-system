@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
 import NewFormBadge from '../components/NewFormBadge';
@@ -231,7 +232,7 @@ export default function PtrPage() {
     const field = (label, key, type = 'text') => key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '' })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -241,15 +242,15 @@ export default function PtrPage() {
             <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
-                    <input value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
             </div>
         </div>
@@ -398,7 +399,7 @@ export default function PtrPage() {
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            {editorOpen && (<motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
+            {editorOpen && (<ValidatedForm as={motion.form} ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Transfer Report" description="Transfer an accountable asset to another custodian." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
                 <fieldset disabled={workflow} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-3">
@@ -427,7 +428,7 @@ export default function PtrPage() {
                         ))}
                     </div>
                     {form.transferTypeChoice === 'Other' && (
-                        <input
+                        <input required
                             value={form.transferTypeOther}
                             onChange={(e) => update('transferTypeOther', e.target.value)}
                             placeholder="Specify transfer type"
@@ -440,30 +441,30 @@ export default function PtrPage() {
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-left">
-                                <th className="p-2">Date Acquired</th>
-                                <th className="p-2">Property No.</th>
-                                <th className="p-2">Description</th>
-                                <th className="p-2">Amount</th>
-                                <th className="p-2">Condition of PPE</th>
+                                <th className="p-2">Date Acquired <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Amount <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Condition of PPE <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <input readOnly={isUser} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required readOnly={isUser} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = assets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select your accepted property</option>{assets.map(asset => <option key={asset._id} value={asset._id} disabled={!asset.acceptedAt || !!asset.pendingMovement}>{asset.inventory?.item?.description} - {asset.documentNumber}{!asset.acceptedAt ? ' (accept ICS/PAR first)' : asset.pendingMovement ? ' (pending movement)' : ''}</option>)}</select> : <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = assets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select your accepted property</option>{assets.map(asset => <option key={asset._id} value={asset._id} disabled={!asset.acceptedAt || !!asset.pendingMovement}>{asset.inventory?.item?.description} - {asset.documentNumber}{!asset.acceptedAt ? ' (accept ICS/PAR first)' : asset.pendingMovement ? ' (pending movement)' : ''}</option>)}</select> : <input required aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input readOnly={isUser} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required readOnly={isUser} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input readOnly={isUser} aria-label="Amount" type="number" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required readOnly={isUser} aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input readOnly={isUser} aria-label="Condition of PPE" value={item.condition} onChange={(e) => updateItem(index, 'condition', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required readOnly={isUser} aria-label="Condition of PPE" value={item.condition} onChange={(e) => updateItem(index, 'condition', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                 </tr>
                             ))}
@@ -474,12 +475,12 @@ export default function PtrPage() {
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
                     <label className="block">
-                        <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks</span>
+                        <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks (optional)</span>
                         <textarea value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
                     </label>
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Reason for Transfer</span>
-                        <textarea value={form.reasonForTransfer} onChange={(e) => update('reasonForTransfer', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
+                        <textarea required value={form.reasonForTransfer} onChange={(e) => update('reasonForTransfer', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
                     </label>
                 </div>
 
@@ -497,7 +498,7 @@ export default function PtrPage() {
                     <Send size={16} />
                     {saving ? 'Saving...' : workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : isUser ? 'Submit PTR' : editingId ? 'Update PTR' : 'Create PTR'}
                 </button>
-            </motion.form>)}
+            </ValidatedForm>)}
         </div>
     );
 }

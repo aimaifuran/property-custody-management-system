@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { PageSkeleton } from '../components/Skeleton';
 import Skeleton from '../components/Skeleton';
 import { useEffect, useState } from 'react';
@@ -32,12 +33,12 @@ export default function SettingsPage() {
   };
 
   if (pageLoading) return <PageSkeleton />;
-  return <form onSubmit={save} className="space-y-6">
+  return <ValidatedForm onSubmit={save} className="space-y-6">
     <div><h1 className="text-3xl font-semibold">System Settings</h1><p className="text-sm text-slate-500">Manage the names and designations used by generated forms.</p></div>
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold">Organization</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {['organizationName', 'governmentAgency', 'address', 'telephone', 'systemName', 'lguName'].map((key) => <label key={key} className="block"><span className="mb-1 block text-sm font-semibold capitalize text-slate-700">{key.replace(/([A-Z])/g, ' $1')}</span><input value={settings[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>)}
+        {['organizationName', 'governmentAgency', 'address', 'telephone', 'systemName', 'lguName'].map((key) => <label key={key} className="block"><span className="mb-1 block text-sm font-semibold capitalize text-slate-700">{key.replace(/([A-Z])/g, ' $1')}</span><input required value={settings[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>)}
       </div>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -48,5 +49,5 @@ export default function SettingsPage() {
       </div>
     </section>
     <button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2 font-semibold text-white disabled:opacity-50">{saving ? <Skeleton className="h-4 w-20" /> : 'Save Settings'}</button>
-  </form>;
+  </ValidatedForm>;
 }

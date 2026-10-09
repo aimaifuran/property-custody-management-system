@@ -1,6 +1,7 @@
+import ValidatedForm from '../components/ValidatedForm';
 import Skeleton from '../components/Skeleton';
 import FormLoader from '../components/FormLoader';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
@@ -17,9 +18,40 @@ import LoginIllustration from '../components/LoginIllustration';
 
 export default function LoginPage() {
 
-  const [identifier, setIdentifier] = useState('admin');
+  const [identifier, setIdentifier] = useState('');
 
-  const [password, setPassword] = useState('Admin123!');
+  const [password, setPassword] = useState('');
+  const identifierRef = useRef(null);
+  const passwordRef = useRef(null);
+  const [editableFields, setEditableFields] = useState({ identifier: false, password: false });
+
+  useEffect(() => {
+    // Browsers may restore DOM values independently of React's empty state.
+    const clearRestoredValues = () => {
+      if (identifierRef.current) identifierRef.current.value = '';
+      if (passwordRef.current) passwordRef.current.value = '';
+    };
+    clearRestoredValues();
+    const frame = window.requestAnimationFrame(clearRestoredValues);
+    const restore = event => {
+      if (!event.persisted) return;
+      clearRestoredValues();
+      setIdentifier('');
+      setPassword('');
+      setEditableFields({ identifier: false, password: false });
+    };
+    window.addEventListener('pageshow', restore);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('pageshow', restore);
+    };
+  }, []);
+
+  const enableTyping = (event, field, value) => {
+    event.currentTarget.value = value;
+    event.currentTarget.readOnly = false;
+    setEditableFields(previous => ({ ...previous, [field]: true }));
+  };
 
   const [submitting, setSubmitting] = useState(false);
   const [loginDestination, setLoginDestination] = useState(null);
@@ -129,13 +161,23 @@ export default function LoginPage() {
 
           </div>
 
-          <form onSubmit={handleSubmit} inert={signingIn ? true : undefined} aria-busy={signingIn} className="space-y-2.5 md:space-y-3">
+          <ValidatedForm autoComplete="off" onSubmitCapture={() => {
+            if (identifierRef.current) {
+              identifierRef.current.value = identifier;
+              identifierRef.current.readOnly = false;
+            }
+            if (passwordRef.current) {
+              passwordRef.current.value = password;
+              passwordRef.current.readOnly = false;
+            }
+            setEditableFields({ identifier: true, password: true });
+          }} onSubmit={handleSubmit} inert={signingIn ? true : undefined} aria-busy={signingIn} className="space-y-2.5 md:space-y-3">
 
             <label htmlFor="login-identifier" className="block">
 
               <span className="mb-1 block text-xs font-semibold text-white/85 md:mb-1 md:text-sm">Username or email</span>
 
-              <input id="login-identifier" value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" placeholder="Username or email" />
+              <input required ref={identifierRef} id="login-identifier" name="login-identifier" autoComplete="off" data-lpignore="true" data-1p-ignore readOnly={!editableFields.identifier} onFocus={event => enableTyping(event, 'identifier', identifier)} value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" />
 
             </label>
 
@@ -144,7 +186,7 @@ export default function LoginPage() {
               <span className="mb-1 block text-xs font-semibold text-white/85 md:mb-1 md:text-sm">Password</span>
 
               <div className="relative">
-                <input id="login-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" style={{ paddingRight: '2.75rem' }} placeholder="Password" />
+                <input required ref={passwordRef} id="login-password" name="login-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" data-lpignore="true" data-1p-ignore readOnly={!editableFields.password} onFocus={event => enableTyping(event, 'password', password)} value={password} onChange={(e) => setPassword(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" style={{ paddingRight: '2.75rem' }} />
                 <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword(value => !value)} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-white/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                   {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
                 </button>
@@ -161,7 +203,7 @@ export default function LoginPage() {
             <button type="submit" disabled={signingIn || countdown > 0} aria-label="Sign in" aria-busy={signingIn} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{submitting ? <Skeleton className="h-4 w-16" label="Signing in" /> : loginDestination ? 'Opening your account...' : 'Sign in'}</button>
 
             {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
-          </form>
+          </ValidatedForm>
           <Link to="/forgot-password" className="mt-3 block py-1 text-center text-xs text-white/85 underline md:mt-3 md:py-0 md:text-sm">Forgot your password?</Link>
 
         </div>

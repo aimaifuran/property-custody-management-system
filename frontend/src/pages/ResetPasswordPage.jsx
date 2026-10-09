@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import Skeleton from '../components/Skeleton';
 import { useState } from 'react';
 import axios from 'axios';
@@ -47,7 +48,7 @@ export default function ResetPasswordPage() {
             This reset link is missing or invalid. Please request a new one.
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
             <label htmlFor="reset-password" className="block">
               <span className="mb-2 block text-sm font-semibold text-slate-300">New password</span>
               <input
@@ -77,7 +78,7 @@ export default function ResetPasswordPage() {
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white disabled:opacity-60">
               {loading ? <Skeleton className="h-4 w-20" /> : 'Update password'}
             </button>
-          </form>
+          </ValidatedForm>
         )}
 
         <div className="mt-6 text-center text-sm text-slate-400">

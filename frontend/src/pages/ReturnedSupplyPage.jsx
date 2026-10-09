@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
 import NewFormBadge from '../components/NewFormBadge';
@@ -139,15 +140,15 @@ export default function ReturnedSupplyPage() {
             <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
-                    <input value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
             </div>
         </div>
@@ -184,7 +185,7 @@ export default function ReturnedSupplyPage() {
             </motion.div>
 
             {form && (
-                <form ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 p-6">
+                <ValidatedForm ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 p-6">
                     <FormEditorHeader title="Returned Supply" description="Each item on a saved Property Return Slip is logged here individually." onClose={cancelEdit} />
                     <label className="mb-4 block"><span className="mb-1 block font-semibold">Issued item to return</span><select aria-label="Issued item to return" value={form.ris && form.risItem ? `${form.ris}:${form.risItem}` : ''} onChange={event => {
                         const [risId, itemId] = event.target.value.split(':');
@@ -195,11 +196,11 @@ export default function ReturnedSupplyPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                         <label className="block">
                             <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
-                            <input value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                            <input required value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                         </label>
                         <label className="block">
                             <span className="mb-1 block text-sm font-semibold text-slate-700">Purpose</span>
-                            <input value={form.purpose} onChange={(e) => update('purpose', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                            <input required value={form.purpose} onChange={(e) => update('purpose', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                         </label>
                     </div>
 
@@ -207,37 +208,37 @@ export default function ReturnedSupplyPage() {
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className="bg-slate-50 text-left">
-                                    <th className="p-2">Quantity</th>
-                                    <th className="p-2">Unit</th>
-                                    <th className="p-2">Description</th>
+                                    <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Property Number</th>
-                                    <th className="p-2">M. R. No.</th>
-                                    <th className="p-2">Unit Value</th>
+                                    <th className="p-2">M. R. No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Unit Value <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Total Value</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
                                     <td className="p-2">
-                                        <input aria-label="Quantity" type="number" value={form.quantity} onChange={(e) => updateValue('quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required data-positive="true" min="0" step="any" aria-label="Quantity" type="number" value={form.quantity} onChange={(e) => updateValue('quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Unit" value={form.unit} onChange={(e) => update('unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required aria-label="Unit" value={form.unit} onChange={(e) => update('unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Description" value={form.description} onChange={(e) => update('description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={form.description} onChange={(e) => update('description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input aria-label="Property Number" value={form.propertyNumber} onChange={(e) => update('propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="M. R. No." value={form.mrNumber} onChange={(e) => update('mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required aria-label="M. R. No." value={form.mrNumber} onChange={(e) => update('mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Unit Value" type="number" value={form.unitValue} onChange={(e) => updateValue('unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required aria-label="Unit Value" type="number" min="0" step="any" value={form.unitValue} onChange={(e) => updateValue('unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Total Value" readOnly value={form.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        <input required aria-label="Total Value" readOnly value={form.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
                                 </tr>
                             </tbody>
@@ -246,7 +247,7 @@ export default function ReturnedSupplyPage() {
 
                     <div className="mt-4">
                         <label className="block">
-                            <span className="mb-1 block text-sm font-semibold text-slate-700">Note</span>
+                            <span className="mb-1 block text-sm font-semibold text-slate-700">Note (optional)</span>
                             <textarea value={form.note} onChange={(e) => update('note', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
                         </label>
                     </div>
@@ -257,7 +258,7 @@ export default function ReturnedSupplyPage() {
                     </div>
 
                     <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save New Form'}</button>
-                </form>
+                </ValidatedForm>
             )}
         </div>
     );

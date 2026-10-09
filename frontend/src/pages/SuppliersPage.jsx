@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { PageSkeleton } from '../components/Skeleton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -76,7 +77,7 @@ export default function SuppliersPage() {
             <Pagination page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
           </div>
         </motion.div>
-        <form onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <ValidatedForm onSubmit={save} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold">Add Supplier</h2>
           <div className="mt-4 space-y-3">
             <label className="block">
@@ -93,7 +94,7 @@ export default function SuppliersPage() {
             </label>
             <button className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white">Save Supplier</button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   );

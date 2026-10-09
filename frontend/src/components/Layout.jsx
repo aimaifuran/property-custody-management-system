@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { preloadFormFonts } from '../utils/formPdfFonts';
@@ -32,8 +32,6 @@ const navItems = [
   { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '/returned-supply', label: 'Returned Supply', icon: ClipboardList, permissions: ['canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
-  { to: '/users', label: 'User Management', icon: Users, permissions: ['canManageUsers'] },
-  { to: '/profile', label: 'My Profile', icon: Users, permissions: [], adminOnly: true },
 ];
 
 const canAccessNavItem = (user, item) => {
@@ -47,6 +45,19 @@ const canAccessNavItem = (user, item) => {
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
+  const accountMenuTriggerRef = useRef(null);
+  useEffect(() => { setAccountMenuOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    accountMenuRef.current?.querySelector('[role="menuitem"]')?.focus();
+    const dismiss = event => { if (!accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false); };
+    const escape = event => { if (event.key === 'Escape') { setAccountMenuOpen(false); accountMenuTriggerRef.current?.focus(); } };
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); };
+  }, [accountMenuOpen]);
   const [pendingResets, setPendingResets] = useState(0);
   const notifiedResets = useRef(new Set());
 
@@ -82,8 +93,8 @@ export default function Layout() {
     window.addEventListener('password-recovery-updated', refresh);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('password-recovery-updated', refresh); };
   }, [user?._id, user?.role]);
-  const [issueOpen, setIssueOpen] = useState(true);
-  const [reportsOpen, setReportsOpen] = useState(true);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -148,6 +159,8 @@ export default function Layout() {
                 <div key={item.to} className="sidebar-nav-group pt-3">
                   <button
                     type="button"
+                    aria-expanded={issueOpen}
+                    aria-controls="sidebar-issue-menu"
                     onClick={() => setIssueOpen((value) => !value)}
                     className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                   >
@@ -161,6 +174,7 @@ export default function Layout() {
                   <AnimatePresence initial={false}>
                     {issueOpen ? (
                       <motion.div
+                        id="sidebar-issue-menu"
                         key="issue-submenu"
                         initial={{ opacity: 0, height: 0, y: -6 }}
                         animate={{ opacity: 1, height: 'auto', y: 0 }}
@@ -193,13 +207,13 @@ export default function Layout() {
             if (item.to === '__reports__') {
               return (
                 <div key={item.to} className="sidebar-nav-group">
-                  <button type="button" onClick={() => setReportsOpen((value) => !value)} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+                  <button type="button" aria-expanded={reportsOpen} aria-controls="sidebar-reports-menu" onClick={() => setReportsOpen((value) => !value)} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
                     <span className="flex items-center gap-3"><BarChart3 size={18} />Reports</span>
                     {reportsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </button>
                   <AnimatePresence initial={false}>
                     {reportsOpen ? (
-                      <motion.div key="reports-submenu" initial={{ opacity: 0, height: 0, y: -6 }} animate={{ opacity: 1, height: 'auto', y: 0 }} exit={{ opacity: 0, height: 0, y: -6 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+                      <motion.div id="sidebar-reports-menu" key="reports-submenu" initial={{ opacity: 0, height: 0, y: -6 }} animate={{ opacity: 1, height: 'auto', y: 0 }} exit={{ opacity: 0, height: 0, y: -6 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
                         <div className="mt-1 space-y-1 pl-3">
                           {reportItems.filter((childItem) => canAccessNavItem(user, childItem)).map((childItem) => {
                             const Icon = childItem.icon;
@@ -224,13 +238,9 @@ export default function Layout() {
           })}
         </nav>
         </div>
-        <div className="sidebar-user mt-2 shrink-0 rounded-xl p-2">
-          <div className="truncate text-sm font-semibold">{user?.firstName} {user?.lastName}</div>
-          <div className="truncate text-xs text-slate-500">{user?.office}</div>
-          <button onClick={logout} className="mt-2 flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-xs text-slate-600 ring-1 ring-slate-200">
-            <LogOut size={16} /> Logout
-          </button>
-        </div>
+        <nav className="mt-3 shrink-0 border-t border-white/15 pt-3" aria-label="System information">
+          <NavLink to="/about" onClick={closeMobileSidebar} className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}><Info size={18} aria-hidden="true" />About</NavLink>
+        </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="title-bar border-b border-white/70 px-6 py-4 shadow-sm">
@@ -251,7 +261,20 @@ export default function Layout() {
                 <div className="text-xs text-slate-500">Secure property custody tracking</div>
               </div>
             </div>
-            <div className="ml-2 shrink-0 rounded-md bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">{user?.role === 'admin' ? 'Admin' : 'User'}</div>
+            <div className="title-bar-account-group" ref={accountMenuRef} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setAccountMenuOpen(false); }}>
+              {user?.role === 'admin' ? <NavLink to="/profile" className="title-bar-account" aria-label="Open my admin profile">
+                <span className="title-bar-account-details"><strong>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</strong><span>Admin</span></span>
+                <span className="title-bar-account-avatar">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : <span aria-hidden="true">{`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || user.username?.slice(0, 2).toUpperCase()}</span>}</span>
+              </NavLink> : <span className="text-sm text-white">User</span>}
+              <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" /></button>
+              {accountMenuOpen && <div id="header-account-menu" className="title-bar-account-menu" role="menu" aria-label="Account actions">
+                {user?.role === 'admin' && <>
+                  <NavLink to="/profile" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />My Profile</NavLink>
+                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{pendingResets > 0 && <span className="account-menu-notification" aria-label={`${pendingResets} password reset requests awaiting approval`}>{pendingResets}</span>}</NavLink>
+                </>}
+                <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); logout(); }}><LogOut size={16} aria-hidden="true" />Logout</button>
+              </div>}
+            </div>
           </div>
         </header>
         <main className={`min-h-0 flex-1 overflow-y-auto p-6 ${location.pathname === '/dashboard' ? 'dashboard-main' : ''}`}>

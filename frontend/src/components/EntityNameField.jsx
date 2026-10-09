@@ -62,7 +62,7 @@ export default function EntityNameField({ value = '', onChange, isNew = true }) 
   };
   return <div className="entity-name-field min-w-0">
     <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Entity Name:</span>
-      {loading && !value ? <Skeleton className="h-9 w-full" label="Loading Entity Name" /> : <input type="text" aria-label="Entity Name" value={dirty ? draft : (isNew ? globalName || value : value)} readOnly={!canEdit || saving} required maxLength={300} onChange={event => { setDraft(event.target.value); setDirty(true); setError(''); change.current(event.target.value); }} onBlur={save} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} className="w-full rounded-xl border border-slate-200 px-3 py-2" />}
+      {loading && !value ? <Skeleton className="h-9 w-full" label="Loading Entity Name" /> : <input type="text" aria-invalid={dirty && !draft.trim() && !!error ? true : undefined} aria-label="Entity Name" value={dirty ? draft : (isNew ? globalName || value : value)} readOnly={!canEdit || saving} required maxLength={300} onChange={event => { setDraft(event.target.value); setDirty(true); setError(''); change.current(event.target.value); }} onBlur={save} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }} className="w-full rounded-xl border border-slate-200 px-3 py-2" />}
     </label>
     {error && <p role="alert" className="text-rose-700">{error}</p>}
     {saving && <Skeleton className="mt-1 h-3 w-24" label="Saving Entity Name" />}

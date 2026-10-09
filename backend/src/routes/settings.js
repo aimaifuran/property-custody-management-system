@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const Setting = require('../models/Setting');
 const { successResponse, errorResponse } = require('../utils/response');
@@ -32,7 +33,7 @@ router.get('/', authenticate, authorize('canManageSettings'), async (req, res) =
   return successResponse(res, 'Settings retrieved', settings || await Setting.create({}));
 });
 
-router.put('/', authenticate, authorize('canManageSettings'), async (req, res) => {
+router.put('/', authenticate, validateAdminForm('settings'), authorize('canManageSettings'), async (req, res) => {
   const allowed = ['organizationName', 'governmentAgency', 'address', 'telephone', 'footer', 'systemName', 'lguName', 'signatories'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
   const settings = await Setting.findOneAndUpdate({}, updates, { new: true, upsert: true, setDefaultsOnInsert: true });

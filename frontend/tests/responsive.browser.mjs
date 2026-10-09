@@ -91,6 +91,7 @@ try {
     if (path === '/items' || path === '/ris/request-items') return [stock];
     if (path === '/ris') return [ris];
     if (path === '/ris/returnable-items') return [{ ...ris, status: 'ISSUED' }];
+    if (/^\/users\/[^/]+\/records$/.test(path)) return { risRows: [{ ...myReturn, returns: [...myReturn.returns] }, ownedIssuedRow], assets: [asset, transferredAsset], returnSlips: [] };
     if (path === '/ris/my-items') return [{ ...myReturn, returns: [...myReturn.returns] }, ownedIssuedRow];
     if (path === '/ris/my-returns') return [myReturn, ownedIssuedRow];
     if (path === '/ics') return [ics];
@@ -106,7 +107,13 @@ try {
     if (path === '/suppliers') return [{ _id: 'supplier-1', name: 'Supplier With A Long Business Name', address: 'Municipality of Carigara, Leyte, Philippines', contactNumber: '09123456789' }];
     if (path === '/monthly-item-reports' || path === '/ppe-lists') return { report, records: [report] };
     if (path === '/ppe-station-reports') return { defaults: {}, records: [report] };
-    if (path.endsWith('/summary')) return { counts: {}, recentActivity: [], returnSlipBreakdown: [], returnedSupplyBreakdown: [], userBreakdown: [] };
+    if (path.endsWith('/summary')) return process.env.DASHBOARD_ONLY ? {
+      counts: { iar: 120, propertyCards: 210, ris: 340, ics: 150, par: 200, ptr: 30, prs: 40, returnedSupply: 50, users: 80 },
+      recentActivity: Array.from({ length: 30 }, (_, index) => ({ _id: `activity-${index}`, action: 'Property accountability updated', details: description, createdAt: date, user })),
+      returnSlipBreakdown: [{ label: 'Serviceable', count: 25 }, { label: 'Unserviceable', count: 15 }],
+      returnedSupplyBreakdown: [{ label: 'Returned', count: 30 }, { label: 'Received', count: 20 }],
+      userBreakdown: [{ label: 'Admin', count: 5 }, { label: 'User', count: 75 }],
+    } : { counts: {}, recentActivity: [], returnSlipBreakdown: [], returnedSupplyBreakdown: [], userBreakdown: [] };
     if (path.endsWith('/annual-office-items')) return { groups: [{ itemType: 'Laptops', quantity: 1, rows: [{ ...line, id: 'annual-1', office: person.designation, custodian: person.name, documentNumber: par.parNumber }], offices: [person.designation] }] };
     if (path.endsWith('/archive')) return [{ id: 'archive-1', type: 'PAR', documentNumber: par.parNumber, description, office: person.designation, employee: person.name, date }];
     return [];
@@ -181,7 +188,7 @@ try {
       if (request.method === 'POST' && path === '/users') {
         const payload = JSON.parse(request.postData || '{}');
         delete payload.password;
-        data = { ...payload, _id: 'created-managed-user', status: 'active', locked: false };
+        data = { ...payload, _id: payload.role === 'admin' ? 'created-managed-admin' : 'created-managed-user', status: 'active', locked: false };
         managedUsers.unshift(data);
         responseCode = 201;
       }
@@ -242,8 +249,124 @@ try {
     const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     await writeFile(join(directory, `${name}.png`), Buffer.from(screenshot.data, 'base64'));
   };
+  const completeRequiredDocumentFields = async () => {
+    await evaluate(`(() => {
+      for (const field of document.querySelectorAll('form input:required, form select:required, form textarea:required')) {
+        if (field.matches(':disabled') || field.readOnly || field.value.trim()) continue;
+        const value = field.type === 'date' ? '2026-10-08' : field.type === 'number' ? '1' : field.tagName === 'SELECT' ? [...field.options].find(option => option.value)?.value : 'Completed fixture detail';
+        const prototype = field.tagName === 'SELECT' ? HTMLSelectElement.prototype : field.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(prototype, 'value').set.call(field, value);
+        field.dispatchEvent(new Event(field.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+      }
+    })()`);
+    await delay(100);
+  };
+  if (process.env.DASHBOARD_ONLY) {
+    for (const [width, height] of [[1024, 540], [1024, 600], [1280, 600], [1280, 720], [1366, 650], [1366, 768], [1440, 900], [1536, 864], [1920, 1080], [2560, 1440]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+      await navigate('/dashboard');
+      await waitFor(`document.querySelectorAll('.dashboard-page .recharts-surface').length === 4`);
+      await delay(350);
+      const layout = await evaluate(`(() => {
+        const main = document.querySelector('main');
+        const page = document.querySelector('.dashboard-page');
+        const viewport = main.getBoundingClientRect();
+        return {
+          client: main.clientHeight, scroll: main.scrollHeight,
+          horizontal: main.scrollWidth <= main.clientWidth + 1,
+          bodyFits: document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight,
+          panels: [...page.querySelectorAll('.minimal-surface, .dashboard-activity')].map(panel => {
+            const box = panel.getBoundingClientRect();
+            return box.top >= viewport.top - 1 && box.bottom <= viewport.bottom + 1 && box.left >= viewport.left - 1 && box.right <= viewport.right + 1;
+          }),
+          charts: [...page.querySelectorAll('.dashboard-return-chart, .monthly-report-chart, .annual-bar-chart')].map(chart => chart.getBoundingClientRect().height),
+          activityScrolls: page.querySelector('.dashboard-activity > .overflow-y-auto').scrollHeight > page.querySelector('.dashboard-activity > .overflow-y-auto').clientHeight,
+        };
+      })()`);
+      assert.ok(layout.scroll <= layout.client + 1, `${width}x${height}: dashboard fits vertically ${JSON.stringify(layout)}`);
+      assert.ok(layout.horizontal && layout.bodyFits && layout.panels.every(Boolean), `${width}x${height}: all dashboard panels fit the viewport ${JSON.stringify(layout)}`);
+      assert.ok(layout.charts.every(size => size >= 40), `${width}x${height}: charts remain visible ${JSON.stringify(layout)}`);
+      assert.equal(layout.activityScrolls, true, 'Activity history scrolls inside its panel');
+      console.log(`PASS dashboard fits ${width}x${height} without browser zoom or page scrolling.`);
+    }
+  } else if (process.env.FORM_VALIDATION_ONLY) {
+    const writes = () => calls.filter(call => ['POST', 'PUT', 'PATCH'].includes(call.method));
+    for (const route of ['/iar', '/inventory', '/ris', '/inventory-custodian', '/par', '/transfers', '/returns', '/returned-supply', '/users', '/suppliers', '/reports/monthly', '/reports/ppe-list', '/profile']) {
+      await navigate(route);
+      await evaluate(`(document.querySelector('button[aria-label="New Form"]') || [...document.querySelectorAll('button')].find(button => button.textContent.includes('Create User')))?.click()`);
+      await waitFor(`!!document.querySelector('form input:required, form textarea:required')`);
+      await evaluate(`(() => {
+        window.validationField = [...document.querySelectorAll('form input:required, form textarea:required')].find(field => !field.matches(':disabled') && !field.readOnly && field.getAttribute('aria-label') !== 'Entity Name');
+        const field = window.validationField;
+        if (!field) throw new Error('No editable required field');
+        Object.getOwnPropertyDescriptor(field.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(field, '');
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await delay(100);
+      const before = writes().length;
+      await evaluate(`window.validationField.form.requestSubmit()`);
+      await waitFor(`window.validationField.getAttribute('aria-invalid') === 'true' && !!document.querySelector('form [role="alert"]')`);
+      assert.equal(writes().length, before, `${route}: missing required text must not send a save request`);
+      assert.equal(await evaluate(`getComputedStyle(window.validationField).outlineColor`), 'rgb(220, 38, 38)', `${route}: invalid field is red`);
+      assert.equal(await evaluate(`document.activeElement.getAttribute('aria-invalid')`), 'true', `${route}: focus first error`);
+      if (await evaluate(`window.validationField.type === 'text' || window.validationField.tagName === 'TEXTAREA'`)) {
+        await evaluate(`(() => {
+          const field = window.validationField;
+          Object.getOwnPropertyDescriptor(field.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(field, '   ');
+          field.dispatchEvent(new Event('input', { bubbles: true })); field.form.requestSubmit();
+        })()`);
+        await delay(100);
+        assert.equal(writes().length, before, `${route}: spaces-only text must not save`);
+        assert.equal(await evaluate(`window.validationField.getAttribute('aria-invalid')`), 'true');
+      }
+      console.log(`PASS ${route}: incomplete form blocks saving and shows highlighted errors.`);
+    }
+    await navigate('/users');
+    await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.includes('Create User')).click()`);
+    await waitFor(`!!document.querySelector('#user-first-name')`);
+    await evaluate(`(() => {
+      const values = { 'user-first-name': 'Validation', 'user-last-name': 'Test', 'user-email': 'validation@example.test', 'user-username': 'validation', 'user-password': 'ValidPassword123!', 'user-office': 'Treasury', 'user-division': 'Finance' };
+      for (const [id, value] of Object.entries(values)) {
+        const field = document.getElementById(id);
+        field.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, value);
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    })()`);
+    const before = calls.filter(call => call.path === '/users' && call.method === 'POST').length;
+    await evaluate(`document.querySelector('#user-first-name').form.requestSubmit()`);
+    for (let attempt = 0; attempt < 50 && calls.filter(call => call.path === '/users' && call.method === 'POST').length === before; attempt++) await delay(100);
+    assert.equal(calls.filter(call => call.path === '/users' && call.method === 'POST').length, before + 1, 'Complete required fields permit exactly one save request');
+    console.log('PASS complete required fields permit saving.');
+  } else {
   await send('Page.navigate', { url: `${origin}/login` });
   await waitFor(`!!document.querySelector('button[aria-label="Sign in"]')`);
+  const typeLoginCredentials = async username => {
+    await evaluate(`(() => {
+      for (const [id, value] of [['login-identifier', ${JSON.stringify(username)}], ['login-password', 'IsolatedFixture123!']]) {
+        const field = document.getElementById(id);
+        field.focus();
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, value);
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    })()`);
+  };
+  assert.deepEqual(await evaluate(`[document.getElementById('login-identifier').value, document.getElementById('login-password').value]`), ['', ''], 'Login starts with empty credentials');
+  assert.deepEqual(await evaluate(`[document.getElementById('login-identifier').readOnly, document.getElementById('login-password').readOnly]`), [true, true], 'Untouched fields prevent browser autofill until typing');
+  await send('Page.bringToFront');
+  await delay(400);
+  await evaluate(`(() => {
+    const username = document.getElementById('login-identifier');
+    const password = document.getElementById('login-password');
+    username.value = 'restored-admin'; password.value = 'restored-password';
+    username.focus(); password.focus();
+  })()`);
+  assert.deepEqual(await evaluate(`[document.getElementById('login-identifier').value, document.getElementById('login-password').value]`), ['', ''], 'Focusing clears browser-restored credentials before typing');
+  const initialLoginRequests = calls.filter(call => call.path === '/auth/login').length;
+  await evaluate(`document.querySelector('form').requestSubmit()`);
+  await waitFor(`!!document.querySelector('form [role="alert"]')`);
+  assert.equal(calls.filter(call => call.path === '/auth/login').length, initialLoginRequests, 'Empty credentials must not submit a login request');
+  await typeLoginCredentials('incorrect-account');
   rejectLogin = true;
   await evaluate(`document.querySelector('form').requestSubmit()`);
   await waitFor(`!document.querySelector('button[aria-label="Sign in"]').disabled`);
@@ -256,6 +379,8 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
     await send('Page.navigate', { url: `${origin}/login` });
     await waitFor(`!!document.querySelector('button[aria-label="Sign in"]')`);
+    assert.deepEqual(await evaluate(`[document.getElementById('login-identifier').value, document.getElementById('login-password').value]`), ['', ''], `${loginRole}: reopening login clears credentials`);
+    await typeLoginCredentials(`${loginRole}-fixture`);
     await evaluate(`document.querySelector('form').requestSubmit()`);
     await waitFor(`!!document.querySelector('.form-loader--login-transition')`);
     const started = Date.now();
@@ -271,6 +396,7 @@ try {
   }
   role = 'admin';
   console.log('PASS inline desktop/mobile login animation, admin/user timing, and failed-login restoration.');
+  if (!process.env.LOGIN_ONLY) {
   const widths = [320, 375, 768, 1024, 1440];
   const routes = {
     admin: ['/dashboard', '/iar', '/inventory', '/ris', '/inventory-custodian', '/par', '/transfers', '/returns', '/returned-supply', '/users', '/suppliers', '/reports/monthly', '/reports/annual', '/reports/ppe-list', '/historical-records', '/profile'],
@@ -285,21 +411,24 @@ try {
         assert.deepEqual(await evaluate(`[...document.querySelectorAll('#app-sidebar nav a')].map(link => ({ path: link.getAttribute('href'), text: link.textContent.trim() }))`), [
           { path: '/my-issued-items', text: 'Issued Items' },
           { path: '/my-returns', text: 'Returned Items' },
+          { path: '/about', text: 'About' },
         ], 'User workspace shows exactly Issued Items and Returned Items');
         if (route === '/my-issued-items') {
           assert.equal(await evaluate(`[...document.querySelectorAll('main a, main button')].some(control => control.textContent.includes('View Returned Items'))`), false, 'Issued Items has no extra View Returned Items control');
         }
       } else if (route === '/dashboard') {
-        assert.deepEqual(await evaluate(`[...document.querySelectorAll('#app-sidebar nav a')].map(link => link.getAttribute('href')).sort()`), routes.admin.filter(path => path !== '/suppliers').sort(), 'Admin retains the full existing workspace menu');
+        await evaluate(`[...document.querySelectorAll('#app-sidebar button[aria-expanded="false"]')].filter(button => ['Issue', 'Reports'].includes(button.textContent.trim())).forEach(button => button.click())`);
+        await delay(250);
+        assert.deepEqual(await evaluate(`[...document.querySelectorAll('#app-sidebar nav a')].map(link => link.getAttribute('href')).sort()`), [...routes.admin.filter(path => !['/suppliers', '/users', '/profile'].includes(path)), '/about'].sort(), 'Admin retains the full existing workspace menu');
       }
       await evaluate(`document.querySelector(${JSON.stringify(currentRole === 'admin' ? 'button[aria-label="New Form"]' : '.record-action--edit')})?.click()`);
       await delay(250);
       if (currentRole === 'admin' && route === '/inventory') {
-        assert.deepEqual(await evaluate(`[...document.querySelectorAll('form table thead th')].map(cell => cell.textContent.trim())`), ['Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'], 'Property Card shows only the remaining columns');
+        assert.deepEqual(await evaluate(`[...document.querySelectorAll('form table thead th')].map(cell => cell.textContent.replaceAll('*', '').trim())`), ['Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'], 'Property Card shows only the remaining columns');
         assert.equal(await evaluate(`document.querySelectorAll('form input[aria-label="Property Number"], form input[aria-label="Description"], form input[aria-label="S/N"]').length`), 3, 'Property Card retains Property Number, Description, and S/N at the top');
       }
       if (currentRole === 'admin' && route === '/reports/ppe-list') {
-        assert.deepEqual(await evaluate(`[...document.querySelectorAll('.ppe-station-form table thead th')].map(cell => cell.textContent.trim())`), ['ARTICLE/ITEM', 'DESCRIPTION', 'NEW PROPERTY NO. ASSIGNED', 'PERSON ACCOUNTABLE', 'UNIT COST / VALUE', 'TOTAL COST / VALUE', 'REMARKS'], 'List of PPEs preserves all seven table columns');
+        assert.deepEqual(await evaluate(`[...document.querySelectorAll('.ppe-station-form table thead th')].map(cell => cell.textContent.replaceAll('*', '').trim())`), ['ARTICLE/ITEM', 'DESCRIPTION', 'NEW PROPERTY NO. ASSIGNED', 'PERSON ACCOUNTABLE', 'UNIT COST / VALUE', 'TOTAL COST / VALUE', 'REMARKS'], 'List of PPEs preserves all seven table columns');
         await evaluate(`(() => {
           const description = document.querySelector('.ppe-station-form textarea[aria-label="DESCRIPTION, row 1"]');
           Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(description, 'Long office equipment details\\n'.repeat(20));
@@ -335,7 +464,7 @@ try {
         assert.equal(layout.outliers.length, 0, `${currentRole} ${route} @${width}: controls must fit ${JSON.stringify(layout.outliers)}`);
         if (currentRole === 'admin' && route === '/users') {
           const cards = await evaluate(`(() => {
-            const grid = document.querySelector('.user-account-grid');
+            const grid = document.querySelector('[aria-label="Office accounts"]');
             const boxes = [...grid.querySelectorAll('.user-account-record')].map(card => card.getBoundingClientRect());
             const firstTop = boxes[0].top;
             return { columns: boxes.filter(box => Math.abs(box.top - firstTop) <= 1).length, visible: boxes.length, clipped: grid.scrollWidth > grid.clientWidth + 1 };
@@ -373,8 +502,46 @@ try {
     }
   }
   role = 'admin';
+  await navigate('/profile');
+  await waitFor(`!!document.querySelector('[aria-label="My account details"]')`);
+  assert.equal(await evaluate(`document.querySelectorAll('form, dialog').length`), 0, 'My Profile initially shows only account details');
+  assert.equal(await evaluate(`[...document.querySelectorAll('main button')].some(button => button.textContent.trim() === 'Add Admin')`), false, 'Add Admin moved out of My Profile');
+  assert.ok(await evaluate(`document.querySelector('.admin-profile-card').getBoundingClientRect().width >= document.querySelector('main').clientWidth - 60`), 'My Profile card fills the available width');
+  await navigate('/users');
+  await waitFor(`!!document.querySelector('.admin-account-section')`);
+  await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Add Admin').click()`);
+  await waitFor(`!!document.querySelector('dialog form')`);
+  assert.ok(await evaluate(`[...document.querySelectorAll('dialog input')].every(input => input.value === '')`), 'Add Admin opens blank fields');
+  const adminCalls = calls.filter(call => call.path === '/users' && call.method === 'POST').length;
+  await evaluate(`document.querySelector('dialog form').requestSubmit()`);
+  assert.equal(calls.filter(call => call.path === '/users' && call.method === 'POST').length, adminCalls, 'Empty admin form does not save');
+  await evaluate(`(() => {
+    const values = { 'First Name': 'New', 'Last Name': 'Administrator', Email: 'new-admin@example.test', Username: 'new-administrator', Password: 'AdminFixture123!', 'Confirm Password': 'AdminFixture123!', Office: 'Supply Office', Division: 'Administration' };
+    for (const [label, value] of Object.entries(values)) { const input = document.querySelector('dialog input[aria-label="' + label + '"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); }
+  })()`);
+  await evaluate(`document.querySelector('dialog form').requestSubmit()`);
+  await waitFor(`!document.querySelector('dialog')`);
+  const adminCreation = calls.findLast(call => call.path === '/users' && call.method === 'POST');
+  assert.equal(JSON.parse(adminCreation.body).role, 'admin', 'Add Admin creates an administrator');
+  assert.equal(await evaluate(`document.querySelectorAll('form').length`), 0, 'Admin form closes after saving');
   await navigate('/users');
   await waitFor(`!!document.querySelector('.user-account-grid')`);
+  assert.equal(await evaluate(`document.querySelectorAll('.user-management-stats .user-stat').length`), 0, 'Account summary cards are removed');
+  assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Office accounts"] .user-account-record').length`), managedUsers.filter(account => account.role === 'user').length, 'User section lists only user accounts');
+  assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Administrator accounts"] .user-account-record').length`), managedUsers.filter(account => account.role === 'admin').length, 'Admin section lists administrators');
+  assert.ok(await evaluate(`document.querySelector('.admin-account-section').getBoundingClientRect().bottom < document.querySelector('[aria-label="Office accounts"]').getBoundingClientRect().top`), 'Admin accounts appear above the divider and user accounts');
+  assert.equal(await evaluate(`document.querySelectorAll('.user-directory-heading, .user-role-filters').length`), 0, 'Account heading and role tabs are removed');
+  assert.equal(await evaluate(`document.querySelector('[aria-label="Search office accounts"]')`), null, 'Account search bar is removed');
+  const beforeRecords = calls.length;
+  await evaluate(`document.querySelector('button[aria-label="Actions for fixture-user-1"]').click()`);
+  await waitFor(`!![...document.querySelectorAll('.user-card-menu button')].find(button => button.textContent.trim() === 'View Records')`);
+  await evaluate(`[...document.querySelectorAll('.user-card-menu button')].find(button => button.textContent.trim() === 'View Records').click()`);
+  await waitFor(`!!document.querySelector('.user-records-table')`);
+  assert.ok(await evaluate(`document.querySelector('.user-records-dialog').textContent.includes('Returned items')`), 'Read-only records include returned items');
+  assert.equal(await evaluate(`document.querySelectorAll('.user-records-dialog input, .user-records-dialog form').length`), 0, 'Records have no editable fields');
+  assert.ok(calls.slice(beforeRecords).every(call => ['GET', 'OPTIONS'].includes(call.method)), 'Viewing records performs only GET requests');
+  await evaluate(`document.querySelector('[aria-label="Close user records"]').click()`);
+  await waitFor(`!document.querySelector('.user-records-dialog')`);
   const openUserEditor = async () => {
     await evaluate(`[...document.querySelectorAll('.user-management-page button')].find(button => button.textContent.trim() === 'Create User').click()`);
     await waitFor(`!!document.querySelector('dialog form')`);
@@ -411,10 +578,10 @@ try {
   assert.equal(await evaluate(`document.activeElement.textContent.trim()`), 'Create User', 'Closing the editor restores focus to Create User');
   await openUserEditor();
   assert.equal(await evaluate(`document.querySelector('dialog [aria-label="First Name"]').value`), '', 'Cancelled account details do not return on reopening');
-  const newAccount = { firstName: 'New', lastName: 'Supply Administrator', email: 'new-admin@example.test', username: 'new-office-admin', password: 'IsolatedFixture123!', office: 'Supply Office', division: 'Administration', role: 'admin' };
-  for (const [key, label] of Object.entries({ firstName: 'First Name', lastName: 'Last Name', email: 'Email', username: 'Username', password: 'Password', office: 'Office', division: 'Division', role: 'Role' })) await fillUserField(label, newAccount[key]);
+  const newAccount = { firstName: 'New', lastName: 'Office User', email: 'new-user@example.test', username: 'new-office-user', password: 'IsolatedFixture123!', office: 'Supply Office', division: 'Administration', role: 'user' };
+  for (const [key, label] of Object.entries({ firstName: 'First Name', lastName: 'Last Name', email: 'Email', username: 'Username', password: 'Password', office: 'Office', division: 'Division' })) await fillUserField(label, newAccount[key]);
   await evaluate(`document.querySelector('dialog form').requestSubmit()`);
-  await waitFor(`!document.querySelector('dialog') && document.querySelector('.user-account-grid')?.textContent.includes('@new-office-admin')`);
+  await waitFor(`!document.querySelector('dialog') && document.querySelector('[aria-label="Office accounts"]')?.textContent.includes('@new-office-user')`);
   const creation = calls.findLast(call => call.path === '/users' && call.method === 'POST');
   assert.ok(creation, 'Create User submits through the existing users endpoint');
   const createdPayload = JSON.parse(creation.body);
@@ -430,7 +597,7 @@ try {
   assert.equal(await evaluate(`document.querySelector('dialog [aria-label="Password"]').value`), '', 'Editing does not expose the saved password');
   await fillUserField('Office', 'Updated General Services Office');
   await evaluate(`document.querySelector('dialog form').requestSubmit()`);
-  await waitFor(`!document.querySelector('dialog') && document.querySelector('.user-account-grid')?.textContent.includes('Updated General Services Office')`);
+  await waitFor(`!document.querySelector('dialog') && document.querySelector('[aria-label="Office accounts"]')?.textContent.includes('Updated General Services Office')`);
   const update = calls.findLast(call => call.path === `/users/${fixtureAccount._id}` && call.method === 'PUT');
   assert.ok(update, 'Edit submits only the selected account to its existing endpoint');
   assert.equal(JSON.parse(update.body).office, 'Updated General Services Office');
@@ -438,10 +605,10 @@ try {
   await evaluate(`document.querySelector('button[aria-label="Actions for fixture-user-1"]').click()`);
   await waitFor(`!!document.querySelector('[aria-label="Account lock for fixture-user-1"]')`);
   await evaluate(`document.querySelector('[aria-label="Account lock for fixture-user-1"]').click()`);
-  await waitFor(`document.querySelector('.user-account-grid')?.textContent.includes('Locked')`);
+  await waitFor(`document.querySelector('[aria-label="Office accounts"]')?.textContent.includes('Locked')`);
   assert.equal(fixtureAccount.locked, true, 'Card actions retain account locking');
   assert.deepEqual(JSON.parse(calls.findLast(call => call.path === `/users/${fixtureAccount._id}/lock` && call.method === 'PATCH').body), { locked: true }, 'Lock action uses the existing lock endpoint');
-  console.log('PASS User Management card grid, hidden create form, responsive editor, cancellation, admin creation, account editing, and locking.');
+  console.log('PASS User Management card grid, hidden create form, responsive editor, cancellation, user creation, account editing, and locking.');
   await navigate('/inventory-custodian');
   await waitFor(`!!document.querySelector('button[aria-label="New Form"]')`);
   await evaluate(`document.querySelector('button[aria-label="New Form"]').click()`);
@@ -453,6 +620,7 @@ try {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     }
   })()`);
+  await completeRequiredDocumentFields();
   await evaluate(`document.querySelector('form button[type="submit"]').click()`);
   await delay(250);
   assert.ok(calls.some(call => call.path === '/ics' && call.method === 'POST' && JSON.parse(call.body).autoNumber === true), 'Existing ICS submit requests server numbering');
@@ -473,6 +641,7 @@ try {
         input.dispatchEvent(new Event('input', { bubbles: true }));
       }
     })()`);
+    await completeRequiredDocumentFields();
   };
   await fillIar('12');
   assert.equal(await evaluate(`document.querySelector('[aria-label="IAR No."]').validity.patternMismatch`), true, 'IAR rejects fewer than three digits');
@@ -519,6 +688,7 @@ try {
   await navigate('/iar');
   assert.equal(await evaluate(`document.querySelector('[aria-label="IAR No."]').value`), legacyRecord.iarNumber, 'Recovered legacy edit retains its issued number');
   assert.equal(await evaluate(`document.querySelector('[aria-label="IAR No."]').checkValidity()`), true, 'Unchanged legacy number permits metadata corrections in a recovered edit');
+  await completeRequiredDocumentFields();
   const legacyEditor = await evaluate(`(() => {
     const form = document.querySelector('form'), button = form.querySelector('button[type="submit"]');
     return { disabled: button.disabled, valid: form.checkValidity(), invalid: [...form.querySelectorAll(':invalid')].map(input => ({ label: input.getAttribute('aria-label'), value: input.value, message: input.validationMessage })) };
@@ -622,8 +792,10 @@ try {
     assert.equal(await evaluate(`document.querySelector('[aria-label="Returned To ${field}"]').value`), value, `Corrected Returned To ${field} reloads into the completed slip`);
   }
   console.log('PASS pending and completed PRS Returned To editing with locked item and custodian details.');
-  assert.equal(failures.length, 0, `Browser exceptions: ${failures.join('\n')}`);
   console.log(`PASS ${checks} responsive layout checks; existing forms tested with isolated fixtures.`);
+  }
+  }
+  assert.equal(failures.length, 0, `Browser exceptions: ${failures.join('\n')}`);
 } catch (error) {
   console.error(error); throw error;
 } finally {

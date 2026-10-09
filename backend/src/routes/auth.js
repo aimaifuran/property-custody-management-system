@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -10,9 +11,22 @@ const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { loginLimiter, forgotPasswordLimiter } = require('../middlewares/rateLimiter');
 const { sendPasswordResetEmail, sendEmailChangeCode } = require('../utils/mailer');
-const { authenticate } = require('../middlewares/auth');
+const { authenticate, adminOnly } = require('../middlewares/auth');
 const { getAccessToken, isSessionUserActive } = require('../utils/session');
 const router = express.Router();
+const { pictureUpload, pictureData } = require('../utils/pictureUpload');
+
+router.post('/profile-picture', authenticate, adminOnly, (req, res, next) => {
+  pictureUpload(req, res, error => {
+    if (error) return errorResponse(res, error.code === 'LIMIT_FILE_SIZE' ? 'Profile picture must be 2 MB or smaller.' : 'Upload one profile picture.', [], 400);
+    next();
+  });
+}, async (req, res) => {
+  const image = pictureData(req.file);
+  if (!image) return errorResponse(res, 'Choose a valid JPG, PNG, or WebP image.', [], 400);
+  await User.updateOne({ _id: req.user._id }, { $set: { profilePicture: image } });
+  return successResponse(res, 'Profile picture updated');
+});
 
 const publicUser = (user) => {
   const data = user.toObject();
@@ -251,7 +265,7 @@ router.post('/reset-password', [
   return successResponse(res, 'Password updated. You can now sign in with your new password.');
 });
 
-router.put('/profile', authenticate, [
+router.put('/profile', authenticate, validateAdminForm('profile'), [
   body('firstName').optional().notEmpty().withMessage('First name cannot be empty'),
   body('lastName').optional().notEmpty().withMessage('Last name cannot be empty'),
 ], async (req, res) => {

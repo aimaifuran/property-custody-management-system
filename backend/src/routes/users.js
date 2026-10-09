@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const bcrypt = require('bcrypt');
 const User = require('../models/User');
@@ -9,6 +10,22 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize, adminOnly } = require('../middlewares/auth');
 const router = express.Router();
 const { linkLegacyRequests } = require('../utils/accountLinks');
+
+router.get('/:id/records', authenticate, adminOnly, async (req, res) => {
+  const mongoose = require('mongoose');
+  if (!mongoose.isValidObjectId(req.params.id)) return errorResponse(res, 'Invalid user account', [], 400);
+  const user = await User.findOne({ _id: req.params.id, deleted: false, role: 'user' });
+  if (!user) return errorResponse(res, 'User account not found', [], 404);
+  const { accountRecords } = require('../utils/accountRecords');
+  const Accountability = require('../models/PropertyAccountability');
+  const PropertyReturnSlip = require('../models/PropertyReturnSlip');
+  const [risRows, assets, returnSlips] = await Promise.all([
+    accountRecords(user),
+    Accountability.find({ deleted: false, active: true, user: user._id }).populate({ path: 'inventory', populate: { path: 'item' } }).sort({ createdAt: -1 }).lean(),
+    PropertyReturnSlip.find({ deleted: false, submittedBy: user._id }).sort({ createdAt: -1 }).lean(),
+  ]);
+  return successResponse(res, 'User records retrieved', { risRows, assets, returnSlips });
+});
 
 router.get('/password-reset-requests', authenticate, adminOnly, async (req, res) => {
   await PasswordResetRequest.updateMany({ status: 'APPROVED', expiresAt: { $lte: new Date() } }, { $set: { status: 'EXPIRED' }, $unset: { activeKey: 1, tokenHash: 1 } });
@@ -48,11 +65,11 @@ router.post('/password-reset-requests/:id/reject', authenticate, adminOnly, asyn
 });
 
 router.get('/', authenticate, authorize('canManageUsers'), async (req, res) => {
-  const users = await User.find({ deleted: false }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry').populate('createdBy', 'firstName middleName lastName username').sort({ createdAt: -1 });
+  const users = await User.find({ deleted: false, ...(req.query.role === 'user' ? { role: 'user' } : {}) }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry').populate('createdBy', 'firstName middleName lastName username').sort({ createdAt: -1 });
   return successResponse(res, 'Users retrieved', users);
 });
 
-router.post('/', authenticate, authorize('canManageUsers'), async (req, res) => {
+router.post('/', authenticate, validateAdminForm('users'), authorize('canManageUsers'), async (req, res) => {
   const exists = await User.findOne({ $or: [{ email: req.body.email }, { username: req.body.username }] });
   if (exists) return errorResponse(res, 'User already exists', [], 409);
 
@@ -64,7 +81,7 @@ router.post('/', authenticate, authorize('canManageUsers'), async (req, res) => 
   return successResponse(res, 'User created', { ...user.toObject(), password: undefined }, 201);
 });
 
-router.put('/:id', authenticate, authorize('canManageUsers'), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('users'), authorize('canManageUsers'), async (req, res) => {
   await linkLegacyRequests();
   if (req.body.password) req.body.password = await bcrypt.hash(req.body.password, 10);
   delete req.body.createdBy;

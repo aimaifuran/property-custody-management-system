@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const Property = require('../models/Property');
 const ActivityLog = require('../models/ActivityLog');
@@ -26,7 +27,7 @@ router.get('/', authenticate, authorize('canViewDashboard'), async (req, res) =>
   return successResponse(res, 'Properties retrieved', properties);
 });
 
-router.post('/', authenticate, authorize('canManageInventory'), async (req, res) => {
+router.post('/', authenticate, validateAdminForm('properties'), authorize('canManageInventory'), async (req, res) => {
   const payload = { ...req.body };
   if (!payload.propertyName || !payload.category) return errorResponse(res, 'Property name and category are required', [], 400);
   if (!payload.propertyCode) {
@@ -47,7 +48,7 @@ router.post('/', authenticate, authorize('canManageInventory'), async (req, res)
   }
 });
 
-router.put('/:id', authenticate, authorize('canManageInventory'), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('properties'), authorize('canManageInventory'), async (req, res) => {
   delete req.body.events;
   const property = await Property.findOneAndUpdate({ _id: req.params.id, deleted: false }, req.body, { new: true, runValidators: true });
   if (!property) return errorResponse(res, 'Property not found', [], 404);

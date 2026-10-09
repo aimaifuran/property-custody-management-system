@@ -20,8 +20,18 @@
 .user-card-office { margin-top: 9px; color: #3f5047; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
 .user-card-labels { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .user-role, .user-locked-label { display: inline-block; border-radius: 5px; padding: 2px 7px; font-size: 10px !important; font-weight: 600; }
-.user-role--admin { background: #eef1d9; color: #657632; }
 .user-role--user { background: #e6f1ed; color: #327264; }
+.user-role--admin { background: #eef1d7; color: #687d32; }
+.profile-picture-control { min-width: 0; }
+.app-shell .user-management-page .profile-picture-trigger { position: relative; display: block; width: 96px; height: 96px; padding: 0 !important; border: 0; border-radius: 50% !important; background: transparent; cursor: pointer; }
+.profile-picture-avatar { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; background: #e2e9ef; color: #4d677c; font-size: 30px; font-weight: 600; }
+.profile-picture-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-picture-camera { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 3px solid #fff; border-radius: 50%; background: #326b50; color: #fff; }
+.profile-picture-camera svg { width: 16px; height: 16px; }
+.profile-picture-trigger:hover .profile-picture-camera { background: #214d39; }
+.profile-picture-trigger:focus-visible { outline: 2px solid #64966d; outline-offset: 4px; }
+.profile-picture-feedback { margin-top: 8px; color: #7b8c80; font-size: 12px; }
+.profile-picture-error { margin-top: 8px; color: #ae3545; font-size: 12px; }
 .user-locked-label { color: #9c5439; background: #fbefe7; }
 .user-card-actions { position: absolute; top: 12px; right: 8px; }
 .app-shell .user-management-page .user-card-menu-toggle { width: 28px; padding: 5px !important; color: #90a096; border: 0; background: transparent; }
@@ -65,3 +75,122 @@
   .user-editor-dialog form { padding: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .user-account-record { transition: none; } }
+
+/* Account directory with office cards. */
+.user-management-page { padding: 0; }
+.user-management-header {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 24px 28px;
+  margin-bottom: 18px;
+  border: 1px solid #315e4b;
+  border-radius: 18px;
+  background: linear-gradient(115deg, #173f32, #2d6450);
+  box-shadow: 0 8px 22px #173f3214;
+}
+.user-management-header::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 220px;
+  height: 220px;
+  right: 8%;
+  top: -130px;
+  border: 32px solid #ffffff08;
+  border-radius: 50%;
+  box-shadow: 0 0 0 32px #ffffff04;
+  pointer-events: none;
+}
+.user-management-heading { min-width: 0; }
+.app-shell .user-management-page .user-management-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #c5d9b6;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: .12em;
+  margin-bottom: 8px;
+}
+.app-shell .user-management-header h1 { color: #fff; font-size: clamp(20px, 2vw, 26px) !important; letter-spacing: -.02em; }
+.user-management-header p { color: #c7dcd0; margin-top: 6px; }
+.app-shell .user-management-page .user-create-button { border: 1px solid #ffffff80; background: #f2f5dd; color: #24533d; border-radius: 10px !important; padding: 10px 16px !important; box-shadow: 0 3px 10px #0a281922; }
+.user-account-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+.user-account-record { display: grid; grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 14px; padding: 22px 20px 14px; border-radius: 15px; border-color: #dce6db; box-shadow: 0 4px 14px #244c3508; transition: transform .18s, border-color .18s, box-shadow .18s; }
+.user-account-record::before { content: ''; position: absolute; top: 0; left: 20px; width: 42px; height: 3px; border-radius: 0 0 3px 3px; background: #8faf86; }
+.user-account-record.admin-profile-card { grid-template-columns: 96px minmax(0, 1fr); }
+.user-account-record:hover { transform: translateY(-2px); border-color: #a7c6ac; box-shadow: 0 8px 20px #244c3512; }
+.user-card-avatar { border-radius: 14px; box-shadow: none; border: 1px solid #ffffffb0; }
+.user-card-details { padding-right: 14px; }
+.app-shell .user-card-details h2 { font-size: 14px !important; font-weight: 700; }
+.user-card-office, .user-card-email { display: flex; align-items: flex-start; gap: 7px; }
+.user-card-office svg, .user-card-email svg { flex: 0 0 14px; margin-top: 2px; }
+.user-card-office { margin-top: 12px; color: #4e6b55; }
+.user-card-email { color: #8a978d; margin-top: 6px; }
+.user-card-email span { min-width: 0; overflow-wrap: anywhere; }
+.user-card-labels { margin-top: 12px; }
+.user-role { border-radius: 5px; padding: 3px 8px; }
+.user-card-footer { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid #edf1e9; padding-top: 12px; margin-top: 2px; color: #8b978b; }
+.user-card-footer > span:last-child { text-align: right; overflow-wrap: anywhere; }
+.app-shell .user-card-footer > span { font-size: 10px !important; }
+.user-account-status { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; color: #598367; }
+.user-account-status > span { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: #78a385; box-shadow: 0 0 0 3px #78a38515; }
+.user-account-status--locked, .user-account-status--inactive { color: #a57c54; }
+.user-account-status--locked > span, .user-account-status--inactive > span { background: #c39a65; box-shadow: 0 0 0 3px #c39a6515; }
+.user-card-actions { top: 12px; right: 8px; }
+.user-accounts-empty > svg { margin: 0 auto 12px; color: #85a180; }
+.user-accounts-empty button { margin-top: 14px; }
+@media (max-width: 640px) {
+  .user-management-header { padding: 18px; flex-wrap: wrap; gap: 16px; }
+  .user-account-record { padding: 20px 16px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .user-account-record { transition: none; }
+  .user-account-record:hover { transform: none; }
+}
+.user-records-dialog { width: min(1100px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid #d5e3d9; border-radius: 22px; overflow-y: auto; color: #29493c; }
+.user-records-dialog::backdrop { background: rgba(17, 38, 29, .5); }
+.user-records-notice { display: flex; align-items: center; gap: 8px; background: #edf4ec; border-radius: 10px; padding: 12px; margin: 20px 0; font-size: 14px; }
+.user-records-dialog section { margin: 24px 0; }
+.user-records-dialog h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+.user-records-dialog h3 span { font-size: 13px; padding: 3px 9px; background: #edf4ec; border-radius: 12px; margin-left: 8px; }
+.user-records-table { overflow-x: auto; border: 1px solid #e0e9e2; border-radius: 12px; }
+.user-records-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.user-records-table th { text-align: left; background: #f2f6f1; color: #52735e; white-space: nowrap; }
+.user-records-table th, .user-records-table td { padding: 12px 14px; border-bottom: 1px solid #e7eee8; vertical-align: top; }
+.user-records-table td { min-width: 85px; overflow-wrap: anywhere; }
+.user-records-table td:first-child { min-width: 180px; }
+.user-records-table small { display: block; color: #71867a; margin-top: 4px; }
+.user-records-empty { padding: 22px; background: #f7f9f6; border-radius: 12px; color: #71867a; }
+@media (max-width: 600px) { .user-records-dialog { padding: 18px; } }
+.developer-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 16px; list-style: none; padding: 0; margin: 24px 0 0; }
+.developer-profile-card { display: flex; flex-direction: column; align-items: center; text-align: center; border: 1px solid #dce8da; border-radius: 16px; background: #f7faf4; padding: 24px 16px; }
+.app-shell .developer-picture-trigger { position: relative; padding: 0 !important; border: 0; background: transparent; border-radius: 50% !important; }
+.developer-portrait { display: flex; align-items: center; justify-content: center; width: 112px; height: 112px; border-radius: 50%; overflow: hidden; background: #e1ecdc; color: #476d4d; font-size: 30px; font-weight: 700; }
+.developer-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.developer-camera { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 3px solid white; border-radius: 50%; background: #326b50; color: white; }
+.developer-profile-card h3 { margin-top: 18px; font-weight: 600; color: #294f3b; overflow-wrap: anywhere; }
+.developer-picture-trigger:focus-visible { outline: 2px solid #64966d; outline-offset: 4px; }
+.developer-profile-card p { margin-top: 8px; font-size: 12px; color: #64796c; }
+.user-management-create-actions { display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+.account-section-heading { margin: 0 0 16px; color: #294f3b; font-size: 18px; font-weight: 700; }
+.account-directory-divider { border: 0; border-top: 1px solid #a9c4ab; margin: 28px 0; }
+.account-directory-picture { overflow: hidden; }
+.account-directory-picture img { width: 100%; height: 100%; object-fit: cover; }
+.my-profile-grid { width: 100%; }
+.my-profile-page .admin-profile-card { width: 100%; min-height: 340px; padding: 32px; grid-template-columns: 160px minmax(0, 1fr); gap: 28px; }
+.app-shell .my-profile-page .profile-picture-trigger { width: 160px; height: 160px; }
+.my-profile-page .profile-picture-camera { width: 38px; height: 38px; bottom: 4px; right: 4px; }
+.my-profile-page .user-card-details { padding: 0; }
+.app-shell .my-profile-page .user-card-details h2 { font-size: 24px !important; }
+.my-profile-page .user-card-office, .my-profile-page .user-card-email { font-size: 15px; }
+.my-profile-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; margin: 24px 0; padding-top: 20px; border-top: 1px solid #edf1e9; }
+.my-profile-facts dt { color: #819186; font-size: 12px; margin-bottom: 4px; }
+.my-profile-facts dd { color: #294f3b; font-weight: 600; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .user-management-create-actions { flex-shrink: 1; }
+  .my-profile-page .admin-profile-card { grid-template-columns: minmax(0, 1fr); padding: 24px; gap: 20px; }
+  .app-shell .my-profile-page .profile-picture-trigger { width: 128px; height: 128px; }
+  .my-profile-facts { gap: 16px; }
+}

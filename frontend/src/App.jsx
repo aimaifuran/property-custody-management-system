@@ -24,8 +24,9 @@ import HistoricalRecordsPage from './pages/HistoricalRecordsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
+import AboutPage from './pages/AboutPage';
 
-const userRoutes = new Set(['/my-issued-items', '/my-returns']);
+const userRoutes = new Set(['/my-issued-items', '/my-returns', '/about']);
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
@@ -75,6 +76,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/settings" element={<RoleRedirect />} />
           <Route path="/my-ris" element={<Navigate to="/ris" replace />} />
           <Route path="/my-requests" element={<Navigate to="/ris" replace />} />

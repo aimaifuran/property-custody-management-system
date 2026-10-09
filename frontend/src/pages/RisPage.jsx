@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import NewFormBadge from '../components/NewFormBadge';
 import { preloadFormFonts } from '../utils/formPdfFonts';
 import FormEditorHeader from '../components/FormEditorHeader';
@@ -991,7 +992,7 @@ export default function RisPage() {
                   <input
                     type="number"
                     min="0"
-                    disabled={isUser} value={item.quantityIssued}
+                    disabled={isUser} aria-label={`Quantity issued, row ${index + 1}`} value={item.quantityIssued}
                     onChange={(e) => updateReviewItem(index, 'quantityIssued', Number(e.target.value))}
                     readOnly={!canEditReview}
                     tabIndex={canEditReview ? 0 : -1}
@@ -1014,7 +1015,7 @@ export default function RisPage() {
       ) : null}
 
       {editingRis || creatingRis ? (<>
-      <motion.form
+      <ValidatedForm as={motion.form} validationSelector={decision === 'reject' ? '[data-rejection-reason]' : undefined}
         ref={editorRef}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1039,7 +1040,7 @@ export default function RisPage() {
           </div>
 
           <div className="ris-header-fields mt-4 grid gap-3 sm:grid-cols-2">
-            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span><input type="text" aria-label={label} readOnly={isUser || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" /></label>)}
+            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span><input required type="text" aria-label={label} readOnly={isUser || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" /></label>)}
           </div>
 
           <datalist id="ris-stock-options">{items.map(item => <option key={item._id} value={item.stockNumber}>{item.description}</option>)}</datalist>
@@ -1050,13 +1051,13 @@ export default function RisPage() {
               <div className="py-2" />
             </div>
             <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 text-center text-sm font-semibold">
-              <div className="border-r border-slate-700 px-2 py-2">Stock No.</div>
-              <div className="border-r border-slate-700 px-2 py-2">Unit</div>
-              <div className="border-r border-slate-700 px-2 py-2">Description</div>
-              <div className="border-r border-slate-700 px-2 py-2">Qty Req.</div>
+              <div className="border-r border-slate-700 px-2 py-2">Stock No. <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Qty Req. <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
               <div className="border-r border-slate-700 px-2 py-2">Yes</div>
               <div className="border-r border-slate-700 px-2 py-2">No</div>
-              <div className="border-r border-slate-700 px-2 py-2">Actual Qty</div>
+              <div className="border-r border-slate-700 px-2 py-2">Actual Qty <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
               <div className="border-r border-slate-700 px-2 py-2">Remarks</div>
               <div className="px-2 py-2" />
             </div>
@@ -1064,7 +1065,7 @@ export default function RisPage() {
             {form.items.map((item, index) => (
               <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-1">
-                  <input
+                  <input required
                     type="text"
                     list="ris-stock-options" aria-label={`Stock Number, row ${index + 1}`}
                     value={item.stockNumber ?? ''}
@@ -1073,24 +1074,24 @@ export default function RisPage() {
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input
-                    value={item.unit}
+                  <input required
+                    aria-label={`Unit, row ${index + 1}`} value={item.unit}
                     onChange={(e) => updateItem(index, 'unit', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input
-                    value={item.description}
+                  <input required
+                    aria-label={`Description, row ${index + 1}`} value={item.description}
                     onChange={(e) => updateItem(index, 'description', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input
+                  <input required
                     type="number"
                     min="0"
-                    value={item.quantityRequested}
+                    data-positive="true" aria-label={`Quantity requested, row ${index + 1}`} value={item.quantityRequested}
                     onChange={(e) => updateItem(index, 'quantityRequested', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
@@ -1114,10 +1115,10 @@ export default function RisPage() {
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input
+                  <input required
                     type="number"
                     min="0"
-                    disabled={isUser} value={item.quantityIssued}
+                    disabled={isUser} aria-label={`Quantity issued, row ${index + 1}`} value={item.quantityIssued}
                     onChange={(e) => updateItem(index, 'quantityIssued', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
@@ -1147,7 +1148,7 @@ export default function RisPage() {
           <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-semibold">Purpose</span>
-              <input
+              <input required
                 value={form.purpose}
                 onChange={(e) => updateForm({ purpose: e.target.value })}
                 className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
@@ -1156,7 +1157,7 @@ export default function RisPage() {
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-semibold">Date</span>
-              <input
+              <input required
                 type="date"
                 value={form.date}
                 onChange={(e) => updateForm({ date: e.target.value })}
@@ -1178,25 +1179,25 @@ export default function RisPage() {
                 <div className="grid gap-3 md:grid-cols-3">
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>
-                    <input
-                      value={form[section].name}
+                    <input required
+                      aria-label={`${label} name`} value={form[section].name}
                       onChange={(e) => updateSignatory(section, 'name', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
                     />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Designation</span>
-                    <input
-                      value={form[section].designation}
+                    <input required
+                      aria-label={`${label} designation`} value={form[section].designation}
                       onChange={(e) => updateSignatory(section, 'designation', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
                     />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
-                    <input
+                    <input required
                       type="date"
-                      value={form[section].date}
+                      aria-label={`${label} date`} value={form[section].date}
                       onChange={(e) => updateSignatory(section, 'date', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
                     />
@@ -1212,7 +1213,7 @@ export default function RisPage() {
             </div>
             <div className="flex flex-wrap gap-3">
               {!isUser && editingRis && !['ISSUED', 'ACCOUNTABILITY_LOCKED', 'REJECTED'].includes(editingRis.status) && <label>Decision<select value={decision} onChange={event => setDecision(event.target.value)} className="mt-1 rounded-lg border p-2"><option value="save">Save changes</option><option value="approve">Approve and issue</option><option value="reject">Reject request</option></select></label>}
-              {decision === 'reject' && <label>Reason for rejection<input required value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 rounded-lg border p-2" /></label>}
+              {decision === 'reject' && <label>Reason for rejection<input required data-rejection-reason value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 rounded-lg border p-2" /></label>}
               <button
                 type="button"
                 onClick={addRow}
@@ -1244,7 +1245,7 @@ export default function RisPage() {
             </div>
           </div>
         </div>
-        </motion.form>
+        </ValidatedForm>
       </>) : null}
     </div>
   );

@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
 import NewFormBadge from '../components/NewFormBadge';
@@ -294,15 +295,15 @@ export default function PrsPage() {
             <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input aria-label={`${label} Date`} type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required aria-label={`${label} Date`} type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input aria-label={`${label} Name`} value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required aria-label={`${label} Name`} value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
-                    <input aria-label={`${label} Designation`} value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <input required aria-label={`${label} Designation`} value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
             </div>
         </fieldset>
@@ -473,17 +474,17 @@ export default function PrsPage() {
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>
 
-            {editorOpen && (<motion.form ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={Boolean(processing)} inert={processing ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
+            {editorOpen && (<ValidatedForm as={motion.form} ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={Boolean(processing)} inert={processing ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Return Slip" description="Saving a PRS automatically logs each item individually to Returned Supply." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
                 <fieldset disabled={readOnly} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-2">
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">PRS No.</span>
-                        <input aria-label="PRS No." readOnly={!editingId} value={form.prsNumber} onChange={(e) => update('prsNumber', e.target.value)} placeholder="Assigned on save" className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                        <input required aria-label="PRS No." readOnly={!editingId} value={form.prsNumber} onChange={(e) => update('prsNumber', e.target.value)} placeholder="Assigned on save" className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                     </label>
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
-                        <input value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                        <input required value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                     </label>
                 </div>
 
@@ -504,7 +505,7 @@ export default function PrsPage() {
                         ))}
                     </div>
                     {form.purposeChoice === 'Other' && (
-                        <input
+                        <input required
                             value={form.purposeOther}
                             onChange={(e) => update('purposeOther', e.target.value)}
                             placeholder="Specify purpose"
@@ -528,12 +529,12 @@ export default function PrsPage() {
                         <thead>
                             <tr className="bg-slate-50 text-left">
                                 <th className="p-2">Issued item / User</th>
-                                <th className="p-2">Quantity</th>
-                                <th className="p-2">Unit</th>
-                                <th className="p-2">Description</th>
+                                <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Property Number</th>
-                                <th className="p-2">M. R. No.</th>
-                                <th className="p-2">Unit Value</th>
+                                <th className="p-2">M. R. No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Unit Value <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Total Value</th>
                             </tr>
                         </thead>
@@ -553,25 +554,25 @@ export default function PrsPage() {
                                         </select>
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required data-positive="true" aria-label="Quantity" type="number" min="0" step="any" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="M. R. No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required aria-label="M. R. No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Unit Value" type="number" value={item.unitValue} onChange={(e) => updateItem(index, 'unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} onChange={(e) => updateItem(index, 'unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        <input required aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
                                 </tr>
                             ))}
@@ -588,7 +589,7 @@ export default function PrsPage() {
 
                 <div className="mt-4">
                     <label className="block">
-                        <span className="mb-1 block text-sm font-semibold text-slate-700">Note</span>
+                        <span className="mb-1 block text-sm font-semibold text-slate-700">Note (optional)</span>
                         <textarea value={form.note} onChange={(e) => update('note', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
                     </label>
                 </div>
@@ -596,7 +597,7 @@ export default function PrsPage() {
                 </fieldset>
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
                     {signatoryFields('Returned By', 'returnedBy', readOnly)}
-                    {signatoryFields('Returned To', 'returnedTo', readOnly && !canReceive && !canCorrectSignatory)}
+                    {signatoryFields('Returned To', 'returnedTo', (canReceive && decision === 'reject') || (readOnly && !canReceive && !canCorrectSignatory))}
                 </div>
                 {activeRecord && <p className="mt-4 text-sm">Status: {activeRecord.status || 'RETURNED'}{activeRecord.rejectionReason ? ` - ${activeRecord.rejectionReason}` : ''}</p>}
                 {canReceive && <div className="mt-4 space-y-3"><label className="block">Receipt decision<select value={decision} onChange={event => setDecision(event.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="receive">Confirm physical receipt</option><option value="reject">Reject return</option></select></label>{decision === 'receive' ? activeRecord.items.map(entry => <label key={entry._id} className="block">{entry.description}: inspected condition<select value={conditions[entry._id] || 'Serviceable'} onChange={event => setConditions(previous => ({ ...previous, [entry._id]: event.target.value }))} className="mt-1 w-full rounded-lg border p-2"><option>Serviceable</option><option>Unserviceable</option></select></label>) : <label className="block">Reason for rejection<textarea required value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>}</div>}
@@ -604,7 +605,7 @@ export default function PrsPage() {
                     <RotateCcw size={16} />
                     {processing ? 'Saving...' : canReceive ? decision === 'reject' ? 'Reject PRS' : 'Confirm Receipt' : canCorrectSignatory ? 'Update PRS' : readOnly ? 'Recorded Return' : isUser ? 'Submit PRS' : editingId ? 'Update PRS' : 'Create PRS'}
                 </button>
-            </motion.form>)}
+            </ValidatedForm>)}
         </div>
     );
 }

@@ -1,7 +1,10 @@
+import AddAdminDialog from '../components/AddAdminDialog';
+import UserRecordsDialog from '../components/UserRecordsDialog';
+import ValidatedForm from '../components/ValidatedForm';
 import AccountLockButton from '../components/AccountLockButton';
 import Skeleton, { PageSkeleton } from '../components/Skeleton';
 import { useEffect, useRef, useState } from 'react';
-import { MoreVertical, Pencil, Plus, X } from 'lucide-react';
+import { Building2, Eye, Mail, MoreVertical, Pencil, Plus, ShieldCheck, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,6 +31,9 @@ export default function UsersPage() {
   const [reviewing, setReviewing] = useState('');
   const [reasons, setReasons] = useState({});
   const [users, setUsers] = useState([]);
+  const [admins, setAdmins] = useState([]);
+  const [addingAdmin, setAddingAdmin] = useState(false);
+  const adminTriggerRef = useRef(null);
   const [page, setPage] = useState(1);
   const [editingUser, setEditingUser] = useState(null);
   const [form, setForm] = useState(emptyUser);
@@ -35,13 +41,16 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [openMenu, setOpenMenu] = useState(null);
+  const [recordsUser, setRecordsUser] = useState(null);
+  const recordsTriggerRef = useRef(null);
   const dialogRef = useRef(null);
   const menuRef = useRef(null);
   const editorTriggerRef = useRef(null);
   const menuTriggerRef = useRef(null);
 
   const load = () => axios.get('/users').then(({ data }) => {
-    setUsers(data.data || []); setPageLoadError('');
+    setAdmins((data.data || []).filter(account => account.role === 'admin'));
+    setUsers((data.data || []).filter(account => account.role === 'user')); setPageLoadError('');
   }).catch(error => {
     setPageLoadError(error.response?.data?.message || 'Unable to load records.');
   }).finally(() => setPageLoading(false));
@@ -108,7 +117,7 @@ export default function UsersPage() {
     if (saving || currentUser?.role !== 'admin') return;
     setSaving(true); setSaveError('');
     try {
-      const payload = { ...form };
+      const payload = { ...form, role: 'user' };
       if (!payload.password) delete payload.password;
       const { data } = editingUser ? await axios.put(`/users/${editingUser._id}`, payload) : await axios.post('/users', payload);
       setUsers(previous => editingUser ? previous.map(account => account._id === editingUser._id ? data.data : account) : [data.data, ...previous]);
@@ -137,7 +146,7 @@ export default function UsersPage() {
       password: '',
       office: user.office || '',
       division: user.division || '',
-      role: user.role || 'user',
+      role: 'user',
       permissions: user.permissions || [],
     });
     setEditorOpen(true);
@@ -168,39 +177,56 @@ export default function UsersPage() {
   };
 
   const pageSize = 12;
-  const pagedUsers = users.slice((page - 1) * pageSize, page * pageSize);
   const pageCount = Math.max(1, Math.ceil(users.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedUsers = users.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   if (pageLoading) return <PageSkeleton />;
   if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={() => { setPageLoading(true); setPageLoadError(''); load(); }} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
     <div className="user-management-page">
       <header className="user-management-header">
-        <div><h1>User Management</h1><p>Manage your office accounts.</p></div>
-        {currentUser?.role === 'admin' && <button type="button" className="user-create-button" aria-haspopup="dialog" aria-expanded={editorOpen && !editingUser} onClick={createUser}><Plus size={16} aria-hidden="true" /> Create User</button>}
+        <div className="user-management-heading"><span className="user-management-eyebrow"><ShieldCheck size={14} aria-hidden="true" /> ACCOUNT DIRECTORY</span><h1>User Management</h1><p>Your team, their offices, and the access they need.</p></div>
+        {currentUser?.role === 'admin' && <div className="user-management-create-actions"><button ref={adminTriggerRef} type="button" className="user-create-button" aria-haspopup="dialog" aria-expanded={addingAdmin} onClick={() => { setOpenMenu(null); setAddingAdmin(true); }}><Plus size={16} aria-hidden="true" /> Add Admin</button><button type="button" className="user-create-button" aria-haspopup="dialog" aria-expanded={editorOpen && !editingUser} onClick={createUser}><Plus size={16} aria-hidden="true" /> Create User</button></div>}
       </header>
+      <section aria-labelledby="admin-accounts-heading" className="admin-account-section">
+        <h2 id="admin-accounts-heading" className="account-section-heading">Administrator accounts</h2>
+        <div className="user-account-grid" aria-label="Administrator accounts">{admins.map(admin => <article key={admin._id} className="user-account-record">
+          <div className="user-card-avatar user-card-avatar--slate account-directory-picture" aria-hidden="true">{admin.profilePicture ? <img src={admin.profilePicture} alt="" /> : initials(admin)}</div>
+          <div className="user-card-details"><h2>{[admin.firstName, admin.middleName, admin.lastName].filter(Boolean).join(' ') || admin.username}</h2><p className="user-card-username">@{admin.username}</p><p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{admin.office}</span></p><p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{admin.email}</span></p><div className="user-card-labels"><span className="user-role user-role--admin">Administrator</span></div></div>
+          <div className="user-card-footer"><span className={`user-account-status ${admin.locked || admin.status === 'inactive' ? 'user-account-status--inactive' : ''}`}><span aria-hidden="true" />{admin.locked ? 'Account locked' : admin.status === 'inactive' ? 'Inactive account' : 'Account active'}</span><span>{admin.division}</span></div>
+        </article>)}</div>
+        {!admins.length && <p className="mt-3 text-slate-500">No administrator accounts found.</p>}
+      </section>
+      <hr className="account-directory-divider" />
+      <h2 className="account-section-heading">User accounts</h2>
       <section className="user-account-grid" aria-label="Office accounts">
         {pagedUsers.map(user => <article key={user._id} className="user-account-record">
           <div className={`user-card-avatar user-card-avatar--${avatarColor(user)}`} aria-hidden="true">{initials(user)}</div>
           <div className="user-card-details">
             <h2>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</h2>
             <p className="user-card-username" title={user.email}>@{user.username}</p>
-            <p className="user-card-office">{user.office || user.division}</p>
-            <div className="user-card-labels"><span className={`user-role user-role--${user.role}`}>{user.role === 'admin' ? 'Admin' : 'User'}</span>{user.locked && <span className="user-locked-label">Locked</span>}</div>
+            <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{user.office || user.division || 'Office not assigned'}</span></p>
+            {user.email && <p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{user.email}</span></p>}
+            <div className="user-card-labels"><span className="user-role user-role--user">User</span>{user.locked && <span className="user-locked-label">Locked</span>}</div>
           </div>
+          <div className="user-card-footer"><span className={`user-account-status ${user.locked ? 'user-account-status--locked' : user.status === 'inactive' ? 'user-account-status--inactive' : ''}`}><span aria-hidden="true" />{user.locked ? 'Account locked' : user.status === 'inactive' ? 'Inactive account' : 'Account active'}</span><span>{user.division || 'Office member'}</span></div>
           {currentUser?.role === 'admin' && <div className="user-card-actions" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(previous => previous === user._id ? null : previous); }}>
             <button type="button" className="user-card-menu-toggle" aria-label={`Actions for ${user.username}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" /></button>
             {openMenu === user._id && <div ref={menuRef} id={`user-actions-${user._id}`} className="user-card-menu" role="group" aria-label={`Account actions for ${user.username}`}>
-              <button type="button" onClick={event => editUser(user, event)}><Pencil size={15} aria-hidden="true" /> Edit user</button>
+              <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records</button>
+                    <button type="button" onClick={event => editUser(user, event)}><Pencil size={15} aria-hidden="true" /> Edit user</button>
               <div className="user-card-lock"><span>{user.locked ? 'Unlock account' : 'Lock account'}</span><AccountLockButton locked={user.locked} username={user.username || user.email} busy={lockingUser === user._id} disabled={!!lockingUser} onClick={() => toggleLock(user)} /></div>
             </div>}
           </div>}
         </article>)}
       </section>
       {users.length === 0 && <div className="user-accounts-empty"><h2>No office accounts yet</h2><p>Click Create User to add an account.</p></div>}
-      {users.length > pageSize && <nav className="user-management-pagination" aria-label="Account pages"><span>Page {page} of {pageCount}</span><div><button type="button" disabled={page === 1} onClick={() => { setPage(value => value - 1); setOpenMenu(null); }}>Previous</button><button type="button" disabled={page === pageCount} onClick={() => { setPage(value => value + 1); setOpenMenu(null); }}>Next</button></div></nav>}
+      {users.length > pageSize && <nav className="user-management-pagination" aria-label="Account pages"><span>Page {currentPage} of {pageCount}</span><div><button type="button" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setOpenMenu(null); }}>Previous</button><button type="button" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); setOpenMenu(null); }}>Next</button></div></nav>}
+      {addingAdmin && <AddAdminDialog onCreated={() => load()} onClose={() => { setAddingAdmin(false); window.requestAnimationFrame(() => adminTriggerRef.current?.focus()); }} />}
+      {recordsUser && <UserRecordsDialog user={recordsUser} onClose={() => { setRecordsUser(null); window.requestAnimationFrame(() => recordsTriggerRef.current?.focus()); }} />}
       {editorOpen && <dialog ref={dialogRef} role="dialog" className="user-editor-dialog" aria-labelledby="user-editor-title" onCancel={event => { event.preventDefault(); cancelEdit(); }}>
-        <form onSubmit={save}>
+        <ValidatedForm onSubmit={save}>
         <div className="user-editor-heading">
           <div><h2 id="user-editor-title">{editingUser ? 'Edit User Access' : 'Create User'}</h2><p>{editingUser ? 'Update account details and access.' : 'Add a member of your office.'}</p></div>
           <button type="button" className="user-editor-close" onClick={cancelEdit} disabled={saving} aria-label="Close user form"><X size={18} aria-hidden="true" /></button>
@@ -236,13 +262,6 @@ export default function UsersPage() {
             <span className="mb-1 block text-sm font-semibold text-slate-700">Division</span>
             <input id="user-division" aria-label="Division" required value={form.division} onChange={(e) => setForm({ ...form, division: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Division" />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-semibold text-slate-700">Role</span>
-            <select id="user-role" aria-label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2">
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
-          </label>
         </div>
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-sm font-semibold text-slate-700">Page Access</div>
@@ -270,7 +289,7 @@ export default function UsersPage() {
         </div>
         </fieldset>
         <div className="user-editor-footer"><button type="button" disabled={saving} onClick={cancelEdit}>Cancel</button><button type="submit" disabled={saving} className="user-editor-save">{saving ? 'Saving...' : editingUser ? 'Save User Access' : 'Create User'}</button></div>
-        </form>
+        </ValidatedForm>
       </dialog>}
       {(requestLoading || requestError || resetRequests.length > 0) && <section className="user-password-requests minimal-surface" aria-label="Password recovery notifications">
         <h2>Password Reset Requests</h2>

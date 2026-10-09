@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const ReturnedSupply = require('../models/ReturnedSupply');
@@ -50,7 +51,7 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canViewDashboard', 'canM
   return successResponse(res, 'PRS retrieved', reports);
 });
 
-router.post('/', authenticate, authorize('canManageInventory'), async (req, res) => {
+router.post('/', authenticate, validateAdminForm('prs'), authorize('canManageInventory'), async (req, res) => {
   const payload = { ...req.body };
   delete payload.lastEditedAt;
   const automaticNumber = payload.autoNumber === true || !String(payload.prsNumber || '').trim();
@@ -132,7 +133,7 @@ router.post('/:id/reject', authenticate, authorize('canManageInventory'), async 
   return successResponse(res, 'Return rejected', report);
 });
 
-router.put('/:id', authenticate, authorize('canManageInventory'), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('prs'), authorize('canManageInventory'), async (req, res) => {
   const payload = { ...req.body, lastEditedAt: new Date() };
   const existing = await PropertyReturnSlip.findOne({ _id: req.params.id, deleted: false });
   if (!existing) return errorResponse(res, 'PRS not found', [], 404);

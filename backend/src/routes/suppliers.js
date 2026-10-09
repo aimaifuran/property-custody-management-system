@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Supplier = require('../models/Supplier');
@@ -10,7 +11,7 @@ router.get('/', authenticate, authorize(['canViewSuppliers', 'canManageSuppliers
   return successResponse(res, 'Suppliers retrieved', suppliers);
 });
 
-router.post('/', authenticate, authorize('canManageSuppliers'), [
+router.post('/', authenticate, validateAdminForm('suppliers'), authorize('canManageSuppliers'), [
   body('name').notEmpty().withMessage('Supplier name is required'),
   body('address').notEmpty().withMessage('Address is required'),
   body('contactNumber').notEmpty().withMessage('Contact number is required'),
@@ -25,7 +26,7 @@ router.post('/', authenticate, authorize('canManageSuppliers'), [
   return successResponse(res, 'Supplier created', supplier, 201);
 });
 
-router.put('/:id', authenticate, authorize('canManageSuppliers'), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('suppliers'), authorize('canManageSuppliers'), async (req, res) => {
   const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, { new: true });
   if (!supplier) return errorResponse(res, 'Supplier not found', [], 404);
   return successResponse(res, 'Supplier updated', supplier);

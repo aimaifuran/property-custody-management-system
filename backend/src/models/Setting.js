@@ -4,6 +4,7 @@ const settingSchema = new mongoose.Schema({
   entityName: { type: String, default: '', maxlength: 300 },
   organizationName: { type: String, default: 'Supply Office' },
   officeLogo: { type: String },
+  developerPictures: { type: Map, of: String, default: {} },
   governmentAgency: { type: String, default: 'Government Agency' },
   address: { type: String, default: 'Office Address' },
   telephone: { type: String, default: '000-0000' },

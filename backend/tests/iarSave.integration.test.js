@@ -24,7 +24,7 @@ const completedForm = (number, stockNumber) => ({
   autoNumber: false,
   iarDate: '2026-10-08',
   invoiceNumber: 'INV-1001',
-  invoiceDate: '',
+  invoiceDate: '2026-10-08',
   inspectionDate: '2026-10-08',
   inspectedBy: 'Inspection Committee',
   acceptanceDate: '2026-10-08',
@@ -59,13 +59,13 @@ test('IAR editor payload saves stock atomically and reports field and number con
   };
 
   let saved;
-  await t.test('complete acceptance allows blank optional dates and quantity and preserves an entered IAR number', async () => {
+  await t.test('complete acceptance allows blank optional partial quantity and preserves an entered IAR number', async () => {
     const response = await request(completedForm('1001', 'IAR-SAVE-PAPER'));
     assert.equal(response.status, 201, JSON.stringify(response.body));
     saved = response.body.data;
     assert.equal(saved.iarNumber, '1001');
     assert.equal(saved.acceptanceQuantity, null);
-    assert.equal(saved.invoiceDate, null);
+    assert.equal(saved.invoiceDate.slice(0, 10), '2026-10-08');
     assert.equal(saved.status, 'LOGGED_TO_STOCKS');
     const stock = await Item.findOne({ stockNumber: 'IAR-SAVE-PAPER' });
     assert.equal(stock.quantityOnHand, 5);
@@ -142,7 +142,7 @@ test('IAR editor payload saves stock atomically and reports field and number con
     assert.deepEqual(await Promise.all([IAR, Inventory, Card, RIS, Ledger].map(Model => Model.countDocuments())), before);
     assert.equal(await Item.countDocuments({ stockNumber: 'IAR-SAVE-DUPLICATE' }), 0);
     const second = await IAR.findOne({ iarNumber: '1002' });
-    const update = await request({ iarNumber: saved.iarNumber }, `/iar/${second._id}`, 'PUT');
+    const update = await request(completedForm(saved.iarNumber, 'IAR-SAVE-NO-COST'), `/iar/${second._id}`, 'PUT');
     assert.equal(update.status, 409, JSON.stringify(update.body));
     assert.equal((await IAR.findById(second._id)).iarNumber, '1002');
   });
@@ -152,9 +152,22 @@ test('IAR editor payload saves stock atomically and reports field and number con
     payload.items[0].quantity = 0;
     const response = await request(payload);
     assert.equal(response.status, 400);
-    assert.match(response.body.message, /Item 1.*quantity/i);
+    assert.match(response.body.message, /(?:Item 1|items row 1).*quantity/i);
     assert.equal(await IAR.countDocuments({ iarNumber: payload.iarNumber }), 0);
     assert.equal(await Item.countDocuments({ stockNumber: payload.items[0].stockPropertyNumber }), 0);
+  });
+
+  await t.test('missing required text rejects creation and updates without changing records or stock', async () => {
+    const incomplete = completedForm('1008', 'IAR-SAVE-MISSING');
+    incomplete.supplierName = '   ';
+    const create = await request(incomplete);
+    assert.equal(create.status, 400);
+    assert.ok(create.body.errors.some(error => error.path === 'supplierName'));
+    assert.equal(await IAR.countDocuments({ iarNumber: '1008' }), 0);
+    assert.equal(await Item.countDocuments({ stockNumber: 'IAR-SAVE-MISSING' }), 0);
+    const update = await request({ ...completedForm(saved.iarNumber, 'IAR-SAVE-PAPER'), supplierName: '' }, `/iar/${saved._id}`, 'PUT');
+    assert.equal(update.status, 400);
+    assert.equal((await IAR.findById(saved._id)).supplierName, 'Office Supplies Supplier');
   });
 
   await t.test('partial acceptance also saves the entered acceptance quantity', async () => {

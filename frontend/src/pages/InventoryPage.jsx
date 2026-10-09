@@ -1,3 +1,4 @@
+import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
 import NewFormBadge from '../components/NewFormBadge';
@@ -128,6 +129,9 @@ export default function InventoryPage() {
                 ...form,
                 items: form.items.map((item) => ({
                     ...item,
+                    propertyNumber: form.propertyNumber,
+                    description: form.description,
+                    serialNumber: form.serialNumber,
                     date: item.date || null,
                     receiptQuantity: item.receiptQuantity === '' ? null : Number(item.receiptQuantity),
                     itdQuantity: item.itdQuantity === '' ? null : Number(item.itdQuantity),
@@ -145,7 +149,7 @@ export default function InventoryPage() {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
         } finally { setSaving(false); }
     };
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input type={type} aria-label={label} {...(key === 'serialNumber' ? { inputMode: 'numeric', pattern: editingCard?._id && form.serialNumber === editingCard.serialNumber ? undefined : '[0-9]*', title: 'Enter numbers only' } : {})} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'serialNumber'} type={type} aria-label={label} {...(key === 'serialNumber' ? { inputMode: 'numeric', pattern: editingCard?._id && form.serialNumber === editingCard.serialNumber ? undefined : '[0-9]*', title: 'Enter numbers only' } : {})} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     const itemLabels = ['Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
     const itemFields = [
         ['date', 'date'],
@@ -290,7 +294,7 @@ export default function InventoryPage() {
             </div>
           </div>
           {editingCard ? (
-            <form ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
+            <ValidatedForm ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
               <div className="min-w-0 text-slate-900">
                 <FormEditorHeader title="Property Card" description="Record property items here. Cards linked to an Inspection and Acceptance Report are also created automatically." onClose={closeEditor} />
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -308,9 +312,9 @@ export default function InventoryPage() {
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="bg-slate-100 text-left">
-                        {itemLabels.map((label) => (
+                        {itemLabels.map((label, index) => (
                           <th key={label} className="p-2">
-                            {label}
+                            {label} {['date', 'receiptQuantity', 'amount'].includes(itemFields[index][0]) && <span className="required-marker text-red-600" aria-hidden="true">*</span>}
                           </th>
                         ))}
                       </tr>
@@ -322,6 +326,10 @@ export default function InventoryPage() {
                             <td className="p-1" key={key}>
                               <input
                                 type={type}
+                                min={type === 'number' ? 0 : undefined}
+                                step={type === 'number' ? 'any' : undefined}
+                                required={['propertyNumber', 'description', 'date', 'receiptQuantity', 'amount'].includes(key)}
+                                data-positive={key === 'receiptQuantity' ? 'true' : undefined}
                                 aria-label={`${itemLabels[itemFields.findIndex(([fieldKey]) => fieldKey === key)]} ${index + 1}`}
                                 value={item[key] ?? ''}
                                 onChange={(event) => updateItem(index, key, event.target.value)}
@@ -352,7 +360,7 @@ export default function InventoryPage() {
                   </button>
                 </div>
               </div>
-            </form>
+            </ValidatedForm>
           ) : null}
         </div>
       </>

@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const mongoose = require('mongoose');
 const InspectionAcceptanceReport = require('../models/InspectionAcceptanceReport');
@@ -53,7 +54,7 @@ router.get('/', authenticate, authorize(['canViewIAR', 'canManageIAR']), async (
   return successResponse(res, 'IAR retrieved', iar);
 });
 
-router.put('/:id', authenticate, authorize('canManageIAR'), async (req, res) => {
+router.put('/:id', authenticate, validateAdminForm('iar'), authorize('canManageIAR'), async (req, res) => {
   const payload = { ...req.body, lastEditedAt: new Date() };
   if (Object.keys(payload).some(field => field.startsWith('$') || field.includes('.'))) return errorResponse(res, 'Submit IAR form fields directly without update operators.', [], 400);
   if (payload.items && !Array.isArray(payload.items)) return errorResponse(res, 'Enter at least one received item', [], 400);
@@ -101,7 +102,7 @@ router.put('/:id', authenticate, authorize('canManageIAR'), async (req, res) => 
   return successResponse(res, 'IAR updated', report);
 });
 
-router.post('/', authenticate, authorize('canManageIAR'), async (req, res) => {
+router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR'), async (req, res) => {
   const payload = { ...req.body };
   delete payload.lastEditedAt;
   const automaticNumber = payload.autoNumber === true || !String(payload.iarNumber || '').trim();

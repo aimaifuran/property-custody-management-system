@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const mongoose = require('mongoose');
 const PpeList = require('../models/PpeList');
@@ -16,7 +17,7 @@ router.get('/', async (req, res) => {
   const manual = await PpeList.find({ automatic: false }).sort(SAVED_REPORT_SORT).lean();
   return successResponse(res, 'Monthly item reports synchronized', { report: records.find(record => record.month === month), records: sortSavedReports([...manual, ...records.filter(record => record.rows.length > 0)]) });
 });
-router.post('/', async (req, res) => {
+router.post('/', validateAdminForm('monthly-item-reports'), async (req, res) => {
   const month = String(req.body.month || '');
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2000 || Number(month.slice(0, 4)) > 2100) return errorResponse(res, 'Choose a valid report month', [], 400);
   const reports = await syncMonthlyItems(month);
@@ -33,7 +34,7 @@ router.post('/', async (req, res) => {
     throw error;
   }
 });
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateAdminForm('monthly-item-reports'), async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return errorResponse(res, 'Invalid report ID', [], 400);
   const fields = ['serialNumber', 'lgu', 'fund', 'reportDate', 'custodian', 'accountingStaff', 'postedDate'];
   const payload = Object.fromEntries(fields.filter(field => Object.hasOwn(req.body, field)).map(field => [field, req.body[field]]));

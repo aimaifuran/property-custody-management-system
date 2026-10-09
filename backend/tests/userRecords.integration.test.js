@@ -1,0 +1,35 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
+const User = require('../src/models/User');
+const RIS = require('../src/models/RequisitionIssueSlip');
+const PRS = require('../src/models/PropertyReturnSlip');
+
+test('admin records are scoped, read-only and inaccessible to users', { timeout: 90000 }, async t => {
+  const database = await MongoMemoryReplSet.create({ replSet: { count: 1 }, binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
+  await mongoose.connect(database.getUri());
+  const server = require('../src/app').listen(0);
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await mongoose.disconnect(); await database.stop(); });
+  const makeUser = (username, role = 'user') => User.create({ username, role, firstName: username, lastName: 'Test', email: `${username}@example.test`, password: 'test', office: 'Supply', division: 'Supply' });
+  const admin = await makeUser('records-admin', 'admin');
+  const user = await makeUser('records-user');
+  const other = await makeUser('records-other');
+  const record = await RIS.create({ risNumber: 'RECORD-1', requestedBy: { user: user._id }, status: 'ISSUED', items: [{ description: 'Laptop', quantityIssued: 2 }] });
+  await RIS.create({ risNumber: 'OTHER-1', requestedBy: { user: other._id }, status: 'ISSUED', items: [{ description: 'Private item', quantityIssued: 1 }] });
+  await PRS.create({ prsNumber: 'RETURN-1', submittedBy: user._id, status: 'RETURNED', items: [{ ris: record._id, risItem: record.items[0]._id, description: 'Laptop', quantity: 1 }] });
+  const before = JSON.stringify(await RIS.find().lean());
+  const get = async (actor, target) => { const response = await fetch(`http://127.0.0.1:${server.address().port}/api/users/${target}/records`, { headers: { Authorization: `Bearer ${jwt.sign({ id: actor._id }, process.env.JWT_SECRET || 'dev-secret')}` } }); return { status: response.status, body: await response.json() }; };
+  const result = await get(admin, user._id);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.data.risRows.length, 1);
+  assert.equal(result.body.data.risRows[0].description, 'Laptop');
+  assert.equal(result.body.data.risRows[0].quantityReturned, 1);
+  assert.equal(result.body.data.returnSlips.length, 1);
+  assert.equal(JSON.stringify(await RIS.find().lean()), before, 'GET does not mutate records');
+  assert.equal((await get(user, other._id)).status, 403);
+  assert.equal((await get(admin, admin._id)).status, 404);
+  assert.equal((await get(admin, 'invalid')).status, 400);
+});

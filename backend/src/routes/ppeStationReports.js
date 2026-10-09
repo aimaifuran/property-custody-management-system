@@ -1,3 +1,4 @@
+const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const mongoose = require('mongoose');
 const Report = require('../models/PpeStationReport');
@@ -36,6 +37,6 @@ const save = async (req, res) => {
     throw error;
   }
 };
-router.post('/', save);
-router.put('/:id', save);
+router.post('/', validateAdminForm('ppe-station-reports'), save);
+router.put('/:id', validateAdminForm('ppe-station-reports'), save);
 module.exports = router;
