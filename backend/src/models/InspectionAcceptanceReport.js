@@ -1,3 +1,4 @@
+const { sumAmounts } = require('../utils/formAmounts');
 const mongoose = require('mongoose');
 
 const inspectionAcceptanceReportSchema = new mongoose.Schema({
@@ -50,5 +51,11 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
   deleted: { type: Boolean, default: false },
   lastEditedAt: Date,
 }, { timestamps: true });
+
+inspectionAcceptanceReportSchema.virtual('totalAmount').get(function () {
+  return sumAmounts((this.items || []).map(item => item.totalCost));
+});
+inspectionAcceptanceReportSchema.set('toJSON', { virtuals: true });
+inspectionAcceptanceReportSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('InspectionAcceptanceReport', inspectionAcceptanceReportSchema);

@@ -1,3 +1,4 @@
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -25,6 +26,7 @@ const toDateInputValue = (date) => {
 };
 
 const toFormSignatory = (signatory = {}) => ({
+    offlineRecipient: signatory.offlineRecipient?._id || signatory.offlineRecipient || undefined,
     user: signatory.user?._id || signatory.user || undefined,
     date: toDateInputValue(signatory.date),
     name: signatory.name || '',
@@ -191,8 +193,8 @@ export default function ReturnedSupplyPage() {
                         const [risId, itemId] = event.target.value.split(':');
                         const record = issuedRecords.find(entry => entry._id === risId);
                         const item = record?.items.find(entry => entry._id === itemId);
-                        setForm(prev => ({ ...prev, ris: risId || '', risItem: itemId || '', ...(item ? { description: item.description, unit: item.unit, mrNumber: record.risNumber, returnedBy: { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name } } : {}) }));
-                    }} className="w-full rounded-lg border px-2 py-2"><option value="">Match typed item and RIS number to the selected account</option>{issuedRecords.filter(record => !form.returnedBy.user || String(record.requestedBy?.user || record.receivedBy?.user) === String(form.returnedBy.user)).flatMap(record => record.items.filter(item => item.quantityIssued > 0).map(item => <option key={`${record._id}:${item._id}`} value={`${record._id}:${item._id}`}>{record.requestedBy?.name || record.receivedBy?.name} ? {record.risNumber} ? {item.description}</option>))}</select></label>
+                        setForm(prev => ({ ...prev, ris: risId || '', risItem: itemId || '', ...(item ? { description: item.description, unit: item.unit, mrNumber: record.risNumber, returnedBy: { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name } } : {}) }));
+                    }} className="w-full rounded-lg border px-2 py-2"><option value="">Match typed item and RIS number to the selected account</option>{issuedRecords.filter(record => form.returnedBy.offlineRecipient ? String(record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient) === String(form.returnedBy.offlineRecipient) : !form.returnedBy.user || String(record.requestedBy?.user || record.receivedBy?.user) === String(form.returnedBy.user)).flatMap(record => record.items.filter(item => item.quantityIssued > 0).map(item => <option key={`${record._id}:${item._id}`} value={`${record._id}:${item._id}`}>{record.requestedBy?.name || record.receivedBy?.name} ? {record.risNumber} ? {item.description}</option>))}</select></label>
                     <div className="grid gap-3 md:grid-cols-3">
                         <label className="block">
                             <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
@@ -215,6 +217,7 @@ export default function ReturnedSupplyPage() {
                                     <th className="p-2">M. R. No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Unit Value <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Total Value</th>
+                                    <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -240,6 +243,7 @@ export default function ReturnedSupplyPage() {
                                     <td className="p-2">
                                         <input required aria-label="Total Value" readOnly value={form.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
+                                    <td className="p-2 text-center"><DeleteRowButton onClick={() => setForm(previous => ({ ...previous, ris: '', risItem: '', quantity: '', unit: '', description: '', propertyNumber: '', mrNumber: '', unitValue: '', totalValue: 0 }))} /></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -257,7 +261,11 @@ export default function ReturnedSupplyPage() {
                         {signatoryFields('Returned To', 'returnedTo')}
                     </div>
 
-                    <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                    <div className="flex justify-end">
+
+                      <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+
+                    </div>
                 </ValidatedForm>
             )}
         </div>

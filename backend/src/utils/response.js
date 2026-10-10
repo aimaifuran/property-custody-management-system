@@ -1,4 +1,6 @@
-const successResponse = (res, message, data = {}, status = 200) => {
+const successResponse = async (res, message, data = {}, status = 200) => {
+  // Flush only committed events. This also retries pending mail on serverless requests.
+  await require('./workflowEmails').deliverWorkflowEmails();
   return res.status(status).json({ success: true, message, data });
 };
 

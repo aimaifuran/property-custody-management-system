@@ -85,6 +85,10 @@ export async function buildRisPdf(data, { onDraw } = {}) {
     const agencyHeight = Math.max(fieldHeight('Entity Name:', data.entityName, agencyWidth), fieldHeight('Fund Cluster:', data.fundCluster, WIDTH - agencyWidth));
     field('Entity Name:', data.entityName, MARGIN, top, agencyWidth, agencyHeight);
     field('Fund Cluster:', data.fundCluster, MARGIN + agencyWidth, top, WIDTH - agencyWidth, agencyHeight);
+    for (const [label, x, width] of [['Entity Name:', MARGIN, agencyWidth], ['Fund Cluster:', MARGIN + agencyWidth, WIDTH - agencyWidth]]) {
+      const labelWidth = bold.widthOfTextAtSize(label, size) + 12;
+      page.drawLine({ start: { x: x + labelWidth + 4, y: top - agencyHeight + 2 }, end: { x: x + width - 4, y: top - agencyHeight + 2 }, thickness: 0.5 });
+    }
     top -= agencyHeight + 4;
     const half = WIDTH / 2;
     for (const [leftLabel, leftValue, rightLabel, rightValue] of [['Division:', data.division, 'Responsibility Center Code:', data.responsibilityCenterCode], ['Office:', data.office, 'RIS No.:', data.risNumber]]) {
@@ -93,7 +97,7 @@ export async function buildRisPdf(data, { onDraw } = {}) {
       field(leftLabel, leftValue, MARGIN, top, half, height); field(rightLabel, rightValue, MARGIN + half, top, half, height);
       top -= height;
     }
-    const groups = [['Requisition', 0, 4], ['Stock Available?', 4, 6], ['Issue', 6, 8]];
+    const groups = [['Requisition', 0, 4], ['Stock Available?', 4, 6], ['', 6, 8]];
     const groupHeight = Math.max(24, ...groups.map(([label, start, end]) => wrap(label, edges[end] - edges[start] - 8, bold).length * leading + 8));
     for (const [label, start, end] of groups) {
       box(edges[start], top, edges[end] - edges[start], groupHeight);

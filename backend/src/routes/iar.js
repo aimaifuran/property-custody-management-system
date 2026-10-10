@@ -1,3 +1,4 @@
+const { lineAmount } = require('../utils/formAmounts');
 const { validateAdminForm } = require('../middlewares/validateAdminForm');
 const express = require('express');
 const mongoose = require('mongoose');
@@ -38,7 +39,7 @@ const receivedItem = (entry, stock) => {
     itemType: (entry.itemType === undefined ? stock?.itemType : entry.itemType) || 'ASSET',
     quantity,
     unitCost,
-    totalCost: quantity * unitCost,
+    totalCost: lineAmount(quantity, unitCost),
   };
 };
 
@@ -147,6 +148,8 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
       payload.items = receivedEntries.map(entry => receivedItem(entry, stockMap.get(String(entry.stockNumber || entry.stockPropertyNumber || '').trim())));
       const types = new Map();
       for (const entry of payload.items) {
+        if (!Number.isFinite(entry.unitCost) || entry.unitCost < 0) throw new Error(`Set a valid unit cost for ${entry.stockNumber}`);
+        if (!['SUPPLY', 'ASSET'].includes(entry.itemType)) throw new Error(`Select Supply or Asset for ${entry.stockNumber}`);
         if (types.has(entry.stockNumber) && types.get(entry.stockNumber) !== entry.itemType) throw new Error('Use a separate stock number for supplies and assets');
         types.set(entry.stockNumber, entry.itemType);
       }
@@ -163,6 +166,12 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
           const inventoryIds = await Inventory.find({ item: item._id, deleted: false }).select('_id').session(session);
           if (await Accountability.exists({ inventory: { $in: inventoryIds.map(row => row._id) }, active: true, deleted: false }).session(session)) throw new Error('Return outstanding assets before changing the stock classification');
           item.itemType = entry.itemType; await item.save({ session });
+        }
+        // Later receipts without visible cost fields reuse the latest recorded
+        // stock cost. Each inventory receipt still retains its own original cost.
+        if (item && item.cost !== entry.unitCost) {
+          item.cost = entry.unitCost;
+          await item.save({ session });
         }
         let inventory;
         let balanceQuantity = entry.quantity;

@@ -9,6 +9,12 @@ const aliases = user => [accountName(user), [user.firstName, user.lastName].filt
 async function resolveAccount(person, accounts) {
   if (!person) return person;
   const value = typeof person === 'string' ? { name: person } : { ...person };
+  if (value.offlineRecipient) {
+    if (value.user) throw new Error('Select either a user account or an offline recipient');
+    const offline = await require('../models/OfflineRecipient').findOne({ _id: value.offlineRecipient, deleted: false });
+    if (!offline) throw new Error('The selected offline record is unavailable');
+    return { ...value, user: undefined, offlineRecipient: offline._id, name: value.name?.trim() || offline.name, designation: value.designation || offline.designation || offline.office };
+  }
   let matches;
   if (value.user) {
     const id = value.user._id || value.user;
@@ -34,7 +40,7 @@ async function linkLegacyRequests() {
   for (const record of records) {
     const updates = {};
     for (const section of ['requestedBy', 'receivedBy']) {
-      if (!record[section]?.user && record[section]?.name) {
+      if (!record[section]?.user && !record[section]?.offlineRecipient && record[section]?.name) {
         try {
           const linked = await resolveAccount(record[section].toObject ? record[section].toObject() : record[section], accounts);
           if (linked.user) updates[`${section}.user`] = linked.user;
@@ -45,7 +51,7 @@ async function linkLegacyRequests() {
   }
 }
 
-const ownerFilter = userId => ({ $or: [
+const ownerFilter = (userId, offline = false) => offline ? { 'requestedBy.offlineRecipient': userId } : ({ $or: [
   { 'requestedBy.user': userId },
   { 'requestedBy.user': null, 'receivedBy.user': userId },
 ] });

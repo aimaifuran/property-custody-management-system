@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const propertyAccountabilitySchema = new mongoose.Schema({
   inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory', required: true },
+  offlineRecipient: { type: mongoose.Schema.Types.ObjectId, ref: 'OfflineRecipient', index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   ris: { type: mongoose.Schema.Types.ObjectId, ref: 'RequisitionIssueSlip', index: true },
   risItem: mongoose.Schema.Types.ObjectId,

@@ -1,3 +1,5 @@
+import AddRowButton from '../components/AddRowButton';
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -446,6 +448,7 @@ export default function PtrPage() {
                                 <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Amount <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Condition of PPE <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                              <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -464,14 +467,15 @@ export default function PtrPage() {
                                         <input required readOnly={isUser} aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required readOnly={isUser} aria-label="Condition of PPE" value={item.condition} onChange={(e) => updateItem(index, 'condition', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <select required disabled={isUser} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
                                     </td>
+                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </TableScroll>
-                {!isUser && !workflow && <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>}
+                {!isUser && !workflow && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
                     <label className="block">
@@ -494,10 +498,12 @@ export default function PtrPage() {
                 {workflow && <p className="mt-4 text-sm">Status: {activeRecord.status.replaceAll('_', ' ')}{activeRecord.rejectionReason ? ` - ${activeRecord.rejectionReason}` : ''}</p>}
                 {workflow && (isUser ? String(activeRecord.toUser) === String(user?._id) && activeRecord.status === 'PENDING_RECEIVER' : ['PENDING_RECEIVER', 'PENDING_ADMIN'].includes(activeRecord.status)) && <label className="mt-4 block">Decision<select value={decision} onChange={event => setDecision(event.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="confirm">{isUser ? 'Confirm physical receipt' : 'Approve transfer after receiver confirmation'}</option><option value="reject">Reject transfer</option></select></label>}
                 {workflow && decision === 'reject' && <label className="mt-3 block">Reason for rejection<textarea required value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>}
-                <button type="submit" disabled={saving || (workflow && !canProcess)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
-                    <Send size={16} />
-                    {saving ? 'Saving...' : workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : isUser ? 'Submit PTR' : editingId ? 'Update PTR' : 'Create PTR'}
-                </button>
+                <div className="flex justify-end">
+                  <button type="submit" disabled={saving || (workflow && !canProcess)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
+                      <Send size={16} />
+                      {saving ? 'Saving...' : workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : isUser ? 'Submit PTR' : editingId ? 'Update PTR' : 'Create PTR'}
+                  </button>
+                </div>
             </ValidatedForm>)}
         </div>
     );

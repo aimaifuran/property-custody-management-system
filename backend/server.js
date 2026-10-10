@@ -10,6 +10,11 @@ async function startServer() {
   try {
     await connectDatabase();
     await bootstrapSeed();
+    await require('./src/models/WorkflowEmail').init();
+    const { deliverWorkflowEmails } = require('./src/utils/workflowEmails');
+    const emailTimer = setInterval(() => { void deliverWorkflowEmails(); }, 60000);
+    emailTimer.unref();
+    void deliverWorkflowEmails();
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
     console.error(err);

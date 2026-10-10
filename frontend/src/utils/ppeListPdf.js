@@ -86,7 +86,7 @@ export async function buildPpePdf(record, { onDraw } = {}) {
       layout.rowCapacity = layout.y - layout.bottom;
     }
     for (const row of record.recapitulation) {
-      const values = RECAP_COLUMNS.map(([key]) => ['unitCost', 'totalCost'].includes(key) ? money(row[key]) : row[key]);
+      const values = RECAP_COLUMNS.map(([key]) => ['unitCost', 'totalCost'].includes(key) ? '' : row[key]);
       drawReportGridRow(layout, recapColumns, values, regular, header);
     }
   }

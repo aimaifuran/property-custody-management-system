@@ -1,0 +1,41 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const User = require('../src/models/User');
+const PpeStationReport = require('../src/models/PpeStationReport');
+const PpeList = require('../src/models/PpeList');
+
+test('archive folders include saved PPE and monthly reports, exclude empty months, and preserve access control', { timeout: 60000 }, async t => {
+  const database = await MongoMemoryServer.create({ binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
+  await mongoose.connect(database.getUri());
+  const app = express();
+  app.use('/reports', require('../src/routes/reports'));
+  const server = app.listen(0);
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); await mongoose.disconnect(); await database.stop(); });
+  const admin = await User.create({ firstName: 'Archive', lastName: 'Admin', username: 'archive-admin', email: 'archive-admin@example.test', password: 'test', office: 'Supply', division: 'Supply', role: 'admin' });
+  let token = jwt.sign({ id: admin._id }, process.env.JWT_SECRET || 'dev-secret');
+  const request = async query => {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/reports/archive?${query}`, { headers: { Authorization: `Bearer ${token}` } });
+    return { status: response.status, body: await response.json() };
+  };
+  await PpeStationReport.create({ accountGroup: 'Equipment', governmentUnit: 'Test LGU', date: '2026-10-10', preparedBy: 'Test Custodian', rows: [{ article: 'Printer', description: 'Office printer' }] });
+  const monthly = { automatic: true, month: '2026-10', serialNumber: '2026-010', lgu: 'Test LGU', periodStart: '2026-10-01', periodEnd: '2026-10-31', reportDate: '2026-10-31', custodian: 'Test Custodian', rows: [{ item: 'Office printer', quantity: 1 }] };
+  await PpeList.create(monthly);
+  await PpeList.create({ ...monthly, month: '2026-09', serialNumber: '2026-009', reportDate: '2026-09-30', rows: [] });
+  const all = await request('year=2026');
+  assert.equal(all.status, 200);
+  assert.deepEqual(all.body.data.map(record => record.type).sort(), ['MONTHLY REPORT', 'PPE STATION']);
+  assert.ok(all.body.data.every(record => record.entityName === 'Test LGU' && record.employee === 'Test Custodian'));
+  assert.equal((await request('year=2025')).body.data.length, 0);
+  const folder = await request('year=2026&type=PPE%20STATION&search=printer');
+  assert.equal(folder.body.data.length, 1);
+  assert.equal(folder.body.data[0].details.rows[0].description, 'Office printer');
+  assert.equal((await request('year=2026&type=MONTHLY%20REPORT&search=missing')).body.data.length, 0);
+  const user = await User.create({ firstName: 'Archive', lastName: 'User', username: 'archive-user', email: 'archive-user@example.test', password: 'test', office: 'Supply', division: 'Supply', role: 'user' });
+  token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'dev-secret');
+  assert.equal((await request('year=2026')).status, 403);
+});

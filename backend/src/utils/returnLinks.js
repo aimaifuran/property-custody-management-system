@@ -8,7 +8,8 @@ const { resolveAccount, ownerFilter, linkLegacyRequests } = require('./accountLi
 const linkReturnItems = async payload => {
   await linkLegacyRequests();
   payload.returnedBy = await resolveAccount(payload.returnedBy);
-  let account = payload.returnedBy?.user;
+  let account = payload.returnedBy?.offlineRecipient || payload.returnedBy?.user;
+  const offline = !!payload.returnedBy?.offlineRecipient;
   for (const entry of payload.items || []) {
     if (!entry.ris) delete entry.ris;
     if (!entry.risItem) delete entry.risItem;
@@ -20,11 +21,11 @@ const linkReturnItems = async payload => {
         const owner = record?.requestedBy?.user || record?.receivedBy?.user;
         if (owner) { payload.returnedBy = await resolveAccount({ ...payload.returnedBy, user: owner }); account = owner; }
       }
-      if (account && !await RequisitionIssueSlip.exists({ _id: entry.ris, ...ownerFilter(account) })) throw new Error('The selected issued item belongs to a different user account');
+      if (account && !await RequisitionIssueSlip.exists({ _id: entry.ris, ...ownerFilter(account, offline) })) throw new Error('The selected issued item belongs to a different user account');
       continue;
     }
     if (!account) continue;
-    const records = await RequisitionIssueSlip.find({ deleted: false, ...ownerFilter(account), status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] }, ...(entry.mrNumber ? { risNumber: entry.mrNumber } : {}) });
+    const records = await RequisitionIssueSlip.find({ deleted: false, ...ownerFilter(account, offline), status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] }, ...(entry.mrNumber ? { risNumber: entry.mrNumber } : {}) });
     const matches = records.flatMap(record => record.items.filter(item => item.quantityIssued > 0 && String(item.description || '').trim().toLowerCase() === String(entry.description || '').trim().toLowerCase()).map(item => ({ record, item })));
     if (!matches.length) throw new Error('No matching issued item was found under this user account. Select an issued item; a pending RIS request must be issued before it can be returned.');
     if (matches.length > 1) throw new Error('More than one issuance matches this item. Select the exact RIS item in the issued-item dropdown.');

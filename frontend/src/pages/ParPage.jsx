@@ -1,3 +1,7 @@
+import { lineAmount, sumAmounts } from '../utils/formAmounts';
+import OfficeSelect from '../components/OfficeSelect';
+import AddRowButton from '../components/AddRowButton';
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -31,7 +35,8 @@ const emptyItem = () => ({
     description: '',
     propertyNumber: '',
     dateAcquired: '',
-    amount: ''
+    unitCost: '',
+    amount: 0
 });
 
 const toDateInputValue = (date) => {
@@ -47,7 +52,8 @@ const toFormItem = (item = {}) => ({
     description: item.description || '',
     propertyNumber: item.propertyNumber || '',
     dateAcquired: toDateInputValue(item.dateAcquired),
-    amount: item.amount ?? ''
+    unitCost: item.unitCost ?? (Number(item.quantity) > 0 ? Number(item.amount || 0) / Number(item.quantity) : ''),
+    amount: item.unitCost != null ? lineAmount(item.quantity, item.unitCost) : (item.amount ?? 0)
 });
 
 const toFormSignatory = (signatory = {}) => ({
@@ -79,7 +85,7 @@ export default function ParPage() {
     const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('PAR', 'parNumber', setForm);
     const [saving, setSaving] = useState(false);
     const selectedRecord = records.find(record => record._id === editingId);
-    const readOnly = !!selectedRecord?.user;
+    const readOnly = !!(selectedRecord?.user || selectedRecord?.offlineRecipient);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
@@ -141,12 +147,17 @@ export default function ParPage() {
 
     const updateItem = (index, key, value) => setForm((prev) => ({
         ...prev,
-        items: prev.items.map((item, i) => i === index ? { ...item, [key]: value } : item)
+        items: prev.items.map((item, i) => {
+            if (i !== index) return item;
+            const next = { ...item, [key]: value };
+            if (key === 'quantity' || key === 'unitCost') next.amount = lineAmount(next.quantity, next.unitCost);
+            return next;
+        })
     }));
 
     const addItem = () => update('items', [...form.items, emptyItem()]);
 
-    const total = (form?.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const total = sumAmounts((form?.items || []).map(item => item.amount));
 
     const save = async (event) => {
         event.preventDefault();
@@ -164,7 +175,8 @@ export default function ParPage() {
                 items: form.items.map((item) => ({
                     ...item,
                     quantity: Number(item.quantity || 0),
-                    amount: Number(item.amount || 0)
+                    unitCost: Number(item.unitCost || 0),
+                    amount: lineAmount(item.quantity, item.unitCost)
                 }))
             });
             toast.success(editingId ? 'Property Acknowledgement Receipt updated' : 'Property Acknowledgement Receipt created');
@@ -178,7 +190,7 @@ export default function ParPage() {
         } finally { setSaving(false); }
     };
 
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
+    const field = (label, key, type = 'text') => key === 'office' ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><OfficeSelect required aria-label={label} value={form.office} onChange={event => update('office', event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <input required aria-label={label} readOnly={key === 'parNumber' && !editingId} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'parNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
@@ -354,7 +366,9 @@ export default function ParPage() {
                                     <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Property Number <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Date Acquired <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                    <th className="p-2">Unit Cost</th>
                                     <th className="p-2">Amount <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                  <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -376,14 +390,19 @@ export default function ParPage() {
                                             <input required aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
+                                        <td className="p-2">
+                                            <input aria-label="Amount" readOnly value={Number(item.amount || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        </td>
+                                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </TableScroll>
-                    <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
+                    <p className="mt-2 text-sm text-slate-600">Amount = quantity ? unit cost, rounded to two decimal places.</p>
+                    <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>
 
                     <div className="mt-4 flex justify-end">
                         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold">
@@ -405,7 +424,9 @@ export default function ParPage() {
 
                     </fieldset>
                     <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : readOnly ? 'Awaiting custodian acceptance' : ''}</p>
-                    <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept PAR Receipt' : readOnly ? 'Issued Form' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                    <div className="flex justify-end">
+                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept PAR Receipt' : readOnly ? 'Issued Form' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                    </div>
                 </ValidatedForm>
             )}
         </div>

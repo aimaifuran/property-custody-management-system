@@ -1,3 +1,6 @@
+import { useLocation, useNavigate } from 'react-router-dom';
+import AddRowButton from '../components/AddRowButton';
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -70,6 +73,7 @@ const toDateInputValue = (date) => {
 };
 
 const toFormSignatory = (signatory = {}) => ({
+    offlineRecipient: signatory.offlineRecipient?._id || signatory.offlineRecipient || undefined,
     user: signatory.user?._id || signatory.user || undefined,
     date: toDateInputValue(signatory.date),
     name: signatory.name || '',
@@ -101,6 +105,10 @@ const toForm = (record) => ({
 
 export default function PrsPage() {
     const { user } = useAuth();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const returnFromRecords = user?.role === 'admin' ? location.state?.returnFromRecords : null;
+    const appliedReturn = useRef(false);
     const isUser = user?.role !== 'admin';
     const makeForm = () => ({ ...newForm(), ...(isUser ? { returnedBy: { user: user?._id, name: [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username, designation: user?.office, date: new Date().toISOString().slice(0, 10) } } : {}) });
     const [decision, setDecision] = useState('receive');
@@ -117,7 +125,15 @@ export default function PrsPage() {
     const [issuanceError, setIssuanceError] = useState('');
     const [issuedLoading, setIssuedLoading] = useState(true);
     const [issuedError, setIssuedError] = useState('');
-    const [form, setForm] = useState(makeForm);
+    const [form, setForm] = useState(() => {
+        const draft = makeForm();
+        if (returnFromRecords) {
+            draft.returnedBy = { user: returnFromRecords.user._id, name: returnFromRecords.user.name, designation: returnFromRecords.user.office || '', date: toDateInputValue(new Date()) };
+            draft.returnedTo = { name: [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ') || user.username, designation: user.position || user.office || '', date: toDateInputValue(new Date()) };
+            draft.purposeChoice = 'Returned To Stock';
+        }
+        return draft;
+    });
     const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('PRS', 'prsNumber', setForm);
     const [editingId, setEditingId] = useState(null);
     const activeRecord = reports.find(record => record._id === editingId);
@@ -171,10 +187,28 @@ export default function PrsPage() {
         } catch { setIssuedError('Unable to load issued items. Retry before saving a linked return.'); }
         finally { setIssuedLoading(false); }
     };
-    useEffect(() => { loadIssued(); }, [editingId, form.returnedBy.user]);
-    const accountId = person => String(person?.user?._id || person?.user || '');
-    const eligibleRecords = issuedRecords.filter(record => !accountId(form.returnedBy) || accountId(record.requestedBy?.user ? record.requestedBy : record.receivedBy) === accountId(form.returnedBy));
-    const awaitingIssuance = approvedRecords.filter(record => accountId(form.returnedBy) && accountId(record.requestedBy?.user ? record.requestedBy : record.receivedBy) === accountId(form.returnedBy));
+    useEffect(() => { loadIssued(); }, [editingId, form.returnedBy.user, form.returnedBy.offlineRecipient]);
+    const accountId = person => person?.offlineRecipient ? `offline:${person.offlineRecipient?._id || person.offlineRecipient}` : String(person?.user?._id || person?.user || '');
+    const eligibleRecords = issuedRecords.filter(record => !accountId(form.returnedBy) || accountId((record.requestedBy?.user || record.requestedBy?.offlineRecipient) ? record.requestedBy : record.receivedBy) === accountId(form.returnedBy));
+    useEffect(() => {
+        if (!returnFromRecords || appliedReturn.current || issuedLoading || issuedError) return;
+        appliedReturn.current = true;
+        const id = value => String(value?._id || value || '');
+        const match = eligibleRecords.flatMap(record => record.items.map(item => ({ record, item }))).find(({ record, item }) =>
+            returnFromRecords.accountability && id(item.accountability) === id(returnFromRecords.accountability) ||
+            id(record._id) === id(returnFromRecords.risId) && id(item._id) === id(returnFromRecords.itemId));
+        if (!match || match.item.pendingMovement || Number(match.item.quantityRemaining) <= 0) {
+            toast.error('This item is no longer available for return. Select a current issued item.');
+        } else {
+            const { record, item } = match;
+            const quantity = Number(item.quantityRemaining);
+            setForm(previous => ({ ...previous, items: [{ ...emptyItem(), accountability: item.accountability || '', ris: record._id,
+                risItem: item._id, quantity, unit: item.unit || '', description: item.description || '', propertyNumber: item.propertyNumber || '',
+                mrNumber: record.risNumber || '', unitValue: item.unitCost || 0, totalValue: quantity * Number(item.unitCost || 0), condition: 'Serviceable' }] }));
+        }
+        navigate(location.pathname, { replace: true, state: null });
+    }, [returnFromRecords, issuedLoading, issuedError, issuedRecords]);
+    const awaitingIssuance = approvedRecords.filter(record => accountId(form.returnedBy) && accountId((record.requestedBy?.user || record.requestedBy?.offlineRecipient) ? record.requestedBy : record.receivedBy) === accountId(form.returnedBy));
     const finalizeIssuance = async record => {
         setFinalizingRis(record._id); setIssuanceError('');
         try {
@@ -479,10 +513,6 @@ export default function PrsPage() {
                 <fieldset disabled={readOnly} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-2">
                     <label className="block">
-                        <span className="mb-1 block text-sm font-semibold text-slate-700">PRS No.</span>
-                        <input required aria-label="PRS No." readOnly={!editingId} value={form.prsNumber} onChange={(e) => update('prsNumber', e.target.value)} placeholder="Assigned on save" className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                    </label>
-                    <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
                         <input required value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                     </label>
@@ -520,7 +550,7 @@ export default function PrsPage() {
                 </div>
                 {!issuedLoading && awaitingIssuance.map(record => <div key={record._id} className="mt-2 flex flex-wrap items-center gap-2">
                     <span>RIS {record.risNumber} - approved, awaiting issuance</span>
-                    <button type="button" disabled={Boolean(finalizingRis)} onClick={() => finalizeIssuance(record)} className="rounded-lg bg-teal-600 px-3 py-2 text-white disabled:opacity-50">{finalizingRis === record._id ? 'Completing issuance...' : 'Complete issuance'}</button>
+                    <button type="button" disabled={Boolean(finalizingRis)} onClick={() => finalizeIssuance(record)} className="ml-auto rounded-lg bg-teal-600 px-3 py-2 text-white disabled:opacity-50">{finalizingRis === record._id ? 'Completing issuance...' : 'Complete issuance'}</button>
                     <a href="/ris" className="underline">Edit RIS quantities</a>
                 </div>)}
                 {issuanceError && <p role="alert" className="mt-2 text-rose-700">{issuanceError} Open the RIS and correct its quantities before completing issuance.</p>}
@@ -536,6 +566,7 @@ export default function PrsPage() {
                                 <th className="p-2">M. R. No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Unit Value <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Total Value</th>
+                              <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -547,7 +578,7 @@ export default function PrsPage() {
                                             const record = issuedRecords.find(row => row._id === risId);
                                             const issued = record?.items.find(row => row._id === itemId);
                                             const quantity = issued ? Math.min(Number(item.quantity) || issued.quantityRemaining, issued.quantityRemaining) : item.quantity;
-                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
                                         }} className="w-64 rounded-xl border border-slate-200 px-2 py-2">
                                             <option value="">{accountId(form.returnedBy) ? 'Select issued item to return' : 'Select issued item / manual historical return'}</option>
                                             {eligibleRecords.flatMap(record => record.items.map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.requestedBy?.name || record.receivedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (remaining {row.quantityRemaining})</option>))}
@@ -574,12 +605,13 @@ export default function PrsPage() {
                                     <td className="p-2">
                                         <input required aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
+                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </TableScroll>
-                {!isUser && !readOnly && <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>}
+                {!isUser && !readOnly && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
 
                 <div className="mt-4 flex justify-end">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold">
@@ -601,10 +633,12 @@ export default function PrsPage() {
                 </div>
                 {activeRecord && <p className="mt-4 text-sm">Status: {activeRecord.status || 'RETURNED'}{activeRecord.rejectionReason ? ` - ${activeRecord.rejectionReason}` : ''}</p>}
                 {canReceive && <div className="mt-4 space-y-3"><label className="block">Receipt decision<select value={decision} onChange={event => setDecision(event.target.value)} className="mt-1 w-full rounded-lg border p-2"><option value="receive">Confirm physical receipt</option><option value="reject">Reject return</option></select></label>{decision === 'receive' ? activeRecord.items.map(entry => <label key={entry._id} className="block">{entry.description}: inspected condition<select value={conditions[entry._id] || 'Serviceable'} onChange={event => setConditions(previous => ({ ...previous, [entry._id]: event.target.value }))} className="mt-1 w-full rounded-lg border p-2"><option>Serviceable</option><option>Unserviceable</option></select></label>) : <label className="block">Reason for rejection<textarea required value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>}</div>}
-                <button type="submit" disabled={!!processing || (readOnly && !canReceive && !canCorrectSignatory) || (!readOnly && Boolean(accountId(form.returnedBy)) && (issuedLoading || Boolean(issuedError) || !eligibleRecords.length))} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">
-                    <RotateCcw size={16} />
-                    {processing ? 'Saving...' : canReceive ? decision === 'reject' ? 'Reject PRS' : 'Confirm Receipt' : canCorrectSignatory ? 'Update PRS' : readOnly ? 'Recorded Return' : isUser ? 'Submit PRS' : editingId ? 'Update PRS' : 'Create PRS'}
-                </button>
+                <div className="flex justify-end">
+                  <button type="submit" disabled={!!processing || (readOnly && !canReceive && !canCorrectSignatory) || (!readOnly && Boolean(accountId(form.returnedBy)) && (issuedLoading || Boolean(issuedError) || !eligibleRecords.length))} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">
+                      <RotateCcw size={16} />
+                      {processing ? 'Saving...' : canReceive ? decision === 'reject' ? 'Reject PRS' : 'Confirm Receipt' : canCorrectSignatory ? 'Update PRS' : readOnly ? 'Recorded Return' : isUser ? 'Submit PRS' : editingId ? 'Update PRS' : 'Create PRS'}
+                  </button>
+                </div>
             </ValidatedForm>)}
         </div>
     );

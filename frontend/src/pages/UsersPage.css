@@ -208,3 +208,15 @@
 .registration-review-actions input { min-width: 0; max-width: 100%; padding: 8px; border: 1px solid #dce8da; border-radius: 8px; }
 .app-shell .registration-review-actions .registration-approve { background: #2f704b; color: #fff; }
 .user-card-position { margin-top: 5px; font-size: 12px; color: #6b8176; }
+.user-card-account-actions { grid-column: 1 / -1; min-width: 0; }
+.app-shell .user-management-page .user-card-account-actions .user-create-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: auto; max-width: 100%; }
+.user-card-account-actions .user-create-button > svg { flex-shrink: 0; }
+.user-card-account-actions .user-create-button > span { min-width: 0; white-space: normal; overflow-wrap: normal; word-break: normal; text-align: center; }
+.profile-account-settings { margin-top: 22px; }
+.profile-account-settings h3 { font-weight: 700; }
+.profile-account-settings > p { margin: 8px 0 16px; color: #64796c; }
+.profile-account-settings fieldset { border: 0; padding: 0; min-width: 0; }
+.profile-account-settings label { display: block; margin: 14px 0; }
+.app-shell .my-profile-page .profile-account-settings input { display: block; box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 6px; padding: 10px 12px; border: 1px solid #9bbba6; border-radius: 8px; background: #f8fbf7; color: #29493c; }
+.app-shell .my-profile-page .profile-account-settings input:focus { border-color: #326b50; outline: 2px solid #74a37a; outline-offset: 2px; background: #fff; }
+.profile-account-settings-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }

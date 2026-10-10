@@ -55,6 +55,9 @@ function getAdminFormErrors(type, body = {}, method = 'POST') {
   if (!rule) return [];
   const errors = [];
   const add = (path, message) => errors.push({ path, msg: `${labelFor(path)}: ${message}` });
+  if (type === 'property-cards' && !missing(body.serialNumber) && !/^[a-zA-Z0-9]{1,18}$/.test(body.serialNumber)) {
+    add('serialNumber', 'Enter letters and numbers only, up to 18 characters.');
+  }
   // Completed return slips permit corrections to the receiver signatory alone.
   const signatoryOnly = type === 'prs' && method === 'PUT' && Object.keys(body).length === 1 && body.returnedTo;
   const fields = signatoryOnly ? signatory('returnedTo') : rule.fields;
@@ -89,6 +92,7 @@ function getAdminFormErrors(type, body = {}, method = 'POST') {
       if (entry) {
         checkNumbers(entry, rule.positive, prefix, true);
         checkNumbers(entry, rule.nonnegative, prefix, false);
+        if (type === 'iar' || type === 'par') checkNumbers(entry, ['unitCost'], prefix, false);
       }
     });
   }

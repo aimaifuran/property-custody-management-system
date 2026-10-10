@@ -1,5 +1,7 @@
 import { buildRisPdf } from './risPdf.js';
 import { buildPtrPdf } from './ptrPdf.js';
+import { buildStationPpePdf } from './ppeStationPdf.js';
+import { buildPpePdf } from './ppeListPdf.js';
 export { FORM_PDF_FONT_SIZE } from './formPdfStyle.js';
 import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_A4_PORTRAIT } from './formPdfStyle.js';
 import { embedFormFonts } from './formPdfFonts.js';
@@ -55,6 +57,8 @@ export function templateFieldValue(name, data, items) {
 // Draw the official sections once per page in one document. Reopening, flattening
 // and copying native templates for every page needlessly delayed print previews.
 export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}) {
+  if (record.type === 'PPE STATION') return buildStationPpePdf(record.details || {}, options);
+  if (record.type === 'MONTHLY REPORT') return buildPpePdf(record.details || {}, options);
   if (record.type === 'RIS') return buildRisPdf(record.details || {}, options);
   if (record.type === 'PTR') return buildPtrPdf(record.details || {}, options);
   const template = FORM_TEMPLATES[record.type];
@@ -63,7 +67,8 @@ export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}
   const items = Array.isArray(data.items) ? data.items : record.type === 'RETURNED SUPPLY' ? [data] : [];
   const output = await PDFDocument.create();
   const fonts = await embedFormFonts(output, ['regular', 'bold']);
-  const layout = templateRowLayout(template, fonts.bold);
+  options = { ...options, ...(template === 'pc' ? { fontSize: 11 } : {}), certificationDates: [templateFieldValue('returnedToDate', data, []), templateFieldValue('returnedByDate', data, [])] };
+  const layout = templateRowLayout(template, fonts.bold, options.fontSize);
   const itemOverflow = [];
   const itemPages = paginateTemplateItems(items, layout, fonts.regular, (key, item) => templateFieldValue(`${key}1`, data, [item]), { onOverflow: entry => itemOverflow.push(entry) });
   let overflow = [];

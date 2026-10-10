@@ -1,3 +1,6 @@
+import { lineAmount, sumAmounts } from '../utils/formAmounts';
+import AddRowButton from '../components/AddRowButton';
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import NewFormBadge from '../components/NewFormBadge';
 import ClientPagination from '../components/Pagination';
@@ -108,7 +111,7 @@ const toForm = (record) => ({
         unit: item.unit || '',
         quantity: item.quantity ?? '',
         unitCost: item.unitCost ?? '',
-        totalCost: item.totalCost ?? 0
+        totalCost: lineAmount(item.quantity, item.unitCost)
     })) : [emptyItem()]
 });
 
@@ -149,7 +152,7 @@ export default function IarPage() {
             ...item,
             [key]: value
         } : item);
-        if (key === 'quantity' || key === 'unitCost') items[index].totalCost = Number(items[index].quantity || 0) * Number(items[index].unitCost || 0);
+        if (key === 'quantity' || key === 'unitCost') items[index].totalCost = lineAmount(items[index].quantity, items[index].unitCost);
         return {
             ...prev,
             items
@@ -414,6 +417,9 @@ export default function IarPage() {
                     <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                     <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                     <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="p-2">Unit Cost (optional)</th>
+                    <th className="p-2">Total Cost</th>
+                    <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -428,12 +434,17 @@ export default function IarPage() {
                       <td className="p-2">
                         <input required aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                       </td>
+                      <td className="p-2"><input aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>
+                      <td className="p-2"><input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" /></td>
+                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </TableScroll>
-            <button type="button" onClick={() => update('items', [...form.items, emptyItem()])} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
+            <p className="mt-2 text-sm text-slate-600">Row cost = quantity ? unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
+            <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
+            <div className="mt-3 flex justify-end"><AddRowButton onClick={() => update('items', [...form.items, emptyItem()])} /></div>
             <div className="mt-6 grid gap-3 border-t pt-4 md:grid-cols-3">
               <h2 className="md:col-span-3 text-lg font-semibold">INSPECTION</h2>
               {field('Date Inspected', 'inspectionDate', 'date')}
@@ -451,7 +462,9 @@ export default function IarPage() {
               {field('Supply/Property Custodian', 'custodian')}
             </div>
             {saveError && <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{saveError}{sessionExpired && <Link to="/login" className="ml-2 font-semibold underline">Sign in again</Link>}</p>}
-            <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end disabled:opacity-50">{saving ? 'Saving...' : editingId ? 'Update IAR' : 'Save IAR'}</button>
+            <div className="flex justify-end">
+              <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end disabled:opacity-50">{saving ? 'Saving...' : editingId ? 'Update IAR' : 'Save IAR'}</button>
+            </div>
           </ValidatedForm>)}
         </div>
       </>

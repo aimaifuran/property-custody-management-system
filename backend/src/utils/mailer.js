@@ -9,6 +9,9 @@ const getTransporter = () => {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === 'true',
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     auth: process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
       : undefined,
@@ -60,4 +63,12 @@ const sendEmailChangeCode = async (user, newEmail, code) => {
   });
 };
 
-module.exports = { sendPasswordResetEmail, sendEmailChangeCode };
+const sendWorkflowEmail = async (user, email) => getTransporter().sendMail({
+  from: process.env.EMAIL_FROM || 'no-reply@pais.local',
+  to: user.email,
+  subject: email.subject,
+  text: email.text,
+  messageId: `<pams-${email._id}@notifications.pams.local>`,
+});
+
+module.exports = { sendPasswordResetEmail, sendEmailChangeCode, sendWorkflowEmail };

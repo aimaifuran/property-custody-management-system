@@ -98,10 +98,11 @@ export async function buildPtrPdf(data = {}, { onDraw } = {}) {
     draw('Appendix 76', MARGIN, headingTop, WIDTH, 20, { align: 'right' });
     draw('PROPERTY TRANSFER REPORT', MARGIN, headingTop - 24, WIDTH, 24, { font: bold, align: 'center' });
     let top = headingTop - 60;
-    for (const [label, value] of [['Entity Name:', data.entityName], ['Fund Cluster:', data.fundCluster]]) {
-      field(label, value, MARGIN, top, WIDTH);
-      top -= fieldHeight(label, value, WIDTH);
-    }
+    const agencyWidth = WIDTH * 0.6;
+    const fundWidth = WIDTH - agencyWidth;
+    field('Entity Name:', data.entityName, MARGIN, top, agencyWidth);
+    field('Fund Cluster:', data.fundCluster, MARGIN + agencyWidth, top, fundWidth);
+    top -= Math.max(fieldHeight('Entity Name:', data.entityName, agencyWidth), fieldHeight('Fund Cluster:', data.fundCluster, fundWidth));
     top -= 4;
     const officerWidth = WIDTH * .68;
     const referenceWidth = WIDTH - officerWidth;
@@ -149,15 +150,19 @@ export async function buildPtrPdf(data = {}, { onDraw } = {}) {
     for (const [label, value, height] of [['Remarks:', data.remarks, remarksHeight], ['Reason for Transfer:', data.reasonForTransfer, reasonHeight]]) {
       box(MARGIN, top, WIDTH, height); stacked(label, value, MARGIN, top, WIDTH, height); top -= height;
     }
+    const signatureTop = top;
     for (const [label, values, height, headings, section] of [['', ['APPROVED BY:', 'RELEASED/ISSUED BY:', 'RECEIVED BY:'], 22, true, 'signatory:heading'], ['SIGNATURE:', ['', '', ''], 32, false, 'signatory:signature'], ['PRINTED NAME:', names, nameHeight, false, 'signatory:name'], ['DESIGNATION:', designations, designationHeight, false, 'signatory:designation'], ['DATE:', dates, 22, false, 'signatory:date']]) {
-      box(MARGIN, top, signatureLabelWidth, height); draw(label, MARGIN, top, signatureLabelWidth, height, { align: 'center', section, fieldRole: 'label' });
+      draw(label, MARGIN, top, signatureLabelWidth, height, { align: 'center', section, fieldRole: 'label' });
       values.forEach((value, index) => {
         const x = MARGIN + signatureLabelWidth + index * personWidth;
-        box(x, top, personWidth, height);
         draw(value, x, top, personWidth, height, { font: headings ? bold : regular, align: 'center', section, fieldRole: 'value' });
       });
       top -= height;
     }
+    for (const x of [MARGIN, MARGIN + WIDTH]) {
+      page.drawLine({ start: { x, y: signatureTop }, end: { x, y: top }, thickness: .65 });
+    }
+    page.drawLine({ start: { x: MARGIN, y: top }, end: { x: MARGIN + WIDTH, y: top }, thickness: .65 });
   };
   let top = newPage();
   if (top - 22 < rowBottom) throw new Error('The PTR header or signatories are too long for one page. Shorten those entries.');

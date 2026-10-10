@@ -1,8 +1,10 @@
+const { sumAmounts, installAmountCalculation } = require('../utils/formAmounts');
 const mongoose = require('mongoose');
 
 const inventoryCustodianSlipSchema = new mongoose.Schema({
   iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport', index: true },
   ris: { type: mongoose.Schema.Types.ObjectId, ref: 'RequisitionIssueSlip', index: true },
+  offlineRecipient: { type: mongoose.Schema.Types.ObjectId, ref: 'OfflineRecipient', index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   acceptedAt: Date,
   acceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -36,8 +38,10 @@ const inventoryCustodianSlipSchema = new mongoose.Schema({
   lastEditedAt: Date,
 }, { timestamps: true });
 
+installAmountCalculation(inventoryCustodianSlipSchema, 'totalCost');
+
 inventoryCustodianSlipSchema.virtual('totalAmount').get(function getTotalAmount() {
-  return (this.items || []).reduce((sum, item) => sum + Number(item.totalCost || 0), 0);
+  return sumAmounts((this.items || []).map(item => item.totalCost));
 });
 inventoryCustodianSlipSchema.set('toJSON', { virtuals: true });
 inventoryCustodianSlipSchema.set('toObject', { virtuals: true });

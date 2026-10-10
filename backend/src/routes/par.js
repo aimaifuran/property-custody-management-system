@@ -21,7 +21,7 @@ router.post('/', authenticate, validateAdminForm('par'), authorize('canManageInv
 
 router.put('/:id', authenticate, validateAdminForm('par'), authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
   const existing = await PropertyAcknowledgementReceipt.findOne({ _id: req.params.id, deleted: false });
-  if (existing?.user) return errorResponse(res, 'Linked accountability forms are locked. Use acceptance, transfer or return actions.', [], 409);
+  if (existing?.user || existing?.offlineRecipient) return errorResponse(res, 'Linked accountability forms are locked. Use acceptance, transfer or return actions.', [], 409);
   const record = await PropertyAcknowledgementReceipt.findOneAndUpdate({ _id: req.params.id, deleted: false }, { ...req.body, lastEditedAt: new Date() }, { new: true, runValidators: true });
   if (!record) return errorResponse(res, 'Property Acknowledgement Receipt not found', [], 404);
   return successResponse(res, 'Property Acknowledgement Receipt updated', record);

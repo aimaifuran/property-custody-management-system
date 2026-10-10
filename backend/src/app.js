@@ -82,6 +82,7 @@ app.use('/api/ics', icsRoutes);
 app.use('/api/par', parRoutes);
 app.use('/api/returned-supply', returnedSupplyRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/offline-recipients', require('./routes/offlineRecipients'));
 app.use('/api/reports', reportRoutes);
 // Keep both the current report URL and the URL used by the live deployment.
 app.use('/api/dashboard', reportRoutes);

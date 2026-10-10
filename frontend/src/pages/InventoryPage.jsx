@@ -1,3 +1,5 @@
+import AddRowButton from '../components/AddRowButton';
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -107,7 +109,7 @@ export default function InventoryPage() {
     };
     const update = (key, value) => setForm((previous) => ({
         ...previous,
-        [key]: key === 'serialNumber' ? value.replace(/[^0-9]/g, '') : value
+        [key]: key === 'serialNumber' ? value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 18) : value
     }));
     const updateItem = (index, key, value) => setForm((previous) => ({
         ...previous,
@@ -149,7 +151,7 @@ export default function InventoryPage() {
             toast.error(error.response?.data?.message || 'Unable to update Property Card');
         } finally { setSaving(false); }
     };
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'serialNumber'} type={type} aria-label={label} {...(key === 'serialNumber' ? { inputMode: 'numeric', pattern: editingCard?._id && form.serialNumber === editingCard.serialNumber ? undefined : '[0-9]*', title: 'Enter numbers only' } : {})} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'serialNumber'} type={type} aria-label={label} {...(key === 'serialNumber' ? { maxLength: 18, pattern: '[a-zA-Z0-9]{0,18}', title: 'Enter letters and numbers only, up to 18 characters' } : {})} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     const itemLabels = ['Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
     const itemFields = [
         ['date', 'date'],
@@ -317,6 +319,7 @@ export default function InventoryPage() {
                             {label} {['date', 'receiptQuantity', 'amount'].includes(itemFields[index][0]) && <span className="required-marker text-red-600" aria-hidden="true">*</span>}
                           </th>
                         ))}
+                        <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -337,19 +340,16 @@ export default function InventoryPage() {
                               />
                             </td>
                           ))}
+                          <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </TableScroll>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => update('items', [...form.items, emptyItem()])}
-                    className="rounded-xl border px-4 py-2"
-                  >
-                    Add Item
-                  </button>
+                <div className="mt-3 flex justify-end">
+                  <AddRowButton onClick={() => update('items', [...form.items, emptyItem()])} />
+                </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-3">
                   <button
                     type="submit"
                     disabled={saving}

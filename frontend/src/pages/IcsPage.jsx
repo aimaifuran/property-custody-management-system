@@ -1,3 +1,7 @@
+import { lineAmount, sumAmounts } from '../utils/formAmounts';
+import OfficeSelect from '../components/OfficeSelect';
+import AddRowButton from '../components/AddRowButton';
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -39,7 +43,7 @@ const toFormItem = (item = {}) => ({
     quantity: item.quantity ?? '',
     unit: item.unit || '',
     unitCost: item.unitCost ?? '',
-    totalCost: item.totalCost ?? 0,
+    totalCost: lineAmount(item.quantity, item.unitCost),
     description: item.description || '',
     inventoryItemNo: item.inventoryItemNo || '',
     estimatedUsefulLife: item.estimatedUsefulLife || ''
@@ -81,7 +85,8 @@ export default function IcsPage() {
     const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('ICS', 'icsNumber', setForm);
     const [saving, setSaving] = useState(false);
     const selectedRecord = records.find(record => record._id === editingId);
-    const readOnly = !!selectedRecord?.user;
+    const readOnly = isUser;
+    const linkedIssuance = !!(selectedRecord?.user || selectedRecord?.offlineRecipient);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
@@ -144,14 +149,14 @@ export default function IcsPage() {
     const updateItem = (index, key, value) => setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? { ...item, [key]: value } : item);
         if (key === 'quantity' || key === 'unitCost') {
-            items[index].totalCost = Number(items[index].quantity || 0) * Number(items[index].unitCost || 0);
+            items[index].totalCost = lineAmount(items[index].quantity, items[index].unitCost);
         }
         return { ...prev, items };
     });
 
     const addItem = () => update('items', [...form.items, emptyItem()]);
 
-    const total = (form?.items || []).reduce((sum, item) => sum + Number(item.totalCost || 0), 0);
+    const total = sumAmounts((form?.items || []).map(item => lineAmount(item.quantity, item.unitCost)));
 
     const save = async (event) => {
         event.preventDefault();
@@ -183,28 +188,28 @@ export default function IcsPage() {
         } finally { setSaving(false); }
     };
 
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
+    const field = (label, key, type = 'text') => key === 'office' ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><OfficeSelect required aria-label={label} value={form.office} onChange={event => update('office', event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input required aria-label={label} readOnly={key === 'icsNumber' && !editingId} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input required aria-label={label} readOnly={key === 'icsNumber' && (!editingId || linkedIssuance)} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
     const signatoryFields = (label, section) => (
-        <div className="rounded-xl border border-slate-200 p-4">
-            <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
-            <div className="grid gap-3 md:grid-cols-3">
-                <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input required value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+        <div className="ics-signatory-panel p-4">
+            <h3 className="mb-5 font-semibold text-slate-700">{label}</h3>
+            <div className="mx-auto grid max-w-sm gap-4">
+                <label className="flex flex-col text-center">
+                    <input required aria-label={`${label} name`} value={form[section].name} onChange={event => updateSignatory(section, 'name', event.target.value)} className="w-full text-center" />
+                    <span className="mt-1 text-sm text-slate-600">Signature over Printed Name</span>
                 </label>
-                <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Position</span>
-                    <input required value={form[section].position} onChange={(e) => updateSignatory(section, 'position', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                <label className="flex flex-col text-center">
+                    <input required aria-label={`${label} position or office`} value={form[section].position} onChange={event => updateSignatory(section, 'position', event.target.value)} className="w-full text-center" />
+                    <span className="mt-1 text-sm text-slate-600">Position/Office</span>
                 </label>
-                <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                <label className="flex flex-col text-center">
+                    <input required type="date" aria-label={`${label} date`} value={form[section].date} onChange={event => updateSignatory(section, 'date', event.target.value)} className="w-full text-center" />
+                    <span className="mt-1 text-sm text-slate-600">Date</span>
                 </label>
             </div>
         </div>
@@ -332,7 +337,7 @@ export default function IcsPage() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <RecordActionButton action="edit" title={readOnly || isUser ? "Open form" : "Update record"} onClick={() => startEdit(record)} />
+                            <RecordActionButton action="edit" title={isUser ? "Open form" : "Update record"} onClick={() => startEdit(record)} />
                             {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(record)} />
                             <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(record, true)} />
@@ -343,16 +348,18 @@ export default function IcsPage() {
             </div>
 
             {form && (
-                <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
+                <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ics-editor scroll-mt-6 p-6">
                     <FormEditorHeader title="Inventory Custodian Slip" description="Linked RIS issuances for items with a unit cost below ₱50,000 are recorded here under the requester account." onClose={cancelEdit} />
+                    <p className="mb-3 text-sm text-slate-600">{!isUser && linkedIssuance ? 'Edit form details below. Issued quantities, costs, item numbers and the ICS number are tied to the stock records.' : ''}</p>
                     <fieldset disabled={readOnly} className="min-w-0">
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                         {field('ICS No.', 'icsNumber')}{field('Office', 'office')}
                     </div>
-                    <TableScroll className="mt-6 overflow-x-auto">
-                        <table className="min-w-full text-sm">
+                    <TableScroll preserveTable label="ICS items ? scroll horizontally to view all columns" className="ics-table-scroll mt-6">
+                        <table className="ics-items-table w-full table-fixed text-sm">
+                            <colgroup>{[8, 6, 10, 11, 30, 15, 16, 4].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup>
                             <thead>
                                 <tr className="bg-slate-50 text-left">
                                     <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
@@ -362,60 +369,64 @@ export default function IcsPage() {
                                     <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Inventory Item No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Estimated Useful Life <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                  <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {form.items.map((item, index) => (
                                     <tr key={index}>
                                         <td className="p-2">
-                                            <input required data-positive="true" min="0" step="any" aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required data-positive="true" min="0" step="any" readOnly={linkedIssuance} aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
                                             <input required aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required readOnly={linkedIssuance} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required aria-label="Total Cost" readOnly value={item.totalCost} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                            <input required aria-label="Total Cost" readOnly value={Number(item.totalCost || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
                                             <input required pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required readOnly={linkedIssuance} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
                                             <input required aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
+                                      <td className="p-2 text-center">{!linkedIssuance && <DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} />}</td>
                                     </tr>
                                 ))}
                             </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th scope="row" colSpan={2} className="text-left">TOTAL</th>
+                                    <td colSpan={2} className="font-semibold text-right">{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td />
+                                    <td />
+                                    <td />
+                                    <td />
+                                </tr>
+                                <tr>
+                                    <th scope="row" colSpan={2} className="text-left">REMARKS:</th>
+                                    <td colSpan={6}><textarea aria-label="Remarks" value={form.remarks} onChange={event => update('remarks', event.target.value)} className="w-full" rows={2} /></td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </TableScroll>
-                    <button type="button" onClick={addItem} className="mt-3 rounded-xl border px-3 py-2">Add item</button>
-
-                    <div className="mt-4 flex justify-end">
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold">
-                            Total: {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </div>
+                    <div className="ics-signatories grid md:grid-cols-2">
+                        {signatoryFields('Received from:', 'receivedFrom')}
+                        {signatoryFields('Received by:', 'receivedBy')}
                     </div>
-
-                    <div className="mt-4">
-                        <label className="block">
-                            <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks (optional)</span>
-                            <textarea value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
-                        </label>
-                    </div>
-
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
-                        {signatoryFields('Received From', 'receivedFrom')}
-                        {signatoryFields('Received By', 'receivedBy')}
-                    </div>
+                    {!linkedIssuance && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
 
                     </fieldset>
-                    <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : readOnly ? 'Awaiting custodian acceptance' : ''}</p>
-                    <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : readOnly ? 'Issued Form' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                    <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : linkedIssuance ? 'Awaiting custodian acceptance' : ''}</p>
+                    <div className="flex justify-end">
+                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                    </div>
                 </ValidatedForm>
             )}
         </div>

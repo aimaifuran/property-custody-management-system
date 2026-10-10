@@ -20,6 +20,10 @@ Existing catalog items retain Asset as the compatibility default. Admins classif
 
 Admins record mixed supply/asset RIS requests for user accounts in the existing `/ris` form and review, reject, or approve and issue them there. Users see the recorded status and issued items in their account. Consumable supplies deduct stock through RIS without ICS/PAR. Assets continue to use the existing unit-cost rule: below PHP 50,000 generates ICS; PHP 50,000 or above generates PAR. Classification uses unit cost, not the total value of the requested quantity.
 
+RIS review and issuance preserve an entered actual quantity, including zero for an item that will not be issued. An unfilled legacy request quantity can default to the requested amount; it is distinct from an explicit zero. A RIS linked to an IAR uses the matching receipt's inventory metadata for cost, property number, and acquisition date, even when a later IAR receives the same stock number at a different cost. Standalone requests use the latest inventory record. The generated form and accountability both use the stock number when no separate property number exists. The releasing admin's position is used before their office name.
+
+The current official IAR editor does not display classification or unit cost fields. Receipt processing accepts those values when supplied and otherwise reuses existing stock metadata. New stock without metadata retains the existing Asset/zero-cost defaults; the workflow cannot infer an actual purchase price from the description. Each inventory receipt keeps its own cost, and later receipts use the most recently recorded stock cost as their default. No visible form fields or print layouts were added for this workflow change.
+
 ## Acceptance and transfer
 
 ICS/PAR forms are available in the admin workspace; users see their document references in Issued Items. The custody acceptance API remains available and records the user ID and timestamp, updates the form receipt date, and records an acceptance hash and activity entry. It is a click acceptance record; it does not capture a handwritten signature image.
@@ -28,7 +32,7 @@ The existing `/transfers` form handles sender requests, receiver confirmation, a
 
 ## Returns
 
-Users submit returns through the existing Returned Items screen. Current accountability records supply asset details, including transferred assets; consumables retain their original RIS references. A pending return retains accountability and does not increase stock. A property can have only one pending transfer or return.
+Admins record returns through Property Return Slip (PRS), select the user account under Returned By, and select the exact issued item and return quantity. Returned Items in the user workspace is read-only: it displays the admin-recorded returns and refreshes automatically. Current accountability records supply asset details, including transferred assets; consumables retain their original RIS references. A pending return retains accountability and does not increase stock. A property can have only one pending transfer or return.
 
 Admins inspect the physical item and choose Serviceable or Unserviceable for each line before confirming receipt in the existing `/returns` form. Confirmation updates accountability, inventory status, Property Card, serviceable stock, and Returned Supply records together. Partial returns retain the remaining accountability. Full returns remove the asset from the active custodian list. Serviceable quantities return to available stock; unserviceable quantities are recorded for disposal and do not increase available stock. Repeat confirmation cannot post stock twice. Rejecting a return retains accountability and releases the movement lock.
 
@@ -61,3 +65,7 @@ node tests/responsive.browser.mjs
 The custody integration test covers mixed supply/asset issuance, receipt rollback, access restrictions, form acceptance, receiver confirmation, transfer approval and rejection, partial/full returns, unserviceable returns, repeated actions, and return-posting rollback.
 
 Simple tables stack into labeled rows when their available width is small. Official layouts that require wide columns scroll within the table region. Form fields, saved records, and actions adapt to workspace width. The isolated browser audit checks both roles at 320, 375, 768, 1024, and 1440px without changing real accounts or data.
+
+## Returns from View Records
+
+In User Management or Offline Records, enter the physically received quantity and select Serviceable or Unserviceable before clicking Returned. Partial returns reduce the outstanding quantity while leaving the item under Issued items. A full return moves it to Returned items. Serviceable quantities increase available stock; unserviceable quantities remain documented without adding available stock. Stock issuance always deducts the actual approved issued quantity, not the full stock balance or requested quantity.

@@ -1,8 +1,10 @@
+const { sumAmounts, installAmountCalculation } = require('../utils/formAmounts');
 const mongoose = require('mongoose');
 
 const propertyAcknowledgementReceiptSchema = new mongoose.Schema({
   iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport', index: true },
   ris: { type: mongoose.Schema.Types.ObjectId, ref: 'RequisitionIssueSlip', index: true },
+  offlineRecipient: { type: mongoose.Schema.Types.ObjectId, ref: 'OfflineRecipient', index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   acceptedAt: Date,
   acceptedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -18,6 +20,7 @@ const propertyAcknowledgementReceiptSchema = new mongoose.Schema({
     description: String,
     propertyNumber: String,
     dateAcquired: Date,
+    unitCost: { type: Number, min: 0 },
     amount: Number,
   }],
   remarks: { type: String },
@@ -35,8 +38,10 @@ const propertyAcknowledgementReceiptSchema = new mongoose.Schema({
   lastEditedAt: Date,
 }, { timestamps: true });
 
+installAmountCalculation(propertyAcknowledgementReceiptSchema, 'amount');
+
 propertyAcknowledgementReceiptSchema.virtual('totalAmount').get(function getTotalAmount() {
-  return (this.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  return sumAmounts((this.items || []).map(item => item.amount));
 });
 propertyAcknowledgementReceiptSchema.set('toJSON', { virtuals: true });
 propertyAcknowledgementReceiptSchema.set('toObject', { virtuals: true });

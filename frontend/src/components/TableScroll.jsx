@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
 
-export default function TableScroll({ children, className = '', label = 'Scrollable item table' }) {
+export default function TableScroll({ children, className = '', label = 'Scrollable item table', preserveTable = false }) {
   const container = useRef(null);
   useEffect(() => {
     const region = container.current;
     const content = region.querySelector('.table-scroll__content');
     const decorate = () => {
       content.querySelectorAll('table').forEach(table => {
-        if (table.classList.contains('user-returns-table')) return;
+        if (preserveTable || table.classList.contains('user-returns-table')) return;
         const headings = [...(table.tHead?.rows || [])].at(-1);
         const labels = headings ? [...headings.cells].map(cell => cell.textContent.trim() || 'Actions') : [];
         const simple = labels.length && [...headings.cells].every(cell => cell.colSpan === 1) && !table.querySelector('tbody [rowspan]:not([rowspan="1"])');
@@ -43,7 +43,7 @@ export default function TableScroll({ children, className = '', label = 'Scrolla
     const observer = new ResizeObserver(decorate);
     observer.observe(region); observer.observe(content);
     return () => observer.disconnect();
-  }, [children]);
+  }, [children, preserveTable]);
   return (
     <div ref={container} className={`table-scroll ${className}`} role="region" aria-label={label} tabIndex={0}>
       <div className="table-scroll__hint" aria-hidden="true">Swipe horizontally to view all columns</div>

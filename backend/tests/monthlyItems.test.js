@@ -46,11 +46,12 @@ test('source edits, deletions, and different months rebuild the report without s
   assert.equal(collectMonthlyItems({ iar: [record] }).size, 0);
   assert.deepEqual([...collectMonthlyItems({ iar: [{ ...record, deleted: false, createdAt: '2026-09-01T00:00:00Z' }] }).keys()], ['2026-09']);
 });
-test('recapitulation combines matching items while preserving distinct costs and blank costs', () => {
+test('recapitulation combines quantities regardless of cost and leaves both costs blank', () => {
   const rows = [{ item: 'Paper', unit: 'REAM', stockNumber: 'P1', quantity: 2, unitCost: 10 }, { item: 'Paper', unit: 'REAM', stockNumber: 'P1', quantity: 3, unitCost: 10 }, { item: 'Paper', unit: 'REAM', stockNumber: 'P1', quantity: 1, unitCost: 12 }, { item: 'Chair', unit: 'PC', stockNumber: '', quantity: 1, unitCost: null }];
   const summary = recapitulate(rows);
-  assert.equal(summary.length, 3);
-  assert.equal(summary.find(row => row.unitCost === 10).quantity, 5);
-  assert.equal(summary.find(row => row.unitCost === 10).totalCost, 50);
+  assert.equal(summary.length, 2);
+  assert.equal(summary.find(row => row.item === 'Paper').quantity, 6);
+  assert.ok(summary.every(row => row.unitCost === null && row.totalCost === null));
+  assert.equal(rows[0].unitCost, 10);
   assert.equal(summary.find(row => row.item === 'Chair').totalCost, null);
 });

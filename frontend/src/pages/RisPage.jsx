@@ -1,3 +1,7 @@
+import { useLocation } from 'react-router-dom';
+import OfficeSelect from '../components/OfficeSelect';
+import AddRowButton from '../components/AddRowButton';
+import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import NewFormBadge from '../components/NewFormBadge';
 import { preloadFormFonts } from '../utils/formPdfFonts';
@@ -14,7 +18,7 @@ import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { FileText, Printer, Plus, Save, RotateCcw, Trash2, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
+import { FileText, Printer, Save, RotateCcw, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
@@ -81,7 +85,8 @@ const toDateInputValue = (date) => {
 const toFormSignatory = (signatory) => {
   if (signatory && typeof signatory === 'object') {
     return {
-      user: signatory.user?._id || signatory.user || undefined,
+      offlineRecipient: signatory.offlineRecipient?._id || signatory.offlineRecipient || undefined,
+    user: signatory.user?._id || signatory.user || undefined,
       name: signatory.name || '',
       designation: signatory.designation || '',
       date: toDateInputValue(signatory.date),
@@ -423,12 +428,19 @@ export default function RisPage() {
   const [exportingRis, setExportingRis] = useState('');
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState(makeForm);
+  const location = useLocation();
+  const offlineRequest = user?.role === 'admin' ? location.state?.offlineRequest : null;
+  const [form, setForm] = useState(() => {
+    const draft = makeForm();
+    if (!offlineRequest) return draft;
+    const person = { offlineRecipient: offlineRequest._id, name: offlineRequest.name, designation: offlineRequest.designation || offlineRequest.office, date: new Date().toISOString().slice(0, 10) };
+    return { ...draft, office: offlineRequest.office, requestedBy: person, receivedBy: { ...person }, ...(location.state?.offlineRequestedItems?.length ? { items: location.state.offlineRequestedItems.map(item => ({ ...createRow(), ...item })) } : {}) };
+  });
   const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('RIS', 'risNumber', setForm);
   const [savingRis, setSavingRis] = useState(false);
   const [fundClusterOption, setFundClusterOption] = useState('');
   const [editingRis, setEditingRis] = useState(null);
-  const [creatingRis, setCreatingRis] = useState(false);
+  const [creatingRis, setCreatingRis] = useState(!!offlineRequest);
   const [issueErrors, setIssueErrors] = useState({});
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewDraft, setReviewDraft] = useState(null);
@@ -548,7 +560,7 @@ export default function RisPage() {
   const save = async (e) => {
     e.preventDefault();
     if (savingRis) return;
-    const approveAfterSave = e.nativeEvent.submitter?.value === 'approve' || decision === 'approve';
+    const approveAfterSave = e.nativeEvent.submitter?.value === 'approve';
 
     const { _id, createdAt, updatedAt, __v, ...formData } = form;
     const payload = {
@@ -560,7 +572,7 @@ export default function RisPage() {
           ...item,
           quantityRequested: item.quantityRequested === '' ? 0 : Number(item.quantityRequested),
           stockAvailable: item.stockAvailable === '' ? 0 : Number(item.stockAvailable),
-          quantityIssued: item.quantityIssued === '' ? 0 : Number(item.quantityIssued),
+          quantityIssued: item.quantityIssued === '' ? null : Number(item.quantityIssued),
           isAvailable: item.isAvailable === null ? false : item.isAvailable,
         })),
     };
@@ -601,7 +613,7 @@ export default function RisPage() {
       const inventory = selectedInventoryMap.get(entry.stockNumber);
       const requested = Number(entry.quantityRequested || 0);
       const available = Number(inventory?.quantityOnHand || entry.stockAvailable || 0);
-      const issued = Math.min(requested, available);
+      const issued = entry.quantityIssued == null ? Math.min(requested, available) : Number(entry.quantityIssued);
       const isAvailable = available > 0;
       const remarks = available <= 0
         ? 'Out of Stock - For Procurement'
@@ -909,7 +921,7 @@ export default function RisPage() {
               <h2 className="text-xl font-semibold">Supply Review & Fulfillment</h2>
               <p className="text-sm text-slate-500">Fill the right side for {reviewDraft.risNumber} before issuing.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="ml-auto flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -920,6 +932,7 @@ export default function RisPage() {
               >
                 Close
               </button>
+              {canEditReview && <button type="button" onClick={() => { const record = ris.find(row => row._id === reviewTarget._id) || reviewTarget; setReviewTarget(null); setReviewDraft(null); editDraft(record); }} className="rounded-xl border border-teal-700 bg-teal-50 px-4 py-2 font-semibold text-teal-800">Edit Requested Items</button>}
               {canEditReview ? (
                 <>
                   <button
@@ -1025,7 +1038,8 @@ export default function RisPage() {
         className="form-document form-frame scroll-mt-6 mx-auto max-w-6xl p-4"
       >
         <div className="min-w-0 text-slate-900">
-          <FormEditorHeader title="Requisition and Issue Slip" description="Record requested items and issued quantities." onClose={resetForm} />
+          <FormEditorHeader title="Requisition and Issue Slip" description="Record all requested items here. Offline and registered-account requests share the same requisition list." onClose={resetForm} />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3"><p className="text-sm text-teal-900">One request can contain multiple items. Add a row for each item, select its stock number, and enter the requested quantity.</p><AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" /></div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
             <EntityNameField value={form.entityName} onChange={entityName => updateForm({ entityName })} isNew={!editingRis} />
@@ -1040,7 +1054,7 @@ export default function RisPage() {
           </div>
 
           <div className="ris-header-fields mt-4 grid gap-3 sm:grid-cols-2">
-            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span><input required type="text" aria-label={label} readOnly={isUser || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" /></label>)}
+            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span>{key === 'office' ? <OfficeSelect required aria-label={label} readOnly={isUser} value={form.office} onChange={event => updateForm({ office: event.target.value })} className="w-full rounded-lg border px-2 py-2" /> : <input required type="text" aria-label={label} readOnly={isUser || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" />}</label>)}
           </div>
 
           <datalist id="ris-stock-options">{items.map(item => <option key={item._id} value={item.stockNumber}>{item.description}</option>)}</datalist>
@@ -1069,7 +1083,7 @@ export default function RisPage() {
                     type="text"
                     list="ris-stock-options" aria-label={`Stock Number, row ${index + 1}`}
                     value={item.stockNumber ?? ''}
-                    onChange={event => { const stock = selectedInventoryMap.get(event.target.value); setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? { ...row, stockNumber: event.target.value, unit: stock?.unit || row.unit, description: stock?.description || row.description } : row) })); }}
+                    onChange={event => { const stock = selectedInventoryMap.get(event.target.value); setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? { ...row, stockNumber: event.target.value, unit: stock?.unit || '', description: stock?.description || '', ...(row.stockNumber !== event.target.value ? { stockAvailable: stock?.quantityOnHand ?? '', isAvailable: null, quantityIssued: '', unitCost: undefined, totalCost: null } : {}) } : row) })); }}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
                 </div>
@@ -1131,19 +1145,15 @@ export default function RisPage() {
                   />
                 </div>
                 <div className="flex items-center justify-center p-1">
-                  <button
-                    type="button"
-                    onClick={() => deleteRow(index)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-                    aria-label={`Delete row ${index + 1}`}
-                    title="Delete row"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <DeleteRowButton index={index} onClick={() => deleteRow(index)} />
                 </div>
               </div>
             ))}
           </TableScroll>
+
+          <div className="mt-3 flex justify-end">
+            <AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" />
+          </div>
 
           <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
             <label className="block">
@@ -1175,7 +1185,7 @@ export default function RisPage() {
             ].map(([label, section]) => (
               <fieldset disabled={isUser} key={section} className="min-w-0 rounded-xl border border-slate-700 p-4">
                 <h3 className="mb-3 text-sm font-semibold">{label}</h3>
-                {user?.role === 'admin' && ['requestedBy', 'receivedBy'].includes(section) && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, ...(section === 'requestedBy' ? { office: person.designation || prev.office, receivedBy: { ...prev.receivedBy, user: person.user, name: person.name, designation: person.designation } } : {}) }))} />}
+                {user?.role === 'admin' && ['requestedBy', 'receivedBy'].includes(section) && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, ...(section === 'requestedBy' ? { office: person.office || person.designation || prev.office, receivedBy: { ...prev.receivedBy, user: person.user, offlineRecipient: person.offlineRecipient, name: person.name, designation: person.designation } } : {}) }))} />}
                 <div className="grid gap-3 md:grid-cols-3">
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>
@@ -1211,37 +1221,29 @@ export default function RisPage() {
             <div className="text-sm text-slate-600">
               Showing {completedRows.length} filled row{completedRows.length === 1 ? '' : 's'} on the sheet.
             </div>
-            <div className="flex flex-wrap gap-3">
-              {!isUser && editingRis && !['ISSUED', 'ACCOUNTABILITY_LOCKED', 'REJECTED'].includes(editingRis.status) && <label>Decision<select value={decision} onChange={event => setDecision(event.target.value)} className="mt-1 rounded-lg border p-2"><option value="save">Save changes</option><option value="approve">Approve and issue</option><option value="reject">Reject request</option></select></label>}
-              {decision === 'reject' && <label>Reason for rejection<input required data-rejection-reason value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 rounded-lg border p-2" /></label>}
-              <button
-                type="button"
-                onClick={addRow}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <Plus size={16} />
-                Add Row
-              </button>
-              <button
-                type="button"
-                onClick={() => deleteRow(form.items.length - 1)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                <Trash2 size={16} />
-                Remove Last Row
-              </button>
-              <button
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {decision === 'reject' && <label className="text-sm">Reason for rejection<input required data-rejection-reason value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 rounded-lg border p-2" /></label>}
+              {decision !== 'reject' && <button
                 type="submit"
                 disabled={savingRis}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="ris-form-action bg-slate-900 text-white hover:bg-slate-800"
               >
                 <Save size={16} />
-                {isUser ? 'Submit RIS' : editingRis ? decision === 'reject' ? 'Reject RIS' : decision === 'approve' ? 'Approve and Issue' : 'Update RIS' : 'Save Request'}
-              </button>
-              {user?.role === 'admin' && editingRis && !['ISSUED', 'ACCOUNTABILITY_LOCKED', 'REJECTED'].includes(editingRis.status) && <button
-                type="submit" name="action" value="approve" disabled={savingRis}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
-              >{savingRis ? <Skeleton className="h-4 w-20" label="Saving RIS" /> : <><CheckCircle2 size={16} /> Approve and Issue</>}</button>}
+                {isUser ? 'Submit RIS' : editingRis ? 'Update RIS' : 'Save Request'}
+              </button>}
+              {user?.role === 'admin' && editingRis && !['ISSUED', 'ACCOUNTABILITY_LOCKED', 'REJECTED'].includes(editingRis.status) && <>
+                <button
+                  type={decision === 'reject' ? 'submit' : 'button'}
+                  disabled={savingRis}
+                  onClick={decision === 'reject' ? undefined : () => setDecision('reject')}
+                  className="ris-form-action bg-rose-700 text-white hover:bg-rose-800"
+                ><XCircle size={16} /> Reject Request</button>
+                {decision !== 'reject' && <button
+                  type="submit" name="action" value="approve" disabled={savingRis}
+                  className="ris-form-action bg-emerald-700 text-white hover:bg-emerald-800"
+                ><CheckCircle2 size={16} /> Approve and Issue</button>}
+                {decision === 'reject' && <button type="button" onClick={() => setDecision('save')} disabled={savingRis} className="ris-form-action border border-slate-200 text-slate-700 hover:bg-slate-50">Cancel</button>}
+              </>}
             </div>
           </div>
         </div>

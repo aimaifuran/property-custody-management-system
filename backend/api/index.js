@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
 
   await connectPromise;
   if (!seedPromise) {
-    seedPromise = bootstrapSeed();
+    seedPromise = bootstrapSeed().then(() => require('../src/models/WorkflowEmail').init());
   }
   await seedPromise;
   return app(req, res);

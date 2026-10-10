@@ -1,3 +1,4 @@
+import OfflineRecordsPage from './pages/OfflineRecordsPage';
 import HourglassLoader from './components/HourglassLoader';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -17,7 +18,6 @@ import ParPage from './pages/ParPage';
 import ReturnedSupplyPage from './pages/ReturnedSupplyPage';
 import MyReturnsPage from './pages/MyReturnsPage';
 import MyIssuedItemsPage from './pages/MyIssuedItemsPage';
-import AnnualOfficeItemsPage from './pages/AnnualOfficeItemsPage';
 import MonthlyItemsReportPage from './pages/MonthlyItemsReportPage';
 import PpeStationReportPage from './pages/PpeStationReportPage';
 import HistoricalRecordsPage from './pages/HistoricalRecordsPage';
@@ -27,7 +27,7 @@ import ProfilePage from './pages/ProfilePage';
 import AboutPage from './pages/AboutPage';
 import RegisterPage from './pages/RegisterPage';
 
-const userRoutes = new Set(['/my-issued-items', '/my-returns', '/about']);
+const userRoutes = new Set(['/my-issued-items', '/my-returns']);
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
@@ -51,7 +51,6 @@ function RoleRedirect({ adminTo = '/dashboard', userTo = '/my-issued-items' }) {
 const permissionRoutes = {
   '/dashboard': 'canViewDashboard',
   '/reports/monthly': 'canViewDashboard',
-  '/reports/annual': 'canViewDashboard',
   '/reports/ppe-list': 'canViewDashboard',
   '/historical-records': 'adminOnly',
   '/suppliers': ['canViewSuppliers', 'canManageSuppliers'],
@@ -64,6 +63,7 @@ const permissionRoutes = {
   '/returns': ['canViewRIS', 'canViewDashboard', 'canManageInventory'],
   '/returned-supply': ['canViewDashboard', 'canManageInventory'],
   '/users': 'canManageUsers',
+  '/offline-records': 'adminOnly',
   '/profile': 'adminOnly',
   '/my-returns': 'canViewRIS',
   '/my-issued-items': 'canViewRIS',
@@ -88,7 +88,6 @@ function AppRoutes() {
             const pages = {
               '/dashboard': DashboardPage,
               '/reports/monthly': MonthlyItemsReportPage,
-              '/reports/annual': AnnualOfficeItemsPage,
               '/reports/ppe-list': PpeStationReportPage,
               '/historical-records': HistoricalRecordsPage,
               '/suppliers': SuppliersPage,
@@ -101,6 +100,7 @@ function AppRoutes() {
               '/returns': PrsPage,
               '/returned-supply': ReturnedSupplyPage,
               '/users': UsersPage,
+              '/offline-records': OfflineRecordsPage,
               '/profile': ProfilePage,
               '/my-returns': MyReturnsPage,
               '/my-issued-items': MyIssuedItemsPage,

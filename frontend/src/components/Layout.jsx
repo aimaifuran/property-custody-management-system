@@ -19,7 +19,6 @@ const issueItems = [
 const reportItems = [
   { to: '/reports/ppe-list', label: 'List of PPEs', icon: ClipboardList, permissions: ['canViewDashboard'] },
   { to: '/reports/monthly', label: 'Monthly Reports', icon: CalendarDays, permissions: ['canViewDashboard'] },
-  { to: '/reports/annual', label: 'Annual Reports', icon: BarChart3, permissions: ['canViewDashboard'] },
   { to: '/historical-records', label: 'Historical Records', icon: History, permissions: [], adminOnly: true },
 ];
 
@@ -263,7 +262,7 @@ export default function Layout() {
         </nav>
         </div>
         <nav className="mt-3 shrink-0 border-t border-white/15 pt-3" aria-label="System information">
-          <NavLink to="/about" onClick={closeMobileSidebar} className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}><Info size={18} aria-hidden="true" />About</NavLink>
+          {user?.role === 'admin' && <NavLink to="/about" onClick={closeMobileSidebar} className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}><Info size={18} aria-hidden="true" />About</NavLink>}
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -294,6 +293,7 @@ export default function Layout() {
               {accountMenuOpen && <div id="header-account-menu" className="title-bar-account-menu" role="menu" aria-label="Account actions">
                 {user?.role === 'admin' && <>
                   <NavLink to="/profile" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />My Profile</NavLink>
+                  <NavLink to="/offline-records" role="menuitem" onClick={() => setAccountMenuOpen(false)}><ClipboardList size={16} aria-hidden="true" />Offline Records</NavLink>
                   <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{pendingResets + pendingRegistrations > 0 && <span className="account-menu-notification" aria-label={`${pendingResets + pendingRegistrations} account requests awaiting approval`}>{pendingResets + pendingRegistrations}</span>}</NavLink>
                 </>}
                 <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); logout(); }}><LogOut size={16} aria-hidden="true" />Logout</button>

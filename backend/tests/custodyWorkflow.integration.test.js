@@ -31,11 +31,11 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
     const response = await fetch(`http://127.0.0.1:${server.address().port}/api${url}`, { method, headers: { Authorization: `Bearer ${jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'dev-secret')}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, body: await response.json() };
   };
-  const received = { iarNumber: '001', entityName: 'Carigara', items: [
+  const received = { iarNumber: '001', entityName: 'Carigara', fundCluster: 'General Fund', supplierName: 'Supplier', poNumber: 'PO-001', poDate: '2026-10-01', responsibilityCenterCode: '004', iarDate: '2026-10-08', invoiceNumber: 'INV-001', invoiceDate: '2026-10-08', inspectionDate: '2026-10-08', inspectedBy: 'Inspector', acceptanceDate: '2026-10-08', custodian: 'Supply Officer', items: [
     { stockNumber: 'PAPER', description: 'Bond paper', unit: 'ream', quantity: 10, unitCost: 250, itemType: 'SUPPLY' },
     { stockNumber: 'CHAIR', description: 'Office chair', unit: 'piece', quantity: 2, unitCost: 1500, itemType: 'ASSET' },
     { stockNumber: 'LAPTOP', description: 'Laptop', unit: 'unit', quantity: 1, unitCost: 60000, itemType: 'ASSET' },
-  ] };
+  ].map(row => ({ ...row, stockPropertyNumber: row.stockNumber })) };
   assert.equal((await request(sender, '/iar', received)).status, 403);
   const receipt = await request(admin, '/iar', received);
   assert.equal(receipt.status, 201, JSON.stringify(receipt.body));
@@ -69,7 +69,10 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   const assets = (await request(sender, '/custody/assets')).body.data;
   const chair = assets.find(asset => asset.formType === 'ICS'); const laptop = assets.find(asset => asset.formType === 'PAR');
   assert.equal((await request(outsider, `/custody/forms/ICS/${chair.issuanceForm}`)).status, 404);
-  assert.equal((await request(admin, `/ics/${chair.issuanceForm}`, { user: receiver._id }, 'PUT')).status, 409);
+  const lockedIcs = (await ICS.findById(chair.issuanceForm)).toObject();
+  lockedIcs.fundCluster = 'General Fund';
+  lockedIcs.items = lockedIcs.items.map(row => ({ ...row, estimatedUsefulLife: '5 years' }));
+  assert.equal((await request(admin, `/ics/${chair.issuanceForm}`, { ...lockedIcs, user: receiver._id }, 'PUT')).status, 409);
   const transfer = { accountability: laptop._id, toUser: receiver._id, reason: 'Office reassignment' };
   assert.equal((await request(sender, '/custody/transfers', transfer)).status, 400, 'Acceptance is required before transfer');
   assert.equal((await request(outsider, `/custody/forms/PAR/${laptop.issuanceForm}/accept`, {})).status, 404);
@@ -82,7 +85,10 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal((await request(sender, '/custody/transfers', transfer)).status, 409);
   assert.equal((await request(admin, `/custody/transfers/${ptrId}/approve`, {})).status, 409);
   assert.equal((await request(outsider, `/custody/transfers/${ptrId}/receive`, {})).status, 404);
-  assert.equal((await request(admin, `/ptr/${ptrId}`, { status: 'APPROVED' }, 'PUT')).status, 409);
+  const lockedPtr = (await PTR.findById(ptrId)).toObject();
+  const transferPerson = { name: 'admin Test', designation: 'Treasury', date: '2026-10-08' };
+  const lockedPtrUpdate = await request(admin, `/ptr/${ptrId}`, { ...lockedPtr, fundCluster: 'General Fund', approvedBy: transferPerson, receivedBy: transferPerson, status: 'APPROVED' }, 'PUT');
+  assert.equal(lockedPtrUpdate.status, 409, JSON.stringify(lockedPtrUpdate.body));
   assert.equal((await request(receiver, `/custody/transfers/${ptrId}/receive`, {})).status, 200);
   assert.equal(String((await Accountability.findById(laptop._id)).user), String(sender._id));
   assert.equal((await request(admin, `/custody/transfers/${ptrId}/approve`, {})).status, 200);
@@ -174,7 +180,7 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal((await Item.findOne({ stockNumber: 'LAPTOP' })).quantityOnHand, 0);
 
   // Linked Returned Supply receipts use the same PRS posting and available-stock rules.
-  const paperReturn = await request(admin, '/returned-supply', { returnedBy: { user: sender._id }, description: 'Bond paper', mrNumber: ris.risNumber, quantity: 1, condition: 'Serviceable' });
+  const paperReturn = await request(admin, '/returned-supply', { lguName: 'Carigara', purpose: 'Returned To Stock', unit: 'ream', unitValue: 250, returnedBy: { user: sender._id, name: 'sender Test', designation: 'Treasury', date: '2026-10-08' }, returnedTo: { name: 'admin Test', designation: 'Treasury', date: '2026-10-08' }, description: 'Bond paper', mrNumber: ris.risNumber, quantity: 1, condition: 'Serviceable' });
   assert.equal(paperReturn.status, 201, JSON.stringify(paperReturn.body));
   assert.ok(paperReturn.body.data.prs);
   assert.equal((await Item.findOne({ stockNumber: 'PAPER' })).quantityOnHand, 6);

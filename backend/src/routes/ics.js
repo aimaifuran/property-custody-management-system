@@ -21,8 +21,22 @@ router.post('/', authenticate, validateAdminForm('ics'), authorize('canManageInv
 
 router.put('/:id', authenticate, validateAdminForm('ics'), authorize(['canManageInventory', 'canManageRIS']), async (req, res) => {
   const existing = await InventoryCustodianSlip.findOne({ _id: req.params.id, deleted: false });
-  if (existing?.user) return errorResponse(res, 'Linked accountability forms are locked. Use acceptance, transfer or return actions.', [], 409);
-  const record = await InventoryCustodianSlip.findOneAndUpdate({ _id: req.params.id, deleted: false }, { ...req.body, lastEditedAt: new Date() }, { new: true, runValidators: true });
+  if (!existing) return errorResponse(res, 'Inventory Custodian Slip not found', [], 404);
+  const fields = ['entityName', 'office', 'fundCluster', 'icsNumber', 'items', 'remarks', 'receivedFrom', 'receivedBy'];
+  const payload = Object.fromEntries(fields.filter(field => req.body[field] !== undefined).map(field => [field, req.body[field]]));
+  if (existing.user || existing.offlineRecipient) {
+    const identity = rows => rows.map(item => [Number(item.quantity), Number(item.unitCost), item.inventoryItemNo]);
+    if ((payload.icsNumber !== undefined && payload.icsNumber !== existing.icsNumber) ||
+        JSON.stringify(identity(payload.items || [])) !== JSON.stringify(identity(existing.items))) {
+      return errorResponse(res, 'Issued quantities, costs, item numbers and the ICS number cannot be changed. Use the stock and custody workflow for movements.', [], 409);
+    }
+    // Keep row identities and accountability links while allowing document corrections.
+    payload.items = payload.items.map((item, index) => ({
+      ...existing.items[index].toObject(), unit: item.unit, description: item.description,
+      estimatedUsefulLife: item.estimatedUsefulLife,
+    }));
+  }
+  const record = await InventoryCustodianSlip.findOneAndUpdate({ _id: req.params.id, deleted: false }, { ...payload, lastEditedAt: new Date() }, { new: true, runValidators: true });
   if (!record) return errorResponse(res, 'Inventory Custodian Slip not found', [], 404);
   return successResponse(res, 'Inventory Custodian Slip updated', record);
 });

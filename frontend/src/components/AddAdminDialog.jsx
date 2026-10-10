@@ -1,3 +1,4 @@
+import OfficeSelect from './OfficeSelect';
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import axios from 'axios';
@@ -42,7 +43,7 @@ export default function AddAdminDialog({ onClose, onCreated }) {
       <div className="user-editor-heading"><div><h2 id="add-admin-title">Add Admin</h2><p>Create an administrator account.</p></div><button type="button" className="user-editor-close" disabled={saving} aria-label="Close admin form" onClick={onClose}><X size={18} /></button></div>
       {error && <p className="user-editor-error" role="alert">{error}</p>}
       <fieldset disabled={saving} className="mt-4 grid gap-3 md:grid-cols-2">
-        {fields.map(([key, label, type = 'text']) => <label key={key} className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required aria-label={label} type={type} autoComplete={type === 'password' ? 'new-password' : 'off'} minLength={type === 'password' ? 8 : undefined} value={form[key]} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>)}
+        {fields.map(([key, label, type = 'text']) => <label key={key} className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>{key === 'office' ? <OfficeSelect required aria-label={label} value={form.office} onChange={event => setForm(previous => ({ ...previous, office: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2" /> : <input required aria-label={label} type={type} autoComplete={type === 'password' ? 'new-password' : 'off'} minLength={type === 'password' ? 8 : undefined} value={form[key]} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2" />}</label>)}
       </fieldset>
       <div className="user-editor-footer"><button type="button" disabled={saving} onClick={onClose}>Cancel</button><button type="submit" disabled={saving} className="user-editor-save">{saving ? 'Saving...' : 'Create Admin'}</button></div>
     </ValidatedForm>

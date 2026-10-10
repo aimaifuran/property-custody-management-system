@@ -14,6 +14,7 @@ const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const ReturnedSupply = require('../models/ReturnedSupply');
 const Accountability = require('../models/PropertyAccountability');
 const { notifyAdmins, notifyUsers } = require('../utils/workflowNotifications');
+const { queueWorkflowEmail } = require('../utils/workflowEmails');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 
@@ -77,12 +78,13 @@ router.post('/my-requests', authenticate, async (req, res) => {
     const item = entry.stockNumber ? await Item.findOne({ stockNumber: entry.stockNumber, deleted: false }) : null;
     const description = entry.description || item?.description || item?.name;
     if (!String(description || '').trim()) return errorResponse(res, 'Describe the requested item', [], 400);
-    requestedItems.push({ stockNumber: entry.stockNumber, description, unit: entry.unit || item?.unit || '', quantityRequested: quantity, quantityIssued: 0 });
+    requestedItems.push({ stockNumber: entry.stockNumber, description, unit: entry.unit || item?.unit || '', quantityRequested: quantity, quantityIssued: null });
   }
   const person = { user: req.user._id, name: getUserLabel(req.user), designation: req.user.office, date: new Date() };
   const risNumber = await reserveDocumentNumber(RequisitionIssueSlip, 'risNumber');
   const ris = await RequisitionIssueSlip.create({ risNumber, entityName: (await Setting.findOne().sort({ createdAt: 1 }).lean())?.entityName || 'LGU Carigara', division: req.user.division, office: req.user.office, purpose: String(purpose).trim(), requestedBy: person, receivedBy: person, items: requestedItems, status: 'PENDING_REVIEW' });
   await notifyAdmins('New supply/property request', `${getUserLabel(req.user)} submitted ${ris.risNumber}.`, '/ris');
+  await queueWorkflowEmail('REQUESTED', ris);
   await ActivityLog.create({ user: req.user._id, action: 'RIS created', details: `RIS ${ris.risNumber} submitted by user for admin review`, ipAddress: req.ip, browser: req.get('user-agent') });
   return successResponse(res, 'Request submitted for admin review', ris, 201);
 });
@@ -186,7 +188,7 @@ router.post('/', authenticate, validateAdminForm('ris'), authorize(['canCreateRI
     if (payload.items) payload.items = manualStockItems(payload.items);
     payload.requestedBy = await resolvePersonUser(payload.requestedBy);
     payload.receivedBy = await resolvePersonUser(payload.receivedBy);
-    if (payload.requestedBy?.name && !payload.requestedBy.user) return errorResponse(res, 'Requested by does not match a user account. Select the Linked user account under Requested by so the RIS appears in that account.', [], 400);
+    if (payload.requestedBy?.name && !payload.requestedBy.user && !payload.requestedBy.offlineRecipient) return errorResponse(res, 'Select a user account or save an offline recipient under Requested by.', [], 400);
   } catch (error) { return errorResponse(res, error.message, [], 400); }
   if (payload.autoNumber === true || !String(payload.risNumber || '').trim()) payload.risNumber = await reserveDocumentNumber(RequisitionIssueSlip, 'risNumber');
   delete payload.autoNumber;
@@ -203,6 +205,7 @@ router.post('/', authenticate, validateAdminForm('ris'), authorize(['canCreateRI
     browser: req.get('user-agent'),
   });
 
+  await queueWorkflowEmail('REQUESTED', ris);
   return successResponse(res, 'RIS created', ris, 201);
 });
 
@@ -217,13 +220,14 @@ router.put('/:id', authenticate, validateAdminForm('ris'), authorize(['canCreate
     if (updates.items) updates.items = manualStockItems(updates.items);
     if (updates.requestedBy) updates.requestedBy = await resolvePersonUser(updates.requestedBy);
     if (updates.receivedBy) updates.receivedBy = await resolvePersonUser(updates.receivedBy);
-    if (updates.requestedBy?.name && !updates.requestedBy.user) return errorResponse(res, 'Requested by does not match a user account. Select the Linked user account under Requested by.', [], 400);
+    if (updates.requestedBy?.name && !updates.requestedBy.user && !updates.requestedBy.offlineRecipient) return errorResponse(res, 'Select a user account or save an offline recipient under Requested by.', [], 400);
   } catch (error) { return errorResponse(res, error.message, [], 400); }
   if (!String(existing.risNumber || '').trim() && !String(updates.risNumber || '').trim()) updates.risNumber = await reserveDocumentNumber(RequisitionIssueSlip, 'risNumber');
   delete updates.autoNumber;
   if (updates.items) updates.items = updates.items.map((entry) => ({ ...entry, totalCost: entry.totalCost ?? null }));
   const ris = await RequisitionIssueSlip.findOneAndUpdate({ _id: req.params.id, deleted: false, status: { $nin: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } }, updates, { new: true, runValidators: true });
   if (!ris) return errorResponse(res, 'RIS not found', [], 404);
+  await queueWorkflowEmail('REQUESTED', ris);
   return successResponse(res, 'RIS updated', ris);
 });
 
@@ -240,11 +244,18 @@ router.post('/:id/review', authenticate, async (req, res) => {
 
   let reviewedItems;
   try { reviewedItems = req.body.items ? manualStockItems(req.body.items) : ris.items.map(item => item.toObject()); } catch (error) { return errorResponse(res, error.message, [], 400); }
+  for (const entry of reviewedItems) {
+    const requested = Number(entry.quantityRequested);
+    const issued = entry.quantityIssued == null ? Math.min(requested, Number(stockMap.get(entry.stockNumber)?.quantityOnHand || 0)) : Number(entry.quantityIssued);
+    if (!Number.isInteger(requested) || requested <= 0 || !Number.isInteger(issued) || issued < 0 || issued > requested || issued > Number(stockMap.get(entry.stockNumber)?.quantityOnHand || 0)) {
+      return errorResponse(res, 'Issued quantities must be whole numbers within the requested quantity and available stock', [], 400);
+    }
+  }
   ris.items = reviewedItems.map((entry) => {
     const requested = Number(entry.quantityRequested || 0);
     const inventoryItem = stockMap.get(entry.stockNumber);
     const available = Number(inventoryItem?.quantityOnHand || 0);
-    const issued = Math.min(requested, available);
+    const issued = entry.quantityIssued == null ? Math.min(requested, available) : Number(entry.quantityIssued);
     const systemRemarks = available <= 0
       ? 'Out of Stock - For Procurement'
       : issued < requested
@@ -264,6 +275,7 @@ router.post('/:id/review', authenticate, async (req, res) => {
   ris.reviewedBy = getUserLabel(req.user);
   ris.reviewedAt = new Date();
   await ris.save();
+  await queueWorkflowEmail('REQUESTED', ris);
 
   await ActivityLog.create({
     user: req.user._id,

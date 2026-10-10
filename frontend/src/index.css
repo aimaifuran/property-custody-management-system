@@ -669,7 +669,7 @@ button:hover:not(:disabled) {
 .user-pictorial-icons { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
 .user-pictorial-icon { position: relative; width: 48px; height: 58px; }
 .user-pictorial-icon svg { position: absolute; inset: 0; width: 48px; height: 58px; fill: currentColor; stroke-width: 1.5; }
-.dashboard-reports { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.dashboard-reports { grid-template-columns: minmax(0, 1fr); }
 .dashboard-annual .annual-report-body {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
@@ -727,7 +727,7 @@ button:hover:not(:disabled) {
   .dashboard-activity-column { display: contents; }
   .dashboard-breakdowns { grid-column: 1; grid-row: 1; height: 100%; }
   .dashboard-breakdowns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dashboard-reports { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-reports { grid-template-columns: minmax(0, 1fr); }
   .dashboard-reports { grid-column: 1; grid-row: 2; min-height: 0; }
   .dashboard-activity { grid-column: 2; grid-row: 1 / span 2; min-height: 0; }
   .dashboard-page .dashboard-activity > .overflow-y-auto { max-height: none; }
@@ -1036,6 +1036,18 @@ button.record-action {
 }
 button.record-action--pdf { --action-color: #b94040; --action-shadow: #8e2d2d; }
 button.record-action--print { --action-color: #486477; --action-shadow: #304655; }
+.form-document button.ris-form-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 .record-action__label { color: white; transition: opacity .3s; }
 .record-action__icon {
   position: absolute;
@@ -1325,7 +1337,7 @@ body { font-size: var(--app-text-size); }
 
 /* Give the annual chart the full card width and a definite responsive height. */
 .dashboard-annual .annual-report-body { grid-template-columns: minmax(0, 1fr); align-items: start; flex: none; min-width: 0; gap: 12px; }
-.dashboard-annual .annual-bar-chart { width: 100%; min-width: 0; height: clamp(160px, 22vw, 220px); min-height: 160px; }
+.dashboard-annual .annual-bar-chart { width: 100%; min-width: 0; height: clamp(200px, 26vw, 280px); min-height: 200px; }
 .dashboard-annual .annual-report-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .dashboard-annual .annual-report-totals > * + * { margin-top: 0; }
 .dashboard-annual .annual-report-highlights { grid-template-columns: repeat(auto-fit, minmax(min(100%, 110px), 1fr)); }
@@ -1379,7 +1391,7 @@ body { font-size: var(--app-text-size); }
 /* Stretch the monthly graph to the report card without clipping its axes. */
 .dashboard-reports > .dashboard-monthly { display: flex; flex-direction: column; min-width: 0; }
 .dashboard-monthly > h2, .dashboard-monthly > p { flex-shrink: 0; }
-.dashboard-monthly .monthly-report-chart { flex: 1 1 auto; width: 100%; min-width: 0; height: clamp(160px, 22vw, 220px); min-height: 160px; }
+.dashboard-monthly .monthly-report-chart { flex: 1 1 auto; width: 100%; min-width: 0; height: clamp(200px, 26vw, 280px); min-height: 200px; }
 
 /* Consistent document grids and fields; wide columns stay inside TableScroll. */
 .form-document table { border-collapse: collapse; border: 1px solid #94a3b8; }
@@ -1430,12 +1442,42 @@ body { font-size: var(--app-text-size); }
 .form-document :is(table th, table td) { vertical-align: middle; padding: 6px 8px; border-color: #94a3b8; }
 .form-document table { border-collapse: collapse; }
 .form-document th { text-align: center; white-space: normal; }
-.form-document.ppe-station-form .ppe-input-table td { vertical-align: top; }
+.form-document.ppe-station-form .ppe-input-table :is(th, td) { padding: 3px 4px; }
+.form-document.ppe-station-form .ppe-input-table td { vertical-align: middle; }
+.form-document.ppe-station-form .ppe-input-table th {
+  line-height: 1.15; font-weight: 600; overflow-wrap: break-word;
+}
 .form-document.ppe-station-form .ppe-input-table td :is(input, textarea) {
-  display: block; height: 5rem; min-height: 5rem; margin: 0;
+  display: block; height: 2rem; min-height: 2rem; margin: 0;
+  padding: 3px 5px; line-height: 1.2;
 }
 .form-document.ppe-station-form .ppe-input-table textarea { resize: none; overflow-y: auto; }
 .form-document.ppe-station-form .ppe-input-table input[type='number'] { font-variant-numeric: tabular-nums; }
+.ics-editor .ics-items-table :is(th, td) { border: 1px solid #475569; padding: 4px; }
+.ics-editor .ics-items-table tfoot th { text-align: left; }
+.ics-editor .ics-items-table tbody input { padding: 8px; }
+.ics-editor .ics-items-table thead th { text-align: center; vertical-align: middle; }
+.ics-editor .ics-items-table tbody td { vertical-align: middle; }
+.ics-editor .ics-items-table tbody td:nth-child(1) input,
+.ics-editor .ics-items-table tbody td:nth-child(2) input,
+.ics-editor .ics-items-table tbody td:nth-child(6) input,
+.ics-editor .ics-items-table tbody td:nth-child(7) input { text-align: center; }
+.ics-editor .ics-items-table tbody td:nth-child(3) input,
+.ics-editor .ics-items-table tbody td:nth-child(4) input,
+.ics-editor .ics-items-table tfoot td[colspan="2"] { text-align: right; font-variant-numeric: tabular-nums; }
+.ics-editor .ics-items-table tbody td:nth-child(5) input,
+.ics-editor .ics-items-table tfoot textarea { text-align: left; }
+.ics-editor .ics-items-table tfoot th { padding: 8px; white-space: nowrap; }
+
+.ics-editor .ics-signatories { border: 1px solid #475569; border-top: 0; }
+.ics-editor .ics-signatory-panel + .ics-signatory-panel { border-left: 1px solid #475569; }
+.form-document.ics-editor .ics-signatory-panel input {
+  border: 0; border-bottom: 1px solid #475569; border-radius: 0;
+  background: transparent !important;
+}
+@media (max-width: 767px) {
+  .ics-editor .ics-signatory-panel + .ics-signatory-panel { border-left: 0; border-top: 1px solid #475569; }
+}
 .form-document .ris-table-grid > div { display: flex; align-items: center; min-width: 0; }
 .form-document .ris-table-grid :is(input[type='radio'], input[type='checkbox']) { margin: auto; }
 .form-document .ris-table-grid input:not([type='radio']):not([type='checkbox']) { padding: 6px !important; }
@@ -1451,17 +1493,24 @@ body { font-size: var(--app-text-size); }
 }
 /* One header layout for every official form editor. */
 .form-editor-header { margin-bottom: 20px; }
+.app-shell main button.archive-folder {
+  justify-content: flex-start;
+  text-align: left;
+}
+.archive-folder > div { min-width: 0; text-align: left; }
 .form-document .form-editor-header .form-title-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  display: grid; grid-template-columns: 9rem minmax(0, 1fr) 9rem;
   align-items: center; gap: 12px; border-bottom: 1px solid #aab6b0;
   padding: 0 0 14px; margin: 0;
 }
 .form-document .form-editor-header .form-page-title {
+  grid-column: 2;
   text-align: center; text-transform: uppercase; letter-spacing: .025em;
   margin: 0; min-width: 0; overflow-wrap: anywhere;
   border-bottom: 0; padding-bottom: 0;
 }
 .form-document .form-editor-header .form-title-action {
+  grid-column: 3; justify-self: end;
   align-self: center; max-width: none; margin: 0; white-space: nowrap;
 }
 .form-document .form-editor-description {
@@ -1488,6 +1537,11 @@ body { font-size: var(--app-text-size); }
 .form-document label { min-width: 0; }
 .form-document label > span:first-child { display: block; }
 @media screen { .form-document :is(input, select, textarea, button, label, p, th, td, span) { font-size: var(--app-text-size) !important; } }
+@media screen {
+  .form-document.ppe-station-form .ppe-input-table :is(th, th span, input, textarea) {
+    font-size: 12px !important;
+  }
+}
 @media screen and (max-width: 640px) {
   .saved-records { padding: 12px !important; }
   .saved-record { gap: 8px; text-align: left; }
@@ -1736,7 +1790,8 @@ body { font-size: var(--app-text-size); }
   .app-shell main { padding: 12px; }
   .app-shell .title-bar { padding: 12px; }
   .form-document .form-editor-header .form-title-row { grid-template-columns: minmax(0, 1fr); }
-  .form-document .form-editor-header .form-title-action { justify-self: end; }
+  .form-document .form-editor-header .form-page-title { grid-column: 1; }
+  .form-document .form-editor-header .form-title-action { grid-column: 1; justify-self: end; }
   .saved-record > :first-child:not(button) { flex-basis: 100%; }
   .saved-record > .flex:last-child { width: 100%; margin-left: 0; }
   .saved-record .flex:has(> .record-action) { flex-wrap: wrap; }
@@ -1820,7 +1875,7 @@ body { font-size: var(--app-text-size); }
     grid-column: 1;
     grid-row: 2;
     min-height: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
   .dashboard-main :is(.dashboard-breakdowns, .dashboard-reports) > .minimal-surface {
     display: flex;
@@ -1898,3 +1953,52 @@ body { font-size: var(--app-text-size); }
 }
 /* Login fields are required even while initially readonly to prevent autofill. */
 .login-page label:has(input:required:not(:disabled)) > span:first-child::after { content: ' *'; color: #dc2626; font-weight: 700; }
+
+/* Keep return charts inside their cards at every dashboard height. */
+.dashboard-page .dashboard-breakdowns .dashboard-return-chart {
+  height: 150px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+@media (min-width: 1024px) and (min-height: 540px) {
+  .dashboard-main .dashboard-breakdowns > .dashboard-return-summary { min-height: 0; }
+  .dashboard-main .dashboard-breakdowns .dashboard-return-chart {
+    height: 0;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+}
+
+/* Preserve ICS column alignment while the table scrolls within the form. */
+@media screen {
+  .ics-editor .ics-table-scroll { width: 100%; min-width: 0; max-width: 100%; }
+  .ics-editor .ics-table-scroll .table-scroll__content { overflow-x: auto; scrollbar-width: auto; padding-bottom: 8px; }
+  .ics-editor .ics-table-scroll .ics-items-table { min-width: 1500px; }
+  .ics-editor .ics-items-table thead th { white-space: nowrap; }
+}
+
+.user-records-dialog .user-records-return-button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; border: 0; background: #059669; color: white; }
+.user-records-dialog .user-records-return-button:disabled { opacity: .5; cursor: not-allowed; }
+.user-records-dialog .user-records-return-success { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: #dcfce7; color: #166534; font-weight: 600; }
+
+.offline-records-page .offline-record-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 8px 12px; border: 1px solid transparent; border-radius: 9px; font-weight: 600; transition: background-color .15s, box-shadow .15s; }
+.offline-records-page .offline-record-action--request { background: #047857; color: #fff; }
+.offline-records-page .offline-record-action--view { background: #0369a1; color: #fff; }
+.offline-records-page .offline-record-action--edit { background: #fef3c7; border-color: #d97706; color: #92400e; }
+.offline-records-page .offline-record-action--request:hover { background: #065f46; }
+.offline-records-page .offline-record-action--view:hover { background: #075985; }
+.offline-records-page .offline-record-action--edit:hover { background: #fde68a; }
+.offline-records-page .offline-record-action:focus-visible { outline: 3px solid #0d9488; outline-offset: 3px; }
+
+.user-records-dialog .user-records-condition-button { border: 1px solid #94a3b8; border-radius: 8px; padding: 7px 10px; background: #fff; color: #334155; font-weight: 600; }
+.user-records-dialog .user-records-condition-button[aria-pressed="true"] { background: #dcfce7; border-color: #15803d; color: #166534; }
+.user-records-dialog .user-records-condition-button--unserviceable[aria-pressed="true"] { background: #fee2e2; border-color: #b91c1c; color: #991b1b; }
+.user-records-dialog .user-records-condition-button:disabled { opacity: .5; cursor: not-allowed; }
+.app-shell main button.transaction-history-entry { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 4px; text-align: left; }
+.transaction-history-entry > div { width: 100%; text-align: left; overflow-wrap: anywhere; }
+.saved-reports-header:has(.monthly-report-month-controls) { padding-top: 30px; }
+.monthly-report-month-controls { display: flex; align-items: center; gap: 10px; }
+.monthly-report-month-controls label { position: relative; }
+.monthly-report-month-controls label > span { position: absolute; left: 0; bottom: calc(100% + 6px); }
+.app-shell main .monthly-report-month-controls input { margin-top: 0; min-height: 42px; }
+.app-shell main .monthly-report-month-controls button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; }

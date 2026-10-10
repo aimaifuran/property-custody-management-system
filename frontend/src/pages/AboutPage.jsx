@@ -1,14 +1,5 @@
 import { Archive, ArrowLeftRight, ClipboardCheck, Info, ShieldCheck, Users } from 'lucide-react';
 import './UsersPage.css';
-import DeveloperProfiles from '../components/DeveloperProfiles';
-
-const developers = [
-  'Cherie Mae Francisco',
-  'Catherine L. Lagera',
-  'Ivy B. Peñaranda',
-  'Nicole Jeremiah Acuin',
-  'Dion Mark L. Balida',
-];
 
 const features = [
   { icon: Archive, title: 'Property records', text: 'Organize property and supply records, including item descriptions, quantities, and accountability documents.' },
@@ -32,10 +23,5 @@ export default function AboutPage() {
       <p className="mt-3 leading-relaxed text-slate-600">The system aims to keep property records organized, make accountability easier to trace, and help the Supply Office monitor issued, transferred, and returned items. Keeping these records in one place supports accurate reporting and helps staff review who holds an item and what has happened to it.</p>
     </section>
     <section aria-labelledby="about-features"><h2 id="about-features" className="mb-4 text-xl font-semibold text-emerald-950">Main functions</h2><div className="grid gap-4 md:grid-cols-2">{features.map(({ icon: Icon, title, text }) => <article key={title} className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm"><Icon size={24} className="mb-3 text-emerald-700" aria-hidden="true" /><h3 className="font-semibold text-emerald-950">{title}</h3><p className="mt-2 leading-relaxed text-slate-600">{text}</p></article>)}</div></section>
-    <section className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm" aria-labelledby="about-developers">
-      <h2 id="about-developers" className="flex items-center gap-2 text-xl font-semibold text-emerald-950"><Users size={22} aria-hidden="true" />Developers</h2>
-      <p className="mt-2 text-slate-600">The team behind the Property Accountability Management System.</p>
-      <DeveloperProfiles developers={developers} />
-    </section>
   </div>;
 }

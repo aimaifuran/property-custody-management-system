@@ -20,12 +20,15 @@ router.get('/:id/records', authenticate, adminOnly, async (req, res) => {
   const Accountability = require('../models/PropertyAccountability');
   const PropertyReturnSlip = require('../models/PropertyReturnSlip');
   const [risRows, assets, returnSlips] = await Promise.all([
-    accountRecords(user),
+    accountRecords(user, true),
     Accountability.find({ deleted: false, active: true, user: user._id }).populate({ path: 'inventory', populate: { path: 'item' } }).sort({ createdAt: -1 }).lean(),
-    PropertyReturnSlip.find({ deleted: false, submittedBy: user._id }).sort({ createdAt: -1 }).lean(),
+    PropertyReturnSlip.find({ deleted: false, $or: [{ submittedBy: user._id }, { 'returnedBy.user': user._id }] }).sort({ createdAt: -1 }).lean(),
   ]);
   return successResponse(res, 'User records retrieved', { risRows, assets, returnSlips });
 });
+
+// Record a physical, serviceable return directly from the admin's account records.
+router.post('/:id/records/returned', authenticate, adminOnly, require('../utils/recordAccountReturn')());
 
 router.get('/password-reset-requests', authenticate, adminOnly, async (req, res) => {
   await PasswordResetRequest.updateMany({ status: 'APPROVED', expiresAt: { $lte: new Date() } }, { $set: { status: 'EXPIRED' }, $unset: { activeKey: 1, tokenHash: 1 } });
@@ -70,25 +73,39 @@ router.get('/', authenticate, authorize('canManageUsers'), async (req, res) => {
 });
 
 router.post('/', authenticate, validateAdminForm('users'), authorize('canManageUsers'), async (req, res) => {
+  if (req.body.role !== undefined && !['admin', 'user'].includes(req.body.role)) return errorResponse(res, 'Select Admin or User as the account type', [], 400);
   const exists = await User.findOne({ $or: [{ email: req.body.email }, { username: req.body.username }] });
   if (exists) return errorResponse(res, 'User already exists', [], 409);
 
   const hashed = await bcrypt.hash(req.body.password || 'Password123!', 10);
   const payload = { ...req.body, password: hashed, createdBy: req.user._id };
-  if ((payload.role || 'user') === 'user') payload.permissions = [...new Set([...(payload.permissions || []), 'canViewRIS'])];
+  payload.permissions = payload.role === 'admin' ? [] : ['canViewRIS'];
   const user = await User.create(payload);
   await linkLegacyRequests();
   return successResponse(res, 'User created', { ...user.toObject(), password: undefined }, 201);
 });
 
 router.put('/:id', authenticate, validateAdminForm('users'), authorize('canManageUsers'), async (req, res) => {
-  await linkLegacyRequests();
-  if (req.body.password) req.body.password = await bcrypt.hash(req.body.password, 10);
-  delete req.body.createdBy;
-  const existing = await User.findById(req.params.id);
-  if ((req.body.role || existing?.role) === 'user' && req.body.permissions) req.body.permissions = [...new Set([...req.body.permissions, 'canViewRIS'])];
-  const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry');
-  return successResponse(res, 'User updated', user);
+  const existing = await User.findOne({ _id: req.params.id, deleted: false });
+  if (!existing) return errorResponse(res, 'Account not found', [], 404);
+  const updates = Object.fromEntries(['firstName', 'middleName', 'lastName', 'email', 'username', 'office', 'division', 'position'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
+  if (req.body.email !== undefined && (typeof req.body.email !== 'string' || !require('validator').isEmail(req.body.email.trim()))) return errorResponse(res, 'Enter a valid email address', [], 400);
+  const changedEmail = req.body.email && req.body.email.trim().toLowerCase() !== existing.email;
+  if (req.body.password && (typeof req.body.password !== 'string' || req.body.password.length < 8 || Buffer.byteLength(req.body.password) > 72)) return errorResponse(res, 'Password must be at least 8 characters and at most 72 bytes', [], 400);
+  const unset = {};
+  if (req.body.password) {
+    updates.password = await bcrypt.hash(req.body.password, 10);
+    updates.failedLoginAttempts = 0;
+    for (const key of ['refreshToken', 'resetToken', 'resetTokenExpiry', 'lockUntil']) unset[key] = 1;
+  }
+  if (changedEmail) for (const key of ['pendingEmail', 'emailChangeCode', 'emailChangeExpiry', 'resetToken', 'resetTokenExpiry']) unset[key] = 1;
+  // Account recovery edits retain the existing role and never accept session fields from the client.
+  updates.permissions = existing.role === 'admin' ? [] : ['canViewRIS'];
+  try {
+    const user = await User.findByIdAndUpdate(existing._id, { $set: updates, ...(Object.keys(unset).length ? { $unset: unset } : {}) }, { returnDocument: 'after', runValidators: true }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry');
+    await ActivityLog.create({ user: req.user._id, action: 'Account updated', details: `${existing.username}: account details updated${changedEmail ? '; email changed' : ''}${req.body.password ? '; password reset' : ''}` });
+    return successResponse(res, 'Account updated', user);
+  } catch (error) { return errorResponse(res, error.code === 11000 ? 'Email or username is already in use' : 'Check the account details and try again', [], error.code === 11000 ? 409 : 400); }
 });
 
 router.patch('/:id/lock', authenticate, authorize('canManageUsers'), async (req, res) => {

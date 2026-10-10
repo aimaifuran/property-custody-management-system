@@ -9,6 +9,8 @@ const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgemen
 const PropertyTransferReport = require('../models/PropertyTransferReport');
 const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const ReturnedSupply = require('../models/ReturnedSupply');
+const PpeStationReport = require('../models/PpeStationReport');
+const PpeList = require('../models/PpeList');
 const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse } = require('../utils/response');
@@ -86,6 +88,8 @@ router.get('/archive', authenticate, authorize('canViewDashboard'), async (req, 
     { model: PropertyTransferReport, type: 'PTR', title: 'Property Transfer Report', numberField: 'ptrNumber', dateFields: ['date', 'createdAt'], searchFields: ['ptrNumber', 'entityName', 'fromAccountablePerson.name', 'toAccountablePerson.name', 'items'] },
     { model: PropertyReturnSlip, type: 'PRS', title: 'Property Return Slip', numberField: 'prsNumber', dateFields: ['date', 'returnedBy.date', 'returnedTo.date', 'createdAt'], searchFields: ['prsNumber', 'lguName', 'returnedBy.name', 'returnedTo.name', 'items'] },
     { model: ReturnedSupply, type: 'RETURNED SUPPLY', title: 'Returned Supply', numberField: 'mrNumber', dateFields: ['date', 'returnedBy.date', 'returnedTo.date', 'createdAt'], searchFields: ['mrNumber', 'lguName', 'description', 'propertyNumber', 'returnedBy.name', 'returnedTo.name'] },
+    { model: PpeStationReport, type: 'PPE STATION', title: 'List of PPEs', numberField: 'accountGroup', dateFields: ['date', 'createdAt'], searchFields: ['accountGroup', 'governmentUnit', 'preparedBy', 'reviewedBy', 'rows'] },
+    { model: PpeList, type: 'MONTHLY REPORT', title: 'Monthly Reports', numberField: 'serialNumber', dateFields: ['reportDate', 'createdAt'], searchFields: ['serialNumber', 'lgu', 'custodian', 'accountingStaff', 'rows'] },
   ];
 
   const matchesSearch = (document, fields) => !search || fields.some((field) => JSON.stringify(getValue(document, field) ?? '').toLowerCase().includes(search));
@@ -98,8 +102,9 @@ router.get('/archive', authenticate, authorize('canViewDashboard'), async (req, 
   };
 
   const records = await Promise.all(sources.filter((source) => type === 'ALL' || source.type === type).map(async (source) => {
-    const documents = await source.model.find({ deleted: false }).lean();
+    const documents = await source.model.find(['PPE STATION', 'MONTHLY REPORT'].includes(source.type) ? {} : { deleted: false }).lean();
     return documents.filter((document) => {
+      if (source.type === 'MONTHLY REPORT' && !document.rows?.length) return false;
       const reportDate = source.dateFields.map((field) => getValue(document, field)).find(Boolean) || document.createdAt;
       return new Date(reportDate) >= start && new Date(reportDate) < end && matchesSearch(document, source.searchFields) && matchesCondition(document);
     }).map((document) => {
@@ -109,8 +114,8 @@ router.get('/archive', authenticate, authorize('canViewDashboard'), async (req, 
         type: source.type,
         title: source.title,
         documentNumber: document[source.numberField] || 'Unnumbered',
-        entityName: document.entityName || document.office || document.lguName || '',
-        employee: document.receivedBy?.name || document.requestedBy?.name || document.returnedBy?.name || document.returnedTo?.name || '',
+        entityName: document.entityName || document.office || document.lguName || document.governmentUnit || document.lgu || '',
+        employee: document.receivedBy?.name || document.requestedBy?.name || document.returnedBy?.name || document.returnedTo?.name || document.preparedBy || document.custodian || '',
         reportDate,
         status: document.status || 'RECORDED',
         details: document,

@@ -8,6 +8,39 @@ import { TEMPLATE_CELL_PADDING } from '../src/utils/templatePdfLayout.js';
 import { isFormSignatoryField } from '../src/utils/formPdfSignatories.js';
 const loadTemplate = path => readFile(new URL(`../public${path}`, import.meta.url));
 
+test('PRS dates continue the certification statements with party captions below', async () => {
+  const runs = [];
+  await buildHistoricalFormPdf({ type: 'PRS', details: { prsNumber: 'PRS-123', returnedTo: { date: '2026-10-10' }, returnedBy: { date: '2026-10-11' } } }, loadTemplate, { onDraw: run => runs.push(run) });
+  const statements = runs.filter(run => run.section === 'certification statement');
+  const text = statements.map(run => run.text).join(' ');
+  assert.ok(text.includes('THIS 10/10/2026'));
+  assert.ok(text.includes('ON 10/11/2026'));
+  assert.ok(!runs.some(run => run.section === 'prsNumber' || run.section === 'prsNumber caption'));
+  for (const caption of runs.filter(run => ['RETURNED TO:', 'RECEIVED FROM:'].includes(run.text))) {
+    const samePanel = statements.filter(run => run.bounds.x === caption.bounds.x - 10);
+    assert.ok(samePanel.every(run => run.y > caption.y));
+  }
+});
+
+test('ICS PDF and print keep first-column captions and merge the cost cells in the total row', async () => {
+  const runs = [];
+  await buildHistoricalFormPdf({ type: 'ICS', details: { items: [{ description: 'Printer', quantity: 2, unitCost: 100, totalCost: 200 }], remarks: 'For office use' } }, loadTemplate, { onDraw: run => runs.push(run) });
+  const totalCaption = runs.find(run => run.section === 'table footer caption' && run.text === 'TOTAL');
+  const remarksCaption = runs.find(run => run.section === 'remarks caption');
+  const total = runs.find(run => run.section === 'totalAmount');
+  const remarks = runs.find(run => run.section === 'remarks');
+  assert.ok(totalCaption && remarksCaption && total && remarks);
+  assert.ok(totalCaption.x < total.cellBounds.x);
+  assert.equal(remarksCaption.bounds.x, totalCaption.bounds.x);
+  assert.equal(remarksCaption.bounds.width, totalCaption.bounds.width);
+  const unitCost = runs.find(run => run.section === 'unitCost');
+  const totalCost = runs.find(run => run.section === 'totalCost');
+  assert.equal(total.cellBounds.x, unitCost.cellBounds.x);
+  assert.ok(Math.abs(total.cellBounds.width - unitCost.cellBounds.width - totalCost.cellBounds.width) < 0.01);
+  assert.equal(total.text, '200.00');
+  assert.equal(remarks.text, 'For office use');
+});
+
 test('every archived form retains official fields on exact A4 pages without page numbers', async () => {
   for (const [type, template] of Object.entries(FORM_TEMPLATES)) {
     const bytes = await buildHistoricalFormPdf({ type, details: { entityName: 'Historical Office', description: 'Office chair', quantity: 1, items: [{ description: 'Office chair', quantity: 1 }] } }, loadTemplate);
@@ -31,7 +64,7 @@ test('every archived form retains official fields on exact A4 pages without page
         const position = block[1].match(/[-\d.]+\s+[-\d.]+\s+[-\d.]+\s+[-\d.]+\s+([-\d.]+)\s+([-\d.]+)\s+Tm\b/);
         if (position) assert.ok(![39.6, 40.08, 40.32].includes(Number(position[2])) && !(Number(position[1]) === 53.64 && Number(position[2]) === 300.55), `${type}: printed handbook pagination is gone`);
       }
-      for (const match of content.matchAll(/\/[^\s]+\s+([\d.]+)\s+Tf\b/g)) assert.equal(Number(match[1]), FORM_PDF_FONT_SIZE, `${type}: fixed print/PDF size`);
+      for (const match of content.matchAll(/\/[^\s]+\s+([\d.]+)\s+Tf\b/g)) assert.equal(Number(match[1]), type === 'PROPERTY CARD' ? 11 : FORM_PDF_FONT_SIZE, `${type}: fixed print/PDF size`);
     }
   }
 });
@@ -46,7 +79,7 @@ test('fixed official table rows wrap long entries and continue without repeating
     const quantityField = type === 'PROPERTY CARD' ? 'receiptQuantity' : 'quantity';
     assert.equal(runs.filter(run => run.section === quantityField).length, items.length, `${type}: one quantity per item`);
     for (const run of runs) {
-      assert.equal(run.size, 9);
+      assert.equal(run.size, type === 'PROPERTY CARD' ? 11 : 9);
       assert.ok(run.x >= run.bounds.x - .01 && run.x + run.width <= run.bounds.x + run.bounds.width + .01, `${type}: ${run.text}`);
       assert.ok(run.y - (run.height - run.ascent) >= run.bounds.y - .01 && run.y + run.ascent <= run.bounds.y + run.bounds.height + .01, `${type}: ${run.text}`);
       if (run.cellBounds) {
@@ -141,7 +174,8 @@ test('official forms use the A4 width and keep metadata and certification text s
       assert.ok(!runs.some(run => run.section === 'office' || run.section === 'office caption'), `${type}: office is removed from PDF`);
       const entity = runs.find(run => run.section === 'entityName');
       const fund = runs.find(run => run.section === 'fundCluster');
-      assert.ok(fund.y < entity.y && Math.abs(fund.bounds.x - entity.bounds.x) < 10, `${type}: fund cluster is below entity name`);
+      assert.ok(fund.y < entity.y, `${type}: fund cluster is below entity name`);
+      assert.equal(runs.find(run => run.section === 'fundCluster caption').bounds.x, runs.find(run => run.section === 'entityName caption').bounds.x, `${type}: header labels align on the left`);
       assert.ok(runs.some(run => run.section === 'fundCluster' && run.text === details.fundCluster));
     }
     if (type === 'IAR') {
@@ -149,7 +183,7 @@ test('official forms use the A4 width and keep metadata and certification text s
       assert.ok(runs.some(run => run.section === 'rcc' && run.text === details.responsibilityCenterCode));
     }
     if (type === 'PRS' || type === 'RETURNED SUPPLY') {
-      assert.ok(runs.some(run => run.section === 'prsNumber' && run.text === details.prsNumber));
+      assert.ok(!runs.some(run => run.section === 'prsNumber' || run.section === 'prsNumber caption'), 'PRS number is omitted from the official form');
       assert.ok(runs.some(run => run.section === 'returnedByPosition' && run.text === person.position.toUpperCase()));
       assert.ok(runs.some(run => run.section === 'form title' && run.text === 'PROPERTY RETURN SLIP'));
     }

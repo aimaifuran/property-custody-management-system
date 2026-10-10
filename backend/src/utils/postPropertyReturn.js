@@ -5,6 +5,7 @@ const RIS = require('../models/RequisitionIssueSlip');
 const Ledger = require('../models/LedgerTransaction');
 const Card = require('../models/PropertyCard');
 const ReturnedSupply = require('../models/ReturnedSupply');
+const { queueWorkflowEmail } = require('./workflowEmails');
 
 // Call in the same transaction as PRS receipt. Pending requests never change stock.
 module.exports = async function postPropertyReturn(report, session) {
@@ -24,8 +25,8 @@ module.exports = async function postPropertyReturn(report, session) {
     if (entry.accountability && !accountability) throw new Error('Accountability not found');
     if (accountability) {
       if (!accountability.active || quantity > Number(accountability.quantity || 0) - Number(accountability.returnedQuantity || 0)) throw new Error('Return exceeds the remaining accountability');
-      const owner = report.returnedBy?.user || report.submittedBy;
-      if (owner && String(owner) !== String(accountability.user)) throw new Error('This property is assigned to another custodian');
+      const owner = report.returnedBy?.offlineRecipient || report.returnedBy?.user || report.submittedBy;
+      if (owner && String(owner) !== String(report.returnedBy?.offlineRecipient ? accountability.offlineRecipient : accountability.user)) throw new Error('This property is assigned to another custodian');
       if (accountability.pendingMovement && accountability.pendingMovement !== `PRS:${report._id}`) throw new Error('This property already has a pending movement');
       accountability.returnedQuantity = Number(accountability.returnedQuantity || 0) + quantity;
       accountability.active = accountability.returnedQuantity < accountability.quantity;
@@ -58,4 +59,5 @@ module.exports = async function postPropertyReturn(report, session) {
   if (report.items.length) await ReturnedSupply.create(report.items.map(entry => ({ prs: report._id, ris: entry.ris, risItem: entry.risItem, lguName: report.lguName, purpose: report.purpose, quantity: entry.quantity, unit: entry.unit, description: entry.description, propertyNumber: entry.propertyNumber, mrNumber: entry.mrNumber, unitValue: entry.unitValue, totalValue: entry.totalValue, condition: entry.condition, note: report.note, returnedBy: report.returnedBy, returnedTo: report.returnedTo })), { session, ordered: true });
   report.stockPosted = true;
   await report.save({ session });
+  await queueWorkflowEmail('RETURNED', report, session);
 };

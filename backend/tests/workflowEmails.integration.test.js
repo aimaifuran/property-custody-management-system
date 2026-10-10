@@ -1,0 +1,73 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const mongoose = require('mongoose');
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
+const User = require('../src/models/User');
+const Email = require('../src/models/WorkflowEmail');
+const mailer = require('../src/utils/mailer');
+const { queueWorkflowEmail, deliverWorkflowEmails } = require('../src/utils/workflowEmails');
+
+test('workflow emails target online owners, commit before sending, deduplicate, and retry failures', { timeout: 90000 }, async t => {
+  const database = await MongoMemoryReplSet.create({ replSet: { count: 1 }, binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
+  await mongoose.connect(database.getUri());
+  const originalSend = mailer.sendWorkflowEmail;
+  const originalHost = process.env.SMTP_HOST;
+  const sent = [];
+  t.after(async () => {
+    mailer.sendWorkflowEmail = originalSend;
+    if (originalHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = originalHost;
+    await mongoose.disconnect(); await database.stop();
+  });
+  process.env.SMTP_HOST = 'mock.test';
+  mailer.sendWorkflowEmail = async (user, email) => { sent.push({ to: user.email, subject: email.subject, text: email.text }); };
+  await Promise.all([User.init(), Email.init()]);
+  const user = await User.create({ firstName: 'Online', lastName: 'Recipient', username: 'online', email: 'online@example.test', password: 'test', office: 'Treasury', division: 'Finance' });
+  const other = await User.create({ firstName: 'Other', lastName: 'Recipient', username: 'other', email: 'other@example.test', password: 'test', office: 'Treasury', division: 'Finance' });
+  const ris = { _id: new mongoose.Types.ObjectId(), risNumber: 'RIS-001', status: 'PENDING_REVIEW', requestedBy: { user: user._id }, receivedBy: { user: other._id }, items: [{ description: 'Printer', quantityRequested: 3, quantityIssued: 2, unit: 'unit' }] };
+  await queueWorkflowEmail('REQUESTED', ris);
+  await queueWorkflowEmail('REQUESTED', ris);
+  assert.equal(await Email.countDocuments(), 1);
+  await deliverWorkflowEmails();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, user.email);
+  assert.match(sent[0].text, /Printer: 3 unit/);
+
+  await assert.rejects(mongoose.connection.transaction(async session => {
+    await queueWorkflowEmail('ISSUED', ris, session);
+    assert.equal(sent.length, 1);
+    throw new Error('Rollback stock');
+  }), /Rollback stock/);
+  assert.equal(await Email.countDocuments({ eventKey: `ISSUED:${ris._id}` }), 0);
+  await mongoose.connection.transaction(session => queueWorkflowEmail('ISSUED', ris, session));
+  await Promise.all([deliverWorkflowEmails(), deliverWorkflowEmails()]);
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].subject, /approved and issued/);
+  assert.match(sent[1].text, /Printer: 2 unit/);
+  await queueWorkflowEmail('ISSUED', ris);
+  await deliverWorkflowEmails();
+  assert.equal(sent.length, 2);
+
+  const offline = { ...ris, _id: new mongoose.Types.ObjectId(), requestedBy: { offlineRecipient: new mongoose.Types.ObjectId() } };
+  await queueWorkflowEmail('REQUESTED', offline);
+  assert.equal(await Email.countDocuments(), 2);
+  const report = { _id: new mongoose.Types.ObjectId(), prsNumber: 'PRS-001', returnedBy: { user: user._id }, items: [{ description: 'Printer', quantity: 1, unit: 'unit', condition: 'Unserviceable' }] };
+  await mongoose.connection.transaction(session => queueWorkflowEmail('RETURNED', report, session));
+  mailer.sendWorkflowEmail = async () => { throw Object.assign(new Error('SMTP failed'), { code: 'ECONNECTION' }); };
+  await deliverWorkflowEmails();
+  const failed = await Email.findOne({ eventKey: `RETURNED:${report._id}` });
+  assert.equal(failed.status, 'PENDING');
+  assert.equal(failed.lastError, 'ECONNECTION');
+  assert.equal(failed.attempts, 1);
+  mailer.sendWorkflowEmail = async (recipient, email) => { sent.push({ to: recipient.email, subject: email.subject, text: email.text }); };
+  await Email.updateOne({ _id: failed._id }, { $set: { nextAttemptAt: new Date(0) } });
+  await deliverWorkflowEmails();
+  assert.equal(sent.length, 3);
+  assert.match(sent[2].text, /Printer: 1 unit \(Unserviceable\)/);
+  assert.equal((await Email.findById(failed._id)).status, 'SENT');
+  delete process.env.SMTP_HOST;
+  await queueWorkflowEmail('RETURNED', { ...report, _id: new mongoose.Types.ObjectId() });
+  await deliverWorkflowEmails();
+  assert.equal(sent.length, 3);
+  assert.equal(await Email.countDocuments({ status: 'PENDING' }), 1);
+});

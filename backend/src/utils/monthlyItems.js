@@ -63,12 +63,11 @@ function collectMonthlyItems(sources) {
 function recapitulate(rows) {
   const groups = new Map();
   for (const row of rows) {
-    const key = JSON.stringify([row.stockNumber || '', row.item.trim().toLowerCase(), row.unit.toLowerCase(), row.unitCost]);
-    const entry = groups.get(key) || { stockNumber: row.stockNumber || '', item: row.item, unit: row.unit, quantity: 0, unitCost: row.unitCost, totalCost: row.unitCost == null ? null : 0, accountCode: '' };
+    const key = JSON.stringify([row.stockNumber || '', row.item.trim().toLowerCase(), row.unit.toLowerCase()]);
+    const entry = groups.get(key) || { stockNumber: row.stockNumber || '', item: row.item, unit: row.unit, quantity: 0, unitCost: null, totalCost: null, accountCode: '' };
     entry.quantity += row.quantity;
-    if (entry.totalCost != null) entry.totalCost += row.quantity * row.unitCost;
     groups.set(key, entry);
   }
-  return [...groups.values()].map(row => ({ ...row, totalCost: row.totalCost == null ? null : Math.round((row.totalCost + Number.EPSILON) * 100) / 100 })).sort((a, b) => a.item.localeCompare(b.item));
+  return [...groups.values()].sort((a, b) => a.item.localeCompare(b.item));
 }
 module.exports = { monthOf, collectMonthlyItems, recapitulate };

@@ -5,16 +5,16 @@ const Accountability = require('../models/PropertyAccountability');
 const { ownerFilter } = require('./accountLinks');
 
 async function accountRecords(user, includeRequests = false) {
-  const records = await RequisitionIssueSlip.find({ deleted: false, ...ownerFilter(user._id), ...(!includeRequests ? { status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } } : {}) }).sort({ createdAt: -1 });
+  const records = await RequisitionIssueSlip.find({ deleted: false, ...ownerFilter(user._id, user.offlineRecord), ...(!includeRequests ? { status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } } : {}) }).sort({ createdAt: -1 });
   const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': { $in: records.map(record => record._id) } }).sort({ createdAt: -1 });
   const directReturns = await ReturnedSupply.find({ deleted: false, prs: null, ris: { $in: records.map(record => record._id) } });
   const custody = await Accountability.find({ deleted: false, ris: { $in: records.map(record => record._id) } }).lean();
-  const items = records.flatMap(ris => ris.items.filter(item => { const row = custody.find(row => String(row.ris) === String(ris._id) && String(row.risItem) === String(item._id)); return includeRequests || (item.quantityIssued > 0 && (!row || String(row.user) === String(user._id))); }).map(item => {
+  const items = records.flatMap(ris => ris.items.filter(item => { const row = custody.find(row => String(row.ris) === String(ris._id) && String(row.risItem) === String(item._id)); return includeRequests || (item.quantityIssued > 0 && (!row || String(user.offlineRecord ? row.offlineRecipient : row.user) === String(user._id))); }).map(item => {
     const asset = custody.find(row => String(row.ris) === String(ris._id) && String(row.risItem) === String(item._id));
-    const transferred = asset && String(asset.user) !== String(user._id);
+    const transferred = asset && String(user.offlineRecord ? asset.offlineRecipient : asset.user) !== String(user._id);
     const issued = ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(ris.status);
-    const returns = slips.flatMap(slip => slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: slip.prsNumber, status: slip.status || 'RETURNED', rejectionReason: slip.rejectionReason, date: slip.returnedTo?.date || slip.createdAt, receivedBy: slip.returnedTo?.name, note: slip.note })));
-    returns.push(...directReturns.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, prsNumber: 'Returned Supply', status: 'RETURNED', date: entry.returnedTo?.date || entry.createdAt, receivedBy: entry.returnedTo?.name, note: entry.note })));
+    const returns = slips.flatMap(slip => slip.items.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, condition: entry.condition, prsNumber: slip.prsNumber, status: slip.status || 'RETURNED', rejectionReason: slip.rejectionReason, date: slip.returnedTo?.date || slip.createdAt, receivedBy: slip.returnedTo?.name, note: slip.note })));
+    returns.push(...directReturns.filter(entry => String(entry.ris) === String(ris._id) && String(entry.risItem) === String(item._id)).map(entry => ({ quantity: entry.quantity, condition: entry.condition, prsNumber: 'Returned Supply', status: 'RETURNED', date: entry.returnedTo?.date || entry.createdAt, receivedBy: entry.returnedTo?.name, note: entry.note })));
     const quantityReturned = returns.filter(entry => entry.status === 'RETURNED').reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
     const pendingReturn = returns.some(entry => entry.status === 'PENDING');
     const requestStatuses = { DRAFT: 'Recorded request', PENDING_REVIEW: 'Pending admin review', PENDING_APPROVAL: 'Pending approval', REVIEWED: 'Reviewed — awaiting issuance', APPROVED: 'Approved — awaiting issuance', REJECTED: 'Request rejected' };

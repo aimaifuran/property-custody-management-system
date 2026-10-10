@@ -58,3 +58,15 @@ test('impossible header or signatory lengths fail clearly instead of clipping th
   await assert.rejects(buildPpePdf({ ...report, lgu: 'Header '.repeat(2000) }), /header is too long for A4/);
   await assert.rejects(buildPpePdf({ ...report, custodian: 'Custodian '.repeat(2000) }), /signatory details are too long for A4/);
 });
+
+ test('recapitulation hides costs from older saved reports while main table retains costs', async () => {
+  const pdf = await PDFDocument.load(await buildPpePdf({ ...report,
+    rows: [{ ...report.rows[0], unitCost: 12.5 }],
+    recapitulation: [{ item: 'Legacy recap', unit: 'UNIT', quantity: 1, unitCost: 987.65, totalCost: 1975.30 }],
+  }));
+  const text = (await inspectReportPdf(pdf, FORM_PDF_A4_PORTRAIT)).join('\n');
+  assert.ok(text.includes('Legacy recap'));
+  assert.ok(text.includes('12.50'));
+  assert.ok(!text.includes('987.65'));
+  assert.ok(!text.includes('1975.30'));
+});

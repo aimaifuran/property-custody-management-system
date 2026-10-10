@@ -19,29 +19,28 @@ const captions = {
 };
 const monetary = new Set(['amount', 'unitCost', 'totalCost', 'unitValue', 'totalValue', 'totalAmount']);
 const centered = /quantity|^date|^unit$/i;
-const lineHeight = 11;
 export const TEMPLATE_CELL_PADDING = 5;
 export const TEMPLATE_ROW_LINE_HEIGHT = 12;
 const minimumRowHeight = 22;
 const tableDefinitions = {
   iar: { left: 90, right: 522, top: 612, bottom: 273, widths: [82, 221, 63, 66], labels: ['Stock / Property No.', 'Description', 'Unit', 'Quantity'] },
   pc: { left: 75, right: 766, top: 380, bottom: 80, widths: [60, 84, 50, 50, 205, 50, 85, 107], labels: ['Date', 'Reference / PAR No.', 'Qty.', 'Qty.', 'Office / Officer', 'Qty.', 'Amount', 'Remarks'], groups: [{ start: 2, count: 1, label: 'Receipt' }, { start: 3, count: 2, label: 'Issue / Transfer / Disposal' }, { start: 5, count: 1, label: 'Balance' }] },
-  ics: { left: 90, right: 523, top: 680, bottom: 319, widths: [46, 37, 60, 65, 95, 72, 58], labels: ['Quantity', 'Unit', 'Unit Cost', 'Total Cost', 'Description', 'Inventory Item No.', 'Estimated Useful Life'], groups: [{ start: 2, count: 2, label: 'Amount' }], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 2, count: 2 }, { key: 'remarks', label: 'Remarks:', start: 2, count: 5 }] },
+  ics: { left: 90, right: 523, top: 680, bottom: 319, widths: [46, 37, 60, 65, 95, 72, 58], labels: ['Quantity', 'Unit', 'Unit Cost', 'Total Cost', 'Description', 'Inventory Item No.', 'Estimated Useful Life'], groups: [{ start: 2, count: 2, label: 'Amount' }], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 2, count: 2, separateColumns: true }, { key: 'remarks', label: 'REMARKS:', start: 1, count: 6 }] },
   par: { left: 92, right: 520, top: 677, bottom: 318, widths: [46, 37, 140, 71, 62, 72], labels: ['Quantity', 'Unit', 'Description', 'Property Number', 'Date Acquired', 'Amount'], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 5, count: 1 }, { key: 'remarks', label: 'Remarks:', start: 1, count: 5 }] },
   prs: { left: 51, right: 531, top: 671, bottom: 346, widths: [35, 35, 89, 65, 66, 70, 60, 60], labels: ['Qty.', 'Unit', 'Description', 'Property Number', 'M.R. No.', 'Name of End User', 'Unit Value', 'Total Value'], footers: [{ key: 'note', label: 'NOTE:', start: 2, count: 6 }, { key: 'totalAmount', label: 'TOTAL', start: 7, count: 1 }, { label: 'CERTIFICATION' }] },
 };
 
-export function wrapTemplateText(value, font, width) {
+export function wrapTemplateText(value, font, width, fontSize = FORM_PDF_FONT_SIZE) {
   const result = [];
   for (const paragraph of String(value ?? '').split(/\r?\n/)) {
     let line = '';
     for (const word of paragraph.trim().split(/\s+/).filter(Boolean)) {
       const joined = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(joined, FORM_PDF_FONT_SIZE) <= width) { line = joined; continue; }
+      if (font.widthOfTextAtSize(joined, fontSize) <= width) { line = joined; continue; }
       if (line) { result.push(line); line = ''; }
       // Keep identifiers and long words visible too, even without spaces.
       for (const character of word) {
-        if (line && font.widthOfTextAtSize(line + character, FORM_PDF_FONT_SIZE) > width) { result.push(line); line = ''; }
+        if (line && font.widthOfTextAtSize(line + character, fontSize) > width) { result.push(line); line = ''; }
         line += character;
       }
     }
@@ -50,7 +49,8 @@ export function wrapTemplateText(value, font, width) {
   return result.length ? result : [''];
 }
 
-export function templateRowLayout(template, font) {
+export function templateRowLayout(template, font, fontSize = FORM_PDF_FONT_SIZE) {
+  const rowLineHeight = Math.max(TEMPLATE_ROW_LINE_HEIGHT, fontSize + 3);
   const original = tableDefinitions[template];
   if (!original) throw new Error('Unable to locate the official form table');
   const pageSize = template === 'pc' ? FORM_PDF_A4_LANDSCAPE : FORM_PDF_A4_PORTRAIT;
@@ -61,18 +61,18 @@ export function templateRowLayout(template, font) {
   const tableColumns = columns[template].map((key, index) => {
     const width = definition.widths[index];
     const label = definition.labels[index];
-    const column = { key, label, x, width, lines: wrapTemplateText(label, font, width - TEMPLATE_CELL_PADDING * 2) };
+    const column = { key, label, x, width, lines: wrapTemplateText(label, font, width - TEMPLATE_CELL_PADDING * 2, fontSize) };
     x += width;
     return column;
   });
   const groups = (definition.groups || []).map(group => {
     const first = tableColumns[group.start];
     const width = tableColumns.slice(group.start, group.start + group.count).reduce((sum, column) => sum + column.width, 0);
-    return { ...group, x: first.x, width, lines: wrapTemplateText(group.label, font, width - TEMPLATE_CELL_PADDING * 2) };
+    return { ...group, x: first.x, width, lines: wrapTemplateText(group.label, font, width - TEMPLATE_CELL_PADDING * 2, fontSize) };
   });
-  const groupHeight = groups.length ? Math.max(...groups.map(group => group.lines.length)) * TEMPLATE_ROW_LINE_HEIGHT + TEMPLATE_CELL_PADDING * 2 : 0;
-  const childHeight = Math.max(...tableColumns.filter((column, index) => groups.some(group => index >= group.start && index < group.start + group.count)).map(column => column.lines.length), 0) * TEMPLATE_ROW_LINE_HEIGHT + TEMPLATE_CELL_PADDING * 2;
-  const standaloneHeight = Math.max(...tableColumns.map(column => column.lines.length)) * TEMPLATE_ROW_LINE_HEIGHT + TEMPLATE_CELL_PADDING * 2;
+  const groupHeight = groups.length ? Math.max(...groups.map(group => group.lines.length)) * rowLineHeight + TEMPLATE_CELL_PADDING * 2 : 0;
+  const childHeight = Math.max(...tableColumns.filter((column, index) => groups.some(group => index >= group.start && index < group.start + group.count)).map(column => column.lines.length), 0) * rowLineHeight + TEMPLATE_CELL_PADDING * 2;
+  const standaloneHeight = Math.max(...tableColumns.map(column => column.lines.length)) * rowLineHeight + TEMPLATE_CELL_PADDING * 2;
   const headerHeight = Math.max(standaloneHeight, groups.length ? groupHeight + childHeight : 0);
   const footerHeight = 20;
   const footers = definition.footers || [];
@@ -88,7 +88,7 @@ export function templateRowLayout(template, font) {
   });
   const signatures = signatureLayout(template, definition);
   for (const field of signatures?.fields || []) headerBounds[field.key] = field.bounds;
-  return { ...definition, pageSize, template, signatures, columns: tableColumns, groups, groupHeight, headerHeight, footerHeight, footers, bodyTop, bodyBottom, headerBounds, capacity: bodyTop - bodyBottom };
+  return { ...definition, fontSize, rowLineHeight, pageSize, template, signatures, columns: tableColumns, groups, groupHeight, headerHeight, footerHeight, footers, bodyTop, bodyBottom, headerBounds, capacity: bodyTop - bodyBottom };
 }
 
 function signatureLayout(template, table) {
@@ -119,13 +119,15 @@ function signatureLayout(template, table) {
     add('returnedByName', right, table.bottom - 83);
     add('returnedBy', right, table.bottom - 149);
     add('returnedByPosition', right, table.bottom - 165);
-    for (const [key, panel] of [['returnedToDate', left], ['returnedByDate', right]]) fields.push({ key, bounds: { x: panel.x + 5, y: table.bottom - 55, width: 115, height: 11 } });
+
     for (const [panel, y] of [[left, table.bottom - 86], [left, table.bottom - 152], [right, table.bottom - 86], [right, table.bottom - 152]]) rules.push({ x: panel.x + 20, y, width: panel.width - 40 });
   } else {
     const [left, right] = panels;
     for (const [key, panel, y] of [['inspectionDate', left, table.bottom - 40], ['acceptanceDate', right, table.bottom - 40], ['inspectedBy', left, table.bottom - 146], ['acceptedBy', right, table.bottom - 146]]) {
-      add(key, panel, y);
-      rules.push({ x: panel.x + 20, y: y - 2, width: panel.width - 40 });
+      if (key === 'inspectionDate' || key === 'acceptanceDate') {
+        fields.push({ key, bounds: { x: panel.x + 103, y, width: panel.width - 123, height: 10 } });
+      } else add(key, panel, y);
+      rules.push({ x: panel.x + (key === 'inspectionDate' || key === 'acceptanceDate' ? 103 : 20), y: y - 2, width: panel.width - (key === 'inspectionDate' || key === 'acceptanceDate' ? 123 : 40) });
     }
   }
   return { panels, fields, rules, bottom };
@@ -139,21 +141,21 @@ export function paginateTemplateItems(items, layout, font, valueFor, options = {
     const cells = Object.fromEntries(layout.columns.map(column => {
       const value = valueFor(column.key, item);
       const available = column.width - TEMPLATE_CELL_PADDING * 2;
-      if ((monetary.has(column.key) || /quantity|^date/i.test(column.key)) && font.widthOfTextAtSize(value, FORM_PDF_FONT_SIZE) > available) {
+      if ((monetary.has(column.key) || /quantity|^date/i.test(column.key)) && font.widthOfTextAtSize(value, layout.fontSize) > available) {
         options.onOverflow?.({ key: column.key, caption: `Item ${itemIndex + 1} — ${fieldCaption(column.key)}`, value });
         return [column.key, ['…']];
       }
-      return [column.key, wrapTemplateText(value, font, available)];
+      return [column.key, wrapTemplateText(value, font, available, layout.fontSize)];
     }));
     const lineCount = Math.max(1, ...Object.values(cells).map(lines => lines.length));
-    const height = Math.max(minimumRowHeight, lineCount * TEMPLATE_ROW_LINE_HEIGHT + TEMPLATE_CELL_PADDING * 2);
+    const height = Math.max(minimumRowHeight, lineCount * layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2);
     if (height <= layout.capacity && page.length && used + height > layout.capacity) { pages.push(page); page = []; used = 0; }
     for (let line = 0; line < lineCount;) {
-      let fit = Math.floor((layout.capacity - used - TEMPLATE_CELL_PADDING * 2) / TEMPLATE_ROW_LINE_HEIGHT);
-      if (fit < 1) { pages.push(page); page = []; used = 0; fit = Math.floor((layout.capacity - TEMPLATE_CELL_PADDING * 2) / TEMPLATE_ROW_LINE_HEIGHT); }
+      let fit = Math.floor((layout.capacity - used - TEMPLATE_CELL_PADDING * 2) / layout.rowLineHeight);
+      if (fit < 1) { pages.push(page); page = []; used = 0; fit = Math.floor((layout.capacity - TEMPLATE_CELL_PADDING * 2) / layout.rowLineHeight); }
       if (fit < 1) throw new Error('The official form table has no space for item text');
       const count = Math.min(lineCount - line, fit);
-      const rowHeight = Math.max(minimumRowHeight, count * TEMPLATE_ROW_LINE_HEIGHT + TEMPLATE_CELL_PADDING * 2);
+      const rowHeight = Math.max(minimumRowHeight, count * layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2);
       page.push({ ...Object.fromEntries(layout.columns.map(column => [column.key, cells[column.key].slice(line, line + count)])), _continued: line > 0, _height: rowHeight });
       used += rowHeight;
       line += count;
@@ -166,13 +168,15 @@ export function paginateTemplateItems(items, layout, font, valueFor, options = {
 
 function drawValue(page, font, value, bounds, options, alignment = 'left') {
   if (!value) return;
-  const width = font.widthOfTextAtSize(value, FORM_PDF_FONT_SIZE);
-  const ascent = font.heightAtSize(FORM_PDF_FONT_SIZE, { descender: false });
-  const height = font.heightAtSize(FORM_PDF_FONT_SIZE);
+  const fontSize = options.fontSize ?? FORM_PDF_FONT_SIZE;
+  const width = font.widthOfTextAtSize(value, fontSize);
+  const ascent = font.heightAtSize(fontSize, { descender: false });
+  const height = font.heightAtSize(fontSize);
+  if (height > bounds.height) bounds = { ...bounds, y: bounds.y - (height - bounds.height), height };
   const x = bounds.x + (alignment === 'right' ? bounds.width - width : alignment === 'center' ? (bounds.width - width) / 2 : 0);
   const y = bounds.y + (bounds.height - height) / 2 + height - ascent;
-  page.drawText(value, { x, y, font, size: FORM_PDF_FONT_SIZE });
-  options.onDraw?.({ text: value, x, y, width, height, ascent, size: FORM_PDF_FONT_SIZE, bounds, cellBounds: options.cellBounds, page: options.page, section: options.section });
+  page.drawText(value, { x, y, font, size: fontSize });
+  options.onDraw?.({ text: value, x, y, width, height, ascent, size: fontSize, bounds, cellBounds: options.cellBounds, page: options.page, section: options.section });
 }
 
 function tableCell(page, bounds) {
@@ -180,11 +184,12 @@ function tableCell(page, bounds) {
 }
 
 function tableLines(page, font, lines, cellBounds, options, alignment = 'left') {
-  const height = font.heightAtSize(FORM_PDF_FONT_SIZE);
-  const blockHeight = height + (lines.length - 1) * TEMPLATE_ROW_LINE_HEIGHT;
+  const rowLineHeight = Math.max(TEMPLATE_ROW_LINE_HEIGHT, (options.fontSize ?? FORM_PDF_FONT_SIZE) + 3);
+  const height = font.heightAtSize(options.fontSize ?? FORM_PDF_FONT_SIZE);
+  const blockHeight = height + (lines.length - 1) * rowLineHeight;
   const content = { x: cellBounds.x + TEMPLATE_CELL_PADDING, y: cellBounds.y + TEMPLATE_CELL_PADDING, width: cellBounds.width - TEMPLATE_CELL_PADDING * 2, height: cellBounds.height - TEMPLATE_CELL_PADDING * 2 };
-  const firstBottom = cellBounds.y + (cellBounds.height - blockHeight) / 2 + (lines.length - 1) * TEMPLATE_ROW_LINE_HEIGHT;
-  lines.forEach((line, index) => drawValue(page, font, line, { ...content, y: firstBottom - index * TEMPLATE_ROW_LINE_HEIGHT, height }, { ...options, cellBounds }, alignment));
+  const firstBottom = cellBounds.y + (cellBounds.height - blockHeight) / 2 + (lines.length - 1) * rowLineHeight;
+  lines.forEach((line, index) => drawValue(page, font, line, { ...content, y: firstBottom - index * rowLineHeight, height }, { ...options, cellBounds }, alignment));
 }
 
 export function drawTemplateTableFrame(page, fonts, rows, layout, options = {}) {
@@ -206,7 +211,7 @@ export function drawTemplateTableFrame(page, fonts, rows, layout, options = {}) 
     for (const column of layout.columns) tableCell(page, { x: column.x, y, width: column.width, height: row._height });
   }
   const remaining = y - layout.bodyBottom;
-  const blankCount = Math.max(1, Math.floor(remaining / minimumRowHeight));
+  const blankCount = Math.max(1, Math.floor(remaining / Math.max(minimumRowHeight, layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2)));
   if (remaining > .01) for (let index = 0; index < blankCount; index++) {
     const height = remaining / blankCount;
     y -= height;
@@ -215,10 +220,22 @@ export function drawTemplateTableFrame(page, fonts, rows, layout, options = {}) 
   layout.footers.forEach((footer, index) => {
     const y = layout.bodyBottom - (index + 1) * layout.footerHeight;
     const valueColumn = footer.key ? layout.columns[footer.start] : null;
+    if (footer.separateColumns) {
+      layout.columns.forEach((column, columnIndex) => {
+        if (columnIndex > footer.start && columnIndex < footer.start + footer.count) return;
+        const width = columnIndex === footer.start
+          ? layout.columns.slice(footer.start, footer.start + footer.count).reduce((sum, cell) => sum + cell.width, 0)
+          : column.width;
+        tableCell(page, { x: column.x, y, width, height: layout.footerHeight });
+      });
+      const first = layout.columns[0];
+      tableLines(page, fonts.bold, [footer.label], { x: first.x, y, width: first.width, height: layout.footerHeight }, { ...options, section: 'table footer caption' }, 'left');
+      return;
+    }
     const labelWidth = valueColumn ? valueColumn.x - layout.left : layout.right - layout.left;
     const labelCell = { x: layout.left, y, width: labelWidth, height: layout.footerHeight };
     tableCell(page, labelCell);
-    tableLines(page, fonts.regular, [footer.label], labelCell, { ...options, section: footer.key === 'remarks' ? 'remarks caption' : 'table footer caption' }, footer.key === 'totalAmount' ? 'right' : 'center');
+    tableLines(page, fonts.regular, [footer.label], labelCell, { ...options, section: footer.key === 'remarks' ? 'remarks caption' : 'table footer caption' }, layout.template === 'ics' ? 'left' : footer.key === 'totalAmount' ? 'right' : 'center');
     if (valueColumn) {
       const valueWidth = layout.columns.slice(footer.start, footer.start + footer.count).reduce((sum, column) => sum + column.width, 0);
       tableCell(page, { x: valueColumn.x, y, width: valueWidth, height: layout.footerHeight });
@@ -246,15 +263,16 @@ function drawSignaturePanels(page, fonts, layout, options) {
   if (layout.template === 'iar') {
     panels.forEach((panel, index) => {
       tableLines(page, fonts.bold, [index ? 'ACCEPTANCE' : 'INSPECTION'], { x: panel.x, y: layout.bottom - 22, width: panel.width, height: 22 }, { ...options, section: 'signatory caption' }, 'center');
-      drawValue(page, fonts.regular, index ? 'DATE RECEIVED:' : 'DATE INSPECTED:', { x: panel.x + 20, y: layout.bottom - 29, width: panel.width - 40, height: 11 }, { ...options, section: 'signature field caption' }, 'center');
+      page.drawLine({ start: { x: panel.x, y: layout.bottom - 24 }, end: { x: panel.x + panel.width, y: layout.bottom - 24 }, thickness: .65 });
+      drawValue(page, fonts.regular, index ? 'DATE RECEIVED:' : 'DATE INSPECTED:', { x: panel.x + 10, y: layout.bottom - 40, width: 90, height: 10 }, { ...options, section: 'inspection date caption' }, 'left');
       drawValue(page, fonts.regular, index ? 'SUPPLY AND/OR PROPERTY CUSTODIAN' : 'INSPECTION OFFICER / INSPECTION COMMITTEE', { x: panel.x + 10, y: layout.bottom - 165, width: panel.width - 20, height: 12 }, { ...options, section: 'signature field caption' }, 'center');
     });
     return;
   }
   panels.forEach((panel, index) => {
-    const statement = index ? 'I HEREBY CERTIFY THAT I RETURNED THIS UNIT/ITEM ON' : 'I HEREBY CERTIFY THAT I HAVE RECEIVED THE ITEM/UNIT THIS';
-    tableLines(page, fonts.regular, wrapTemplateText(statement, fonts.regular, panel.width - 12), { x: panel.x, y: layout.bottom - 36, width: panel.width, height: 36 }, { ...options, section: 'certification statement' }, 'center');
-    drawValue(page, fonts.regular, index ? 'RECEIVED FROM:' : 'RETURNED TO:', { x: panel.x + 126, y: layout.bottom - 55, width: panel.width - 132, height: 12 }, { ...options, section: 'certification caption' }, 'center');
+    const statement = `${index ? 'I HEREBY CERTIFY THAT I RETURNED THIS UNIT/ITEM ON' : 'I HEREBY CERTIFY THAT I HAVE RECEIVED THE ITEM/UNIT THIS'} ${options.certificationDates?.[index] || '____________'}`;
+    tableLines(page, fonts.regular, wrapTemplateText(statement, fonts.regular, panel.width - 12), { x: panel.x, y: layout.bottom - 50, width: panel.width, height: 50 }, { ...options, section: 'certification statement' }, 'center');
+    drawValue(page, fonts.regular, index ? 'RECEIVED FROM:' : 'RETURNED TO:', { x: panel.x + 10, y: layout.bottom - 65, width: panel.width - 20, height: 12 }, { ...options, section: 'certification caption' }, 'center');
     if (index) drawValue(page, fonts.regular, 'RETURNED BY:', { x: panel.x + 10, y: layout.bottom - 108, width: panel.width - 20, height: 12 }, { ...options, section: 'certification caption' }, 'center');
     drawValue(page, fonts.regular, 'THE ITEMS/ARTICLES DESCRIBED ABOVE', { x: panel.x + 10, y: layout.bottom - 124, width: panel.width - 20, height: 12 }, { ...options, section: 'certification caption' }, 'center');
   });
@@ -299,7 +317,7 @@ export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, opt
   drawValue(page, fonts.bold, titles[template], { x: left, y: top - 47, width, height: 22 }, { ...options, section: 'form title' }, 'center');
   const fields = [];
   const add = (label, key, x, y, fieldWidth) => {
-    const labelWidth = fonts.bold.widthOfTextAtSize(label, FORM_PDF_FONT_SIZE) + 3;
+    const labelWidth = fonts.bold.widthOfTextAtSize(label, options.fontSize ?? FORM_PDF_FONT_SIZE) + 3;
     drawValue(page, fonts.bold, label, { x, y, width: labelWidth, height: 12 }, { ...options, section: `${key} caption` });
     const rectangle = { x: x + labelWidth, y, width: fieldWidth - labelWidth, height: 12 };
     fields.push({ key, rectangle });
@@ -330,7 +348,7 @@ export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, opt
     pair(436, ['Description', 'description'], ['S/N', 'serialNumber']);
   } else if (template === 'prs') {
     add('Name of Local Government Unit:', 'lguName', left, 754, width * .7 - 10);
-    add('PRS No.:', 'prsNumber', left + width * .7, 754, width * .3);
+
     drawValue(page, fonts.regular, 'Purpose:', { x: left, y: 725, width: 40, height: 12 }, { ...options, section: 'purpose caption' });
     let x = left + 44;
     for (const [key, label, choiceWidth] of [['disposal', 'Disposal', 72], ['repair', 'Repair', 64], ['returnedToStock', 'Returned to Stock', 123], ['other', 'Other:', 75]]) {
@@ -363,13 +381,13 @@ export function drawTemplateHeaders(page, font, template, valueFor, options = {}
     const value = signature ? signatoryText(valueFor(key)) : valueFor(key);
     if (!value) continue;
     const inset = 1;
-    const extraHeight = Math.max(0, font.heightAtSize(FORM_PDF_FONT_SIZE) - rectangle.height);
+    const extraHeight = Math.max(0, font.heightAtSize(options.fontSize ?? FORM_PDF_FONT_SIZE) - rectangle.height);
     const bounds = { ...rectangle, x: rectangle.x + inset, width: rectangle.width - inset - 1, y: rectangle.y - extraHeight / 2, height: rectangle.height + extraHeight };
-    const lines = wrapTemplateText(value, font, bounds.width);
+    const lines = wrapTemplateText(value, font, bounds.width, options.fontSize ?? FORM_PDF_FONT_SIZE);
     let printed = lines[0];
     if (lines.length > 1) {
       overflow.push({ key, caption: fieldCaption(key), value });
-      while (printed && font.widthOfTextAtSize(`${printed}…`, FORM_PDF_FONT_SIZE) > bounds.width) printed = printed.slice(0, -1);
+      while (printed && font.widthOfTextAtSize(`${printed}…`, (options.fontSize ?? FORM_PDF_FONT_SIZE)) > bounds.width) printed = printed.slice(0, -1);
       printed += '…';
     }
     drawValue(page, font, printed, bounds, { ...options, cellBounds, section: key }, signature ? 'center' : monetary.has(key) ? 'right' : 'left');
@@ -380,6 +398,7 @@ export function drawTemplateHeaders(page, font, template, valueFor, options = {}
 export async function appendTemplateInformation(output, entries, title, documentNumber, fontsFor, options = {}) {
   if (!entries.length) return;
   const fonts = await fontsFor(output);
+  const lineHeight = Math.max(11, (options.fontSize ?? FORM_PDF_FONT_SIZE) + 3);
   const width = FORM_PDF_A4_PORTRAIT[0] - FORM_PDF_MARGIN * 2;
   let page;
   let top = 0;
@@ -387,7 +406,7 @@ export async function appendTemplateInformation(output, entries, title, document
     page = output.addPage(FORM_PDF_A4_PORTRAIT);
     top = FORM_PDF_A4_PORTRAIT[1] - FORM_PDF_MARGIN;
     for (const heading of [`${title} — Additional Information`, documentNumber ? `Document No.: ${documentNumber}` : '', 'Full values for fields marked with an ellipsis in the form.'].filter(Boolean)) {
-      for (const line of wrapTemplateText(heading, fonts.regular, width)) {
+      for (const line of wrapTemplateText(heading, fonts.regular, width, options.fontSize ?? FORM_PDF_FONT_SIZE)) {
         drawValue(page, fonts.regular, line, { x: FORM_PDF_MARGIN, y: top - lineHeight, width, height: lineHeight }, { ...options, page: output.getPageCount() - 1, section: 'information heading' });
         top -= lineHeight;
       }
@@ -396,7 +415,7 @@ export async function appendTemplateInformation(output, entries, title, document
   };
   nextPage();
   for (const entry of entries) {
-    const lines = wrapTemplateText(entry.value, fonts.regular, width);
+    const lines = wrapTemplateText(entry.value, fonts.regular, width, options.fontSize ?? FORM_PDF_FONT_SIZE);
     if (top - lineHeight * Math.min(lines.length + 2, 6) < FORM_PDF_MARGIN) nextPage();
     const signature = isFormSignatoryField(entry.key);
     drawValue(page, fonts.bold, `${signature ? entry.caption.toUpperCase() : entry.caption}:`, { x: FORM_PDF_MARGIN, y: top - lineHeight, width, height: lineHeight }, { ...options, page: output.getPageCount() - 1, section: entry.key }, signature ? 'center' : 'left');

@@ -49,7 +49,7 @@ test('PTR header values follow their captions on retained underlines in PDF and 
     assert.ok(value.underline.start.x <= value.x && value.underline.end.x >= value.x + value.width, `${caption}: underline spans value`);
     assert.ok(value.underline.start.y < value.y - value.descent, `${caption}: underline below text`);
   }
-  assert.ok(runs.find(run => run.text === 'Trust Fund').y < runs.find(run => run.text === 'LGU Carigara').y, 'Fund Cluster is below Entity Name');
+  assert.equal(runs.find(run => run.text === 'Trust Fund').y, runs.find(run => run.text === 'LGU Carigara').y, 'Entity Name and Fund Cluster share one row');
   assertLayout(runs);
   const exported = await PDFDocument.load(await buildHistoricalFormPdf({ type: 'PTR', details }));
   assert.equal(exported.getPageCount(), 1, 'Shared print/download builder uses the corrected PTR layout');

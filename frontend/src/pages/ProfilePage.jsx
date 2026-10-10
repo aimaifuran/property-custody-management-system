@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Building2, Camera, Mail, ShieldCheck } from 'lucide-react';
+import { Building2, Camera, Mail, Pencil, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +10,30 @@ export default function ProfilePage() {
     const pictureInputRef = useRef(null);
     const [uploading, setUploading] = useState(false);
     const [pictureError, setPictureError] = useState('');
+    const [editing, setEditing] = useState(false);
+    const [credentials, setCredentials] = useState({ email: '', password: '', confirmation: '' });
+    const [saving, setSaving] = useState(false);
+    const [accountError, setAccountError] = useState('');
+    const editAccount = () => {
+        setCredentials({ email: user.email || '', password: '', confirmation: '' });
+        setAccountError(''); setEditing(true);
+    };
+    const saveAccount = async event => {
+        event.preventDefault();
+        if (credentials.password !== credentials.confirmation) { setAccountError('Passwords do not match.'); return; }
+        setSaving(true); setAccountError('');
+        try {
+            await axios.put(`/users/${user._id}`, {
+                firstName: user.firstName, lastName: user.lastName, username: user.username,
+                office: user.office, division: user.division,
+                email: credentials.email, password: credentials.password,
+            });
+            await refreshUser();
+            setEditing(false); setCredentials({ email: '', password: '', confirmation: '' });
+            toast.success('Email and password settings saved');
+        } catch (error) { setAccountError(error.response?.data?.message || 'Unable to save account settings.'); }
+        finally { setSaving(false); }
+    };
     const uploadPicture = async event => {
         const file = event.target.files?.[0];
         event.target.value = '';
@@ -55,6 +79,18 @@ export default function ProfilePage() {
                         <div><dt>Member since</dt><dd>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Not available'}</dd></div>
                     </dl>
                     <div className="user-card-labels"><span className="user-role user-role--admin">Administrator</span></div>
+                    {user.role === 'admin' && !editing && <div className="user-card-account-actions profile-account-settings"><button type="button" className="user-create-button" onClick={editAccount}><Pencil size={16} aria-hidden="true" /><span>Edit Email / Password</span></button></div>}
+                    {user.role === 'admin' && editing && <form className="profile-account-settings" onSubmit={saveAccount}>
+                        <h3>Account settings</h3>
+                        <p>Update your email or set a new password. Leave password blank to keep your current password.</p>
+                        <fieldset disabled={saving}>
+                            <label>Email<input type="email" autoComplete="email" required value={credentials.email} onChange={event => setCredentials({ ...credentials, email: event.target.value })} /></label>
+                            <label>New password<input type="password" autoComplete="new-password" minLength={8} value={credentials.password} onChange={event => setCredentials({ ...credentials, password: event.target.value })} /></label>
+                            <label>Confirm new password<input type="password" autoComplete="new-password" required={Boolean(credentials.password)} value={credentials.confirmation} onChange={event => setCredentials({ ...credentials, confirmation: event.target.value })} /></label>
+                            {accountError && <p role="alert" className="user-editor-error">{accountError}</p>}
+                            <div className="profile-account-settings-actions"><button type="submit" className="user-create-button">{saving ? 'Saving...' : 'Save Changes'}</button><button type="button" onClick={() => { setEditing(false); setCredentials({ email: '', password: '', confirmation: '' }); }}>Cancel</button></div>
+                        </fieldset>
+                    </form>}
                     {uploading && <p className="profile-picture-feedback" role="status">Saving profile picture...</p>}
                     {pictureError && <p role="alert" className="profile-picture-error">{pictureError}</p>}
                 </div>

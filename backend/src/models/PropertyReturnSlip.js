@@ -26,6 +26,7 @@ const propertyReturnSlipSchema = new mongoose.Schema({
   }],
   note: { type: String },
   returnedBy: {
+    offlineRecipient: { type: mongoose.Schema.Types.ObjectId, ref: 'OfflineRecipient', index: true },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     date: { type: Date },
     name: { type: String, trim: true },
