@@ -166,7 +166,7 @@
 .user-records-dialog .user-records-table :is(th, td) { overflow-wrap: normal; word-break: normal; line-height: 1.5; }
 .user-records-dialog .user-records-table td:first-child { min-width: 180px; overflow-wrap: anywhere; }
 .user-records-dialog .user-records-request-table { min-width: 800px; }
-.user-records-dialog .user-records-issued-table { min-width: 1260px; }
+.user-records-dialog .user-records-issued-table { min-width: 0; table-layout: fixed; }
 .user-records-dialog .user-records-returned-table { min-width: 1080px; }
 .user-records-dialog .user-records-table td:nth-child(2),
 .user-records-dialog .user-records-returned-table td:nth-child(3),
@@ -179,12 +179,32 @@
 .user-records-dialog .user-records-return-success svg { flex-shrink: 0; }
 .user-records-request-status { display: inline-flex; flex-direction: column; align-items: center; }
 .user-records-dialog .user-records-request-status-note { margin-top: 4px; font-size: 11px; line-height: 1.4; text-align: center; }
-.user-records-dialog .user-records-issued-table .user-records-actions-column { min-width: 360px; text-align: right; vertical-align: middle; }
-.user-records-dialog .user-records-issued-table .user-records-quantity-column { min-width: 120px; text-align: center; vertical-align: middle; }
+.user-records-dialog .user-records-issued-table :is(th, td) { min-width: 0; padding: 10px 8px; white-space: normal; overflow-wrap: anywhere; }
+.user-records-dialog .user-records-issued-table th:nth-child(1) { width: 17%; }
+.user-records-dialog .user-records-issued-table th:nth-child(2) { width: 11%; }
+.user-records-dialog .user-records-issued-table th:nth-child(3) { width: 5%; }
+.user-records-dialog .user-records-issued-table th:nth-child(4) { width: 6%; }
+.user-records-dialog .user-records-issued-table th:nth-child(5) { width: 7%; }
+.user-records-dialog .user-records-issued-table th:nth-child(6) { width: 10%; }
+.user-records-dialog .user-records-issued-table th:nth-child(7) { width: 9%; }
+.user-records-dialog .user-records-issued-table .user-records-actions-column { width: 27%; text-align: right; vertical-align: middle; }
+.user-records-dialog .user-records-issued-table .user-records-quantity-column { width: 8%; text-align: center; vertical-align: middle; }
 .user-records-dialog .user-records-quantity-input { width: 72px; max-width: 72px; box-sizing: border-box; text-align: center; }
-.user-records-return-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.user-records-condition-actions { display: flex; align-items: center; gap: 8px; }
+.user-records-return-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.user-records-condition-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
 .user-records-return-actions button { white-space: nowrap; flex-shrink: 0; }
+.user-records-dialog .user-records-return-actions button { padding: 6px 8px; font-size: 12px; }
+@media (max-width: 1100px) {
+  .user-records-dialog .user-records-issued-table,
+  .user-records-dialog .user-records-issued-table tbody { display: block; width: 100%; }
+  .user-records-dialog .user-records-issued-table thead { display: none; }
+  .user-records-dialog .user-records-issued-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid #e7eee8; }
+  .user-records-dialog .user-records-issued-table td { display: block; width: auto; border: 0; white-space: normal; }
+  .user-records-dialog .user-records-issued-table td::before { content: attr(data-label); display: block; margin-bottom: 4px; font-weight: 600; color: #52735e; }
+  .user-records-dialog .user-records-issued-table td:first-child,
+  .user-records-dialog .user-records-issued-table .user-records-actions-column { grid-column: 1 / -1; }
+  .user-records-dialog .user-records-issued-table .user-records-quantity-column { text-align: left; }
+}
 .user-records-empty { padding: 22px; background: #f7f9f6; border-radius: 12px; color: #71867a; }
 @media (max-width: 600px) { .user-records-dialog { padding: 18px; } }
 .developer-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 16px; list-style: none; padding: 0; margin: 24px 0 0; }

@@ -276,7 +276,7 @@ try {
     await delay(100);
   };
   if (process.env.CURRENT_CHANGES_ONLY) {
-    const widths = [320, 375, 768, 1024, 1440];
+    const widths = [320, 375, 768, 1024, 1200, 1440];
     let checks = 0;
     const checkLayout = async label => {
       for (const width of widths) {
@@ -292,12 +292,14 @@ try {
             dialog: dialog ? [dialog.getBoundingClientRect().width, innerWidth] : [],
             avatar: avatar ? [avatar.getBoundingClientRect().width, avatar.getBoundingClientRect().height] : [],
             quantity: quantity?.getBoundingClientRect().width,
+            issued: document.querySelector('.user-records-issued-table') ? (() => { const table = document.querySelector('.user-records-issued-table'); return [table.parentElement.clientWidth, table.parentElement.scrollWidth]; })() : [],
             tables: [...document.querySelectorAll('.user-records-dialog .user-records-table')].map(table => [table.clientWidth, table.scrollWidth, getComputedStyle(table).overflowX]) };
         })()`);
         assert.ok(layout.page[1] <= layout.page[0] + 1, `${label} @${width} page overflow: ${JSON.stringify(layout)}`);
         assert.ok(!layout.main.length || layout.main[1] <= layout.main[0] + 1, `${label} @${width} workspace overflow: ${JSON.stringify(layout)}`);
         assert.ok(!layout.dialog.length || layout.dialog[0] <= width, `${label} @${width} dialog fits`);
         if (layout.avatar.length) assert.equal(layout.avatar[0], layout.avatar[1], `${label} @${width} avatar stays circular`);
+        assert.ok(!layout.issued.length || layout.issued[1] <= layout.issued[0] + 1, `${label} @${width} issued table fits without scrolling: ${JSON.stringify(layout)}`);
         if (layout.quantity) assert.ok(layout.quantity <= 72, `${label} @${width} quantity stays compact`);
         assert.ok(layout.tables.every(table => table[2] === 'auto'), 'Wide record tables scroll within the dialog');
         checks++;
