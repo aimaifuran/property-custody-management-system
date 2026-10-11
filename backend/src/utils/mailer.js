@@ -71,4 +71,11 @@ const sendWorkflowEmail = async (user, email) => getTransporter().sendMail({
   messageId: `<pams-${email._id}@notifications.pams.local>`,
 });
 
-module.exports = { sendPasswordResetEmail, sendEmailChangeCode, sendWorkflowEmail };
+const sendPasswordResetCode = async (user, code) => getTransporter().sendMail({
+  from: process.env.EMAIL_FROM || 'no-reply@pais.local',
+  to: user.email,
+  subject: 'Your PAMS password reset code',
+  text: `Your password reset code is ${code}. It expires in 10 minutes. Enter it in PAMS with your new password. If you did not request this, ignore this email.`,
+});
+
+module.exports = { sendPasswordResetEmail, sendPasswordResetCode, sendEmailChangeCode, sendWorkflowEmail };

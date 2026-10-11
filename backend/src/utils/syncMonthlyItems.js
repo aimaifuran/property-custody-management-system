@@ -1,5 +1,6 @@
 const PpeList = require('../models/PpeList');
 const Setting = require('../models/Setting');
+const { rowKey } = require('./monthlyAccounting');
 const { collectMonthlyItems, recapitulate, monthOf } = require('./monthlyItems');
 const models = {
   iar: require('../models/InspectionAcceptanceReport'), ris: require('../models/RequisitionIssueSlip'),
@@ -13,11 +14,16 @@ let queue = Promise.resolve();
 async function synchronize(selectedMonth) {
   const entries = await Promise.all(Object.entries(models).map(async ([key, model]) => [key, await (key === 'inventory' ? model.find({ deleted: false }).populate('item') : model.find({ deleted: false })).lean()]));
   const groups = collectMonthlyItems(Object.fromEntries(entries));
-  const existing = await PpeList.find({ automatic: true }).select('month').lean();
+  const existing = await PpeList.find({ automatic: true }).select('month rows').lean();
   for (const record of existing) if (!groups.has(record.month)) groups.set(record.month, []);
   if (selectedMonth && !groups.has(selectedMonth)) groups.set(selectedMonth, []);
   const settings = await Setting.findOne().lean();
   for (const [month, rows] of groups) {
+    const accounting = new Map((existing.find(record => record.month === month)?.rows || []).filter(row => row.accountingManual).map(row => [rowKey(row), row]));
+    for (const row of rows) {
+      const saved = accounting.get(rowKey(row));
+      if (saved) Object.assign(row, { unitCost: saved.unitCost ?? null, totalCost: saved.totalCost ?? null, accountingManual: true });
+    }
     const [year, monthNumber] = month.split('-').map(Number);
     const endDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
     await PpeList.updateOne({ month, automatic: true }, {

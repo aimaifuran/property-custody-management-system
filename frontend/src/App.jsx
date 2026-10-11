@@ -27,7 +27,7 @@ import ProfilePage from './pages/ProfilePage';
 import AboutPage from './pages/AboutPage';
 import RegisterPage from './pages/RegisterPage';
 
-const userRoutes = new Set(['/my-issued-items', '/my-returns']);
+const userRoutes = new Set(['/my-issued-items', '/my-returns', '/profile']);
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
@@ -64,7 +64,7 @@ const permissionRoutes = {
   '/returned-supply': ['canViewDashboard', 'canManageInventory'],
   '/users': 'canManageUsers',
   '/offline-records': 'adminOnly',
-  '/profile': 'adminOnly',
+  '/profile': null,
   '/my-returns': 'canViewRIS',
   '/my-issued-items': 'canViewRIS',
 };

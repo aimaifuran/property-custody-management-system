@@ -199,7 +199,7 @@ export default function UsersPage() {
       <h2 className="account-section-heading">User accounts</h2>
       <section className="user-account-grid" aria-label="Office accounts">
         {pagedUsers.map(user => <article key={user._id} className="user-account-record">
-          <div className={`user-card-avatar user-card-avatar--${avatarColor(user)}`} aria-hidden="true">{initials(user)}</div>
+          <div className={`user-card-avatar user-card-avatar--${avatarColor(user)} account-directory-picture`} aria-hidden="true">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : initials(user)}</div>
           <div className="user-card-details">
             <h2>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</h2>
             <p className="user-card-username" title={user.email}>@{user.username}</p>
@@ -214,7 +214,7 @@ export default function UsersPage() {
             {openMenu === user._id && <div ref={menuRef} id={`user-actions-${user._id}`} className="user-card-menu" role="group" aria-label={`Account actions for ${user.username}`}>
               <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records</button>
                     <button type="button" onClick={event => editUser(user, event)}><Pencil size={15} aria-hidden="true" /> Edit user</button>
-              <div className="user-card-lock"><span>{user.locked ? 'Unlock account' : 'Lock account'}</span><AccountLockButton locked={user.locked} username={user.username || user.email} busy={lockingUser === user._id} disabled={!!lockingUser} onClick={() => toggleLock(user)} /></div>
+              <div className="user-card-lock"><span>{user.status === 'inactive' ? 'Inactive account' : user.locked ? 'Unlock account' : 'Lock account'}</span><AccountLockButton locked={user.locked} username={user.username || user.email} busy={lockingUser === user._id} disabled={!!lockingUser || user.status === 'inactive'} onClick={() => toggleLock(user)} /></div>
             </div>}
           </div>}
         </article>)}

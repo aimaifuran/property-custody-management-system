@@ -1,3 +1,4 @@
+import { hasRowData } from '../utils/formRows';
 import { lineAmount, sumAmounts } from '../utils/formAmounts';
 import OfficeSelect from '../components/OfficeSelect';
 import AddRowButton from '../components/AddRowButton';
@@ -67,7 +68,7 @@ const toForm = (record) => ({
     office: record.office || '',
     fundCluster: record.fundCluster || '',
     icsNumber: record.icsNumber || '',
-    items: record.items && record.items.length ? record.items.map(toFormItem) : [emptyItem()],
+    items: record.items && record.items.length ? record.items.map(toFormItem) : [],
     remarks: record.remarks || '',
     receivedFrom: toFormSignatory(record.receivedFrom),
     receivedBy: toFormSignatory(record.receivedBy)
@@ -128,7 +129,7 @@ export default function IcsPage() {
 
     const createNew = () => {
         setEditingId(null);
-        setForm(toForm({ items: [emptyItem()] }));
+        setForm(toForm({ items: [] }));
         refreshNumberPreview();
     };
 
@@ -171,7 +172,7 @@ export default function IcsPage() {
             await axios[editingId ? 'put' : 'post'](editingId ? `/ics/${editingId}` : '/ics', {
                 ...form,
                 ...(!editingId ? { autoNumber: true } : {}),
-                items: form.items.map((item) => ({
+                items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => ({
                     ...item,
                     quantity: Number(item.quantity || 0),
                     unitCost: Number(item.unitCost || 0)
@@ -376,27 +377,27 @@ export default function IcsPage() {
                                 {form.items.map((item, index) => (
                                     <tr key={index}>
                                         <td className="p-2">
-                                            <input required data-positive="true" min="0" step="any" readOnly={linkedIssuance} aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} data-positive="true" min="0" step="any" readOnly={linkedIssuance} aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required readOnly={linkedIssuance} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required aria-label="Total Cost" readOnly value={Number(item.totalCost || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} aria-label="Total Cost" readOnly value={Number(item.totalCost || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required readOnly={linkedIssuance} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
-                                      <td className="p-2 text-center">{!linkedIssuance && <DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} />}</td>
+                                      <td className="p-2 text-center">{!linkedIssuance && <DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} />}</td>
                                     </tr>
                                 ))}
                             </tbody>

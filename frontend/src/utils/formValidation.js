@@ -3,7 +3,7 @@ export function collectFormErrors(form, selector) {
     if (selector && !field.matches(selector)) return [];
     if (!field.willValidate || field.matches(':disabled') || field.readOnly) return [];
     const blank = field.required && typeof field.value === 'string' && !field.value.trim();
-    const nonpositive = field.dataset.positive === 'true' && !blank && Number(field.value) <= 0;
+    const nonpositive = field.dataset.positive === 'true' && Boolean(field.value.trim()) && !blank && Number(field.value) <= 0;
     if (!blank && !nonpositive && field.validity.valid) return [];
     const label = field.getAttribute('aria-label')
       || field.labels?.[0]?.querySelector('span')?.textContent?.trim()

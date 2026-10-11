@@ -23,7 +23,7 @@ test('IAR items appear once despite automatically created records and item catal
   assert.equal(rows.length, 1);
   assert.equal(rows[0].quantity, 2);
   assert.equal(rows[0].risNumber, 'RIS-01');
-  assert.equal(rows[0].unitCost, 1500);
+  assert.equal(rows[0].unitCost, null);
 });
 test('standalone inventory, RIS, item catalog, and returned items are included', () => {
   const rows = collectMonthlyItems({
@@ -34,7 +34,7 @@ test('standalone inventory, RIS, item catalog, and returned items are included',
     returned: [{ _id: 'ret1', prs: 'prs1', createdAt: date, description: 'Chair', unit: 'PC', quantity: 1 }, { _id: 'ret2', createdAt: date, description: 'Table', unit: 'PC', quantity: 1 }],
   }).get('2026-10');
   assert.equal(rows.length, 5);
-  assert.equal(rows.find(row => row.item === 'Ink').unitCost, 20);
+  assert.equal(rows.find(row => row.item === 'Ink').unitCost, null);
   assert.equal(rows.filter(row => row.item === 'Chair').length, 1);
 });
 test('source edits, deletions, and different months rebuild the report without stale or duplicate rows', () => {

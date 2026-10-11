@@ -6,17 +6,17 @@ const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const PasswordResetRequest = require('../models/PasswordResetRequest');
-const { createResetLink } = require('../utils/passwordRecovery');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { loginLimiter, forgotPasswordLimiter } = require('../middlewares/rateLimiter');
-const { sendPasswordResetEmail, sendEmailChangeCode } = require('../utils/mailer');
-const { authenticate, adminOnly } = require('../middlewares/auth');
+const { sendPasswordResetCode, sendEmailChangeCode } = require('../utils/mailer');
+const { authenticate } = require('../middlewares/auth');
 const { getAccessToken, isSessionUserActive } = require('../utils/session');
+const { lockInactiveUsers } = require('../utils/inactivityLock');
 const router = express.Router();
 const { pictureUpload, pictureData } = require('../utils/pictureUpload');
 
-router.post('/profile-picture', authenticate, adminOnly, (req, res, next) => {
+router.post('/profile-picture', authenticate, (req, res, next) => {
   pictureUpload(req, res, error => {
     if (error) return errorResponse(res, error.code === 'LIMIT_FILE_SIZE' ? 'Profile picture must be 2 MB or smaller.' : 'Upload one profile picture.', [], 400);
     next();
@@ -56,9 +56,10 @@ router.post('/login', loginLimiter, [
     if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
     const { identifier, password, rememberMe } = req.body;
+    await lockInactiveUsers({ $or: [{ email: identifier }, { username: identifier }] });
     const user = await User.findOne({ deleted: false, $or: [{ email: identifier }, { username: identifier }] });
     if (!user) return errorResponse(res, 'Invalid credentials', [], 401);
-    if (user.locked) return errorResponse(res, 'This user account is temporarily locked', [], 423);
+    if (user.locked) return errorResponse(res, 'This account is locked. Contact your administrator to unlock it.', [], 423);
 
     if (user.lockUntil && user.lockUntil > new Date()) {
       res.set('Retry-After', String(Math.ceil((user.lockUntil.getTime() - Date.now()) / 1000)));
@@ -131,6 +132,7 @@ router.post('/refresh', async (req, res) => {
   if (!refreshToken) return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { algorithms: ['HS256'] });
+    await lockInactiveUsers({ _id: decoded.id });
     const user = await User.findOne({ _id: decoded.id, refreshToken });
     if (!isSessionUserActive(user)) return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
     const remainingSeconds = Math.floor(decoded.exp - Date.now() / 1000);
@@ -176,56 +178,59 @@ router.get('/me', authenticate, async (req, res) => {
   return successResponse(res, 'User fetched', { user: publicUser(req.user) });
 });
 
-// User recovery requires administrator approval. Admin accounts retain email recovery.
+// Both user and administrator accounts recover through their registered email.
 router.post('/forgot-password', forgotPasswordLimiter, [
-  body('identifier').notEmpty().withMessage('Email or username is required'),
+  body('email').trim().isEmail().withMessage('Enter your registered email address'),
 ], async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
-
-  // Always return the same generic message so the endpoint can't be used to
-  // enumerate which emails/usernames have accounts.
-  const genericMessage = 'If an active user account exists, your request has been sent to the administrator for approval. Approved requests receive a reset link by email.';
-
+  if (!errors.isEmpty()) return errorResponse(res, 'Enter your registered email address', errors.array(), 400);
+  const message = 'If this email belongs to an active account, a verification code has been sent. Check your inbox and spam folder.';
   try {
-    const { identifier } = req.body;
-    const user = await User.findOne({
-      $or: [{ email: identifier.toLowerCase() }, { username: identifier }],
-      deleted: false,
-    });
-
-    if (user && user.status === 'active') {
-      if (user.role === 'user') {
-        await PasswordResetRequest.updateMany({ user: user._id, status: 'APPROVED', expiresAt: { $lte: new Date() } }, { $set: { status: 'EXPIRED' }, $unset: { activeKey: 1 } });
-        const request = await PasswordResetRequest.findOneAndUpdate(
-          { activeKey: String(user._id) },
-          { $setOnInsert: { user: user._id, status: 'PENDING' } },
-          { upsert: true, new: true, setDefaultsOnInsert: true },
-        );
-        if (request.status === 'PENDING') {
-          await User.updateOne({ _id: user._id }, { $unset: { resetToken: 1, resetTokenExpiry: 1 } });
-        }
-      } else {
-        const link = createResetLink();
-        user.resetToken = link.tokenHash;
-        user.resetTokenExpiry = link.expiresAt;
-        await user.save();
-        await sendPasswordResetEmail(user, link.url);
-      }
-
-      await ActivityLog.create({
-        user: user._id,
-        action: 'Password reset requested',
-        ipAddress: req.ip,
-        browser: req.get('user-agent'),
+    const user = await User.findOne({ email: req.body.email.toLowerCase(), deleted: false, status: 'active' });
+    if (user) {
+      const code = String(crypto.randomInt(100000, 1000000));
+      const codeHash = hashSecret(code);
+      await User.updateOne({ _id: user._id }, {
+        $set: { passwordResetCode: codeHash, passwordResetCodeExpiry: new Date(Date.now() + 10 * 60 * 1000), passwordResetCodeAttempts: 0 },
+        $unset: { resetToken: 1, resetTokenExpiry: 1 },
       });
+      try { await sendPasswordResetCode(user, code); }
+      catch (error) {
+        await User.updateOne({ _id: user._id, passwordResetCode: codeHash }, { $unset: { passwordResetCode: 1, passwordResetCodeExpiry: 1, passwordResetCodeAttempts: 1 } });
+        throw error;
+      }
+      await ActivityLog.create({ user: user._id, action: 'Password reset requested', ipAddress: req.ip, browser: req.get('user-agent') });
     }
-
-    return successResponse(res, genericMessage);
+    return successResponse(res, message);
   } catch (error) {
-    console.error('Forgot password error:', error);
-    return successResponse(res, genericMessage);
+    console.error('Password reset email delivery failed.');
+    return successResponse(res, message);
   }
+});
+
+router.post('/reset-password-code', loginLimiter, [
+  body('email').trim().isEmail(),
+  body('code').isString().matches(/^\d{6}$/),
+  body('password').isString().isLength({ min: 8 }).custom(value => Buffer.byteLength(value) <= 72),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return errorResponse(res, 'Enter your email, six-digit code, and a password of at least 8 characters (at most 72 bytes).', [], 400);
+  try {
+    const scope = { email: req.body.email.toLowerCase(), deleted: false, status: 'active', passwordResetCodeExpiry: { $gt: new Date() }, passwordResetCodeAttempts: { $lt: 5 } };
+    // Each attempt is counted atomically, so parallel guesses cannot bypass the limit.
+    const user = await User.findOneAndUpdate(scope, { $inc: { passwordResetCodeAttempts: 1 } }, { returnDocument: 'after' }).select('+passwordResetCode +passwordResetCodeAttempts');
+    const hash = hashSecret(req.body.code);
+    if (!user?.passwordResetCode || !crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(user.passwordResetCode))) return errorResponse(res, 'The code is invalid or expired. Request a new code if needed.', [], 400);
+    const password = await bcrypt.hash(req.body.password, 10);
+    const updated = await User.findOneAndUpdate({ _id: user._id, deleted: false, status: 'active', passwordResetCode: hash, passwordResetCodeExpiry: { $gt: new Date() }, passwordResetCodeAttempts: { $lte: 5 } }, {
+      $set: { password, failedLoginAttempts: 0 },
+      $unset: { passwordResetCode: 1, passwordResetCodeExpiry: 1, passwordResetCodeAttempts: 1, resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, lockUntil: 1 },
+    });
+    if (!updated) return errorResponse(res, 'The code is invalid, expired, or already used.', [], 400);
+    await PasswordResetRequest.updateMany({ user: user._id, status: { $in: ['PENDING', 'SENDING', 'APPROVED'] } }, { $set: { status: 'COMPLETED' }, $unset: { activeKey: 1, tokenHash: 1 } });
+    await ActivityLog.create({ user: user._id, action: 'Password reset completed', ipAddress: req.ip, browser: req.get('user-agent') });
+    return successResponse(res, 'Password updated. Sign in with your new password.');
+  } catch (error) { return errorResponse(res, 'Unable to reset your password. Please try again.', [], 500); }
 });
 
 router.post('/reset-password', [
@@ -249,7 +254,7 @@ router.post('/reset-password', [
   const passwordHash = await bcrypt.hash(password, 10);
   const updated = await User.findOneAndUpdate(
     { _id: user._id, resetToken: hashSecret(token), resetTokenExpiry: { $gt: new Date() } },
-    { $set: { password: passwordHash, failedLoginAttempts: 0 }, $unset: { resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, lockUntil: 1 } },
+    { $set: { password: passwordHash, failedLoginAttempts: 0 }, $unset: { resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, lockUntil: 1, passwordResetCode: 1, passwordResetCodeExpiry: 1, passwordResetCodeAttempts: 1 } },
     { returnDocument: 'after' },
   );
   if (!updated) return errorResponse(res, 'This reset link is invalid or has already been used', [], 400);
@@ -298,6 +303,7 @@ router.post('/change-password', authenticate, [
   if (!valid) return errorResponse(res, 'Current password is incorrect', [], 400);
 
   user.password = await bcrypt.hash(newPassword, 10);
+  user.passwordResetCode = undefined; user.passwordResetCodeExpiry = undefined; user.passwordResetCodeAttempts = undefined;
   await user.save();
 
   await ActivityLog.create({

@@ -1,3 +1,4 @@
+import { hasRowData } from '../utils/formRows';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
@@ -52,7 +53,7 @@ const initial = {
     lguName: '',
     purposeChoice: null,
     purposeOther: '',
-    items: [emptyItem()],
+    items: [],
     note: '',
     returnedBy: emptySignatory(),
     returnedTo: emptySignatory()
@@ -60,7 +61,7 @@ const initial = {
 
 const newForm = () => ({
     ...initial,
-    items: [emptyItem()],
+    items: [],
     returnedBy: getStickySignatory('returnedBy', emptySignatory()),
     returnedTo: getStickySignatory('returnedTo', emptySignatory())
 });
@@ -97,7 +98,7 @@ const toForm = (record) => ({
         condition: item.condition || 'Serviceable',
         unitValue: item.unitValue ?? '',
         totalValue: item.totalValue ?? 0
-    })) : [emptyItem()],
+    })) : [],
     note: record.note || '',
     returnedBy: toFormSignatory(record.returnedBy),
     returnedTo: toFormSignatory(record.returnedTo)
@@ -282,7 +283,7 @@ export default function PrsPage() {
             ...(!editingId ? { autoNumber: true } : {}),
             lguName: form.lguName,
             purpose,
-            items: form.items.filter((item) => item.propertyNumber || item.description).map((item) => ({
+            items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => ({
                 ...item,
                 quantity: Number(item.quantity || 0),
                 unitValue: Number(item.unitValue || 0)
@@ -573,7 +574,7 @@ export default function PrsPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <select aria-label="Issued item to return" required={Boolean(accountId(form.returnedBy))} disabled={issuedLoading || Boolean(issuedError)} value={item.ris && item.risItem ? `${item.ris}:${item.risItem}` : ''} onChange={(e) => {
+                                        <select aria-label="Issued item to return" required={hasRowData(item, emptyItem()) && (Boolean(accountId(form.returnedBy)))} disabled={issuedLoading || Boolean(issuedError)} value={item.ris && item.risItem ? `${item.ris}:${item.risItem}` : ''} onChange={(e) => {
                                             const [risId, itemId] = e.target.value.split(':');
                                             const record = issuedRecords.find(row => row._id === risId);
                                             const issued = record?.items.find(row => row._id === itemId);
@@ -585,27 +586,27 @@ export default function PrsPage() {
                                         </select>
                                     </td>
                                     <td className="p-2">
-                                        <input required data-positive="true" aria-label="Quantity" type="number" min="0" step="any" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} data-positive="true" aria-label="Quantity" type="number" min="0" step="any" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required aria-label="M. R. No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="M. R. No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} onChange={(e) => updateItem(index, 'unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} onChange={(e) => updateItem(index, 'unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
-                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
+                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
                                 </tr>
                             ))}
                         </tbody>

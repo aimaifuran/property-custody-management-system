@@ -7,6 +7,8 @@ import './UsersPage.css';
 
 export default function ProfilePage() {
     const { user, refreshUser } = useAuth();
+    const isAdmin = user?.role === 'admin';
+    const roleLabel = isAdmin ? 'Administrator' : 'User / Office account';
     const pictureInputRef = useRef(null);
     const [uploading, setUploading] = useState(false);
     const [pictureError, setPictureError] = useState('');
@@ -53,17 +55,17 @@ export default function ProfilePage() {
     return <div className="user-management-page my-profile-page">
         <header className="user-management-header">
             <div className="user-management-heading">
-                <span className="user-management-eyebrow"><ShieldCheck size={14} aria-hidden="true" />ADMINISTRATOR ACCOUNT</span>
+                <span className="user-management-eyebrow"><ShieldCheck size={14} aria-hidden="true" />{isAdmin ? 'ADMINISTRATOR ACCOUNT' : 'USER ACCOUNT'}</span>
                 <h1>My Profile</h1>
-                <p>Your account, office, and administrator access.</p>
+                <p>Your account details, office, and profile picture.</p>
             </div>
         </header>
         <section className="my-profile-grid" aria-label="My account details">
             {user && <article className="user-account-record admin-profile-card">
                 <div className="profile-picture-control">
-                    <button type="button" className="profile-picture-trigger" aria-label={user.profilePicture ? 'Change profile picture' : 'Upload profile picture'} title="Click to change profile picture" disabled={uploading || user.role !== 'admin'} onClick={() => pictureInputRef.current?.click()}>
+                    <button type="button" className="profile-picture-trigger" aria-label={user.profilePicture ? 'Change profile picture' : 'Upload profile picture'} title="Click to change profile picture" disabled={uploading} onClick={() => pictureInputRef.current?.click()}>
                         <span className="profile-picture-avatar">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : <span aria-hidden="true">{`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || user.username?.slice(0, 2).toUpperCase()}</span>}</span>
-                        {user.role === 'admin' && <span className="profile-picture-camera"><Camera size={12} aria-hidden="true" /></span>}
+                        <span className="profile-picture-camera"><Camera size={12} aria-hidden="true" /></span>
                     </button>
                     <input ref={pictureInputRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose profile picture" hidden onChange={uploadPicture} disabled={uploading} />
                 </div>
@@ -75,10 +77,10 @@ export default function ProfilePage() {
                     <dl className="my-profile-facts">
                         <div><dt>Username</dt><dd>{user.username}</dd></div>
                         <div><dt>Division</dt><dd>{user.division || 'Not assigned'}</dd></div>
-                        <div><dt>Account role</dt><dd>Administrator</dd></div>
+                        <div><dt>Account role</dt><dd>{roleLabel}</dd></div>
                         <div><dt>Member since</dt><dd>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Not available'}</dd></div>
                     </dl>
-                    <div className="user-card-labels"><span className="user-role user-role--admin">Administrator</span></div>
+                    <div className="user-card-labels"><span className={`user-role user-role--${isAdmin ? 'admin' : 'user'}`}>{roleLabel}</span></div>
                     {user.role === 'admin' && !editing && <div className="user-card-account-actions profile-account-settings"><button type="button" className="user-create-button" onClick={editAccount}><Pencil size={16} aria-hidden="true" /><span>Edit Email / Password</span></button></div>}
                     {user.role === 'admin' && editing && <form className="profile-account-settings" onSubmit={saveAccount}>
                         <h3>Account settings</h3>
@@ -94,7 +96,7 @@ export default function ProfilePage() {
                     {uploading && <p className="profile-picture-feedback" role="status">Saving profile picture...</p>}
                     {pictureError && <p role="alert" className="profile-picture-error">{pictureError}</p>}
                 </div>
-                <div className="user-card-footer"><span className={`user-account-status ${user.locked || user.status === 'inactive' ? 'user-account-status--inactive' : ''}`}><span aria-hidden="true" />{user.locked ? 'Account locked' : user.status === 'inactive' ? 'Inactive account' : 'Account active'}</span><span>{user.division || 'Administration'}</span></div>
+                <div className="user-card-footer"><span className={`user-account-status ${user.locked || user.status === 'inactive' ? 'user-account-status--inactive' : ''}`}><span aria-hidden="true" />{user.locked ? 'Account locked' : user.status === 'inactive' ? 'Inactive account' : 'Account active'}</span><span>{user.division || (isAdmin ? 'Administration' : 'Office member')}</span></div>
             </article>}
         </section>
     </div>;

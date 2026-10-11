@@ -23,7 +23,7 @@
 .user-role--user { background: #e6f1ed; color: #327264; }
 .user-role--admin { background: #eef1d7; color: #687d32; }
 .profile-picture-control { min-width: 0; }
-.app-shell .user-management-page .profile-picture-trigger { position: relative; display: block; width: 96px; height: 96px; padding: 0 !important; border: 0; border-radius: 50% !important; background: transparent; cursor: pointer; }
+.app-shell .user-management-page .profile-picture-trigger { position: relative; display: block; width: var(--profile-picture-size, 96px) !important; height: var(--profile-picture-size, 96px) !important; min-height: var(--profile-picture-size, 96px) !important; aspect-ratio: 1; padding: 0 !important; border: 0; border-radius: 50% !important; background: transparent; cursor: pointer; }
 .profile-picture-avatar { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; background: #e2e9ef; color: #4d677c; font-size: 30px; font-weight: 600; }
 .profile-picture-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .profile-picture-camera { position: absolute; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 3px solid #fff; border-radius: 50%; background: #326b50; color: #fff; }
@@ -121,7 +121,7 @@
 .user-account-record::before { content: ''; position: absolute; top: 0; left: 20px; width: 42px; height: 3px; border-radius: 0 0 3px 3px; background: #8faf86; }
 .user-account-record.admin-profile-card { grid-template-columns: 96px minmax(0, 1fr); }
 .user-account-record:hover { transform: translateY(-2px); border-color: #a7c6ac; box-shadow: 0 8px 20px #244c3512; }
-.user-card-avatar { border-radius: 14px; box-shadow: none; border: 1px solid #ffffffb0; }
+.user-card-avatar { border-radius: 50%; aspect-ratio: 1; align-self: start; overflow: hidden; box-shadow: none; border: 1px solid #ffffffb0; }
 .user-card-details { padding-right: 14px; }
 .app-shell .user-card-details h2 { font-size: 14px !important; font-weight: 700; }
 .user-card-office, .user-card-email { display: flex; align-items: flex-start; gap: 7px; }
@@ -149,7 +149,7 @@
   .user-account-record { transition: none; }
   .user-account-record:hover { transform: none; }
 }
-.user-records-dialog { width: min(1100px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid #d5e3d9; border-radius: 22px; overflow-y: auto; color: #29493c; }
+.user-records-dialog { width: min(1400px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid #d5e3d9; border-radius: 22px; overflow-y: auto; color: #29493c; }
 .user-records-dialog::backdrop { background: rgba(17, 38, 29, .5); }
 .user-records-notice { display: flex; align-items: center; gap: 8px; background: #edf4ec; border-radius: 10px; padding: 12px; margin: 20px 0; font-size: 14px; }
 .user-records-dialog section { margin: 24px 0; }
@@ -162,6 +162,29 @@
 .user-records-table td { min-width: 85px; overflow-wrap: anywhere; }
 .user-records-table td:first-child { min-width: 180px; }
 .user-records-table small { display: block; color: #71867a; margin-top: 4px; }
+.user-records-dialog .user-records-table table { table-layout: auto; }
+.user-records-dialog .user-records-table :is(th, td) { overflow-wrap: normal; word-break: normal; line-height: 1.5; }
+.user-records-dialog .user-records-table td:first-child { min-width: 180px; overflow-wrap: anywhere; }
+.user-records-dialog .user-records-request-table { min-width: 800px; }
+.user-records-dialog .user-records-issued-table { min-width: 1260px; }
+.user-records-dialog .user-records-returned-table { min-width: 1080px; }
+.user-records-dialog .user-records-table td:nth-child(2),
+.user-records-dialog .user-records-returned-table td:nth-child(3),
+.user-records-dialog .user-records-returned-table td:nth-child(5),
+.user-records-dialog .user-records-returned-table td:nth-child(7),
+.user-records-dialog .user-records-issued-table td:nth-child(6) { white-space: nowrap; }
+.user-records-dialog .user-records-returned-table td:nth-child(6) { min-width: 150px; }
+.user-records-dialog .user-records-table td:last-child { min-width: 210px; }
+.user-records-dialog .user-records-return-success { white-space: nowrap; }
+.user-records-dialog .user-records-return-success svg { flex-shrink: 0; }
+.user-records-request-status { display: inline-flex; flex-direction: column; align-items: center; }
+.user-records-dialog .user-records-request-status-note { margin-top: 4px; font-size: 11px; line-height: 1.4; text-align: center; }
+.user-records-dialog .user-records-issued-table .user-records-actions-column { min-width: 360px; text-align: right; vertical-align: middle; }
+.user-records-dialog .user-records-issued-table .user-records-quantity-column { min-width: 120px; text-align: center; vertical-align: middle; }
+.user-records-dialog .user-records-quantity-input { width: 72px; max-width: 72px; box-sizing: border-box; text-align: center; }
+.user-records-return-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.user-records-condition-actions { display: flex; align-items: center; gap: 8px; }
+.user-records-return-actions button { white-space: nowrap; flex-shrink: 0; }
 .user-records-empty { padding: 22px; background: #f7f9f6; border-radius: 12px; color: #71867a; }
 @media (max-width: 600px) { .user-records-dialog { padding: 18px; } }
 .developer-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 16px; list-style: none; padding: 0; margin: 24px 0 0; }
@@ -180,7 +203,7 @@
 .account-directory-picture img { width: 100%; height: 100%; object-fit: cover; }
 .my-profile-grid { width: 100%; }
 .my-profile-page .admin-profile-card { width: 100%; min-height: 340px; padding: 32px; grid-template-columns: 160px minmax(0, 1fr); gap: 28px; }
-.app-shell .my-profile-page .profile-picture-trigger { width: 160px; height: 160px; }
+.app-shell .my-profile-page .profile-picture-trigger { --profile-picture-size: 160px; }
 .my-profile-page .profile-picture-camera { width: 38px; height: 38px; bottom: 4px; right: 4px; }
 .my-profile-page .user-card-details { padding: 0; }
 .app-shell .my-profile-page .user-card-details h2 { font-size: 24px !important; }
@@ -191,7 +214,7 @@
 @media (max-width: 640px) {
   .user-management-create-actions { flex-shrink: 1; }
   .my-profile-page .admin-profile-card { grid-template-columns: minmax(0, 1fr); padding: 24px; gap: 20px; }
-  .app-shell .my-profile-page .profile-picture-trigger { width: 128px; height: 128px; }
+  .app-shell .my-profile-page .profile-picture-trigger { --profile-picture-size: 128px; }
   .my-profile-facts { gap: 16px; }
 }
 .registration-requests { margin-bottom: 24px; padding: 22px; }

@@ -275,7 +275,80 @@ try {
     })()`);
     await delay(100);
   };
-  if (process.env.DASHBOARD_ONLY) {
+  if (process.env.CURRENT_CHANGES_ONLY) {
+    const widths = [320, 375, 768, 1024, 1440];
+    let checks = 0;
+    const checkLayout = async label => {
+      for (const width of widths) {
+        await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+        await delay(100);
+        const layout = await evaluate(`(() => {
+          const main = document.querySelector('main');
+          const dialog = document.querySelector('dialog[open]');
+          const avatar = document.querySelector('.profile-picture-trigger');
+          const quantity = document.querySelector('.user-records-quantity-input');
+          return { page: [document.documentElement.clientWidth, document.documentElement.scrollWidth],
+            main: main ? [main.clientWidth, main.scrollWidth] : [],
+            dialog: dialog ? [dialog.getBoundingClientRect().width, innerWidth] : [],
+            avatar: avatar ? [avatar.getBoundingClientRect().width, avatar.getBoundingClientRect().height] : [],
+            quantity: quantity?.getBoundingClientRect().width,
+            tables: [...document.querySelectorAll('.user-records-dialog .user-records-table')].map(table => [table.clientWidth, table.scrollWidth, getComputedStyle(table).overflowX]) };
+        })()`);
+        assert.ok(layout.page[1] <= layout.page[0] + 1, `${label} @${width} page overflow: ${JSON.stringify(layout)}`);
+        assert.ok(!layout.main.length || layout.main[1] <= layout.main[0] + 1, `${label} @${width} workspace overflow: ${JSON.stringify(layout)}`);
+        assert.ok(!layout.dialog.length || layout.dialog[0] <= width, `${label} @${width} dialog fits`);
+        if (layout.avatar.length) assert.equal(layout.avatar[0], layout.avatar[1], `${label} @${width} avatar stays circular`);
+        if (layout.quantity) assert.ok(layout.quantity <= 72, `${label} @${width} quantity stays compact`);
+        assert.ok(layout.tables.every(table => table[2] === 'auto'), 'Wide record tables scroll within the dialog');
+        checks++;
+      }
+      console.log(`PASS ${label}: ${widths.join(', ')}px`);
+    };
+    for (const route of ['/iar', '/inventory', '/ris', '/inventory-custodian', '/par', '/transfers', '/returns', '/reports/ppe-list']) {
+      await navigate(route);
+      await evaluate(`document.querySelector('button[aria-label="New Form"]')?.click()`);
+      await delay(200);
+      assert.equal(await evaluate(`document.querySelectorAll('form tbody input, form tbody textarea, form .ris-table-grid--editable input').length`), 0, `${route} does not add rows automatically`);
+      await evaluate(`[...document.querySelectorAll('form button')].find(button => /Add Row|Add Item to Request/.test(button.textContent))?.click()`);
+      await delay(100);
+      assert.ok(await evaluate(`document.querySelectorAll('form tbody input, form tbody textarea, form .ris-table-grid--editable input').length > 0`), `${route} explicit Add Row adds inputs`);
+      assert.equal(await evaluate(`document.querySelectorAll('form tbody input:required, form tbody textarea:required, form .ris-table-grid--editable input:required').length`), 0, `${route} unused rows are optional`);
+      await checkLayout(route);
+    }
+    for (const currentRole of ['admin', 'user']) {
+      role = currentRole;
+      await navigate('/profile');
+      await waitFor(`!!document.querySelector('.profile-picture-trigger')`);
+      assert.equal(await evaluate(`document.querySelector('.profile-picture-trigger').disabled`), false);
+      await checkLayout(`${currentRole} profile`);
+    }
+    role = 'admin';
+    await navigate('/users');
+    await waitFor(`!!document.querySelector('.user-card-menu-toggle')`);
+    await checkLayout('User Management');
+    await evaluate(`document.querySelector('.user-card-menu-toggle').click()`);
+    await delay(100);
+    await evaluate(`[...document.querySelectorAll('.user-card-menu button')].find(button => button.textContent.includes('View Records')).click()`);
+    await waitFor(`!!document.querySelector('.user-records-issued-table')`);
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.user-records-issued-table th')].slice(-3).map(th => th.textContent)`), ['Status', 'Return quantity', 'Actions']);
+    await checkLayout('View Records');
+    await navigate('/reports/monthly');
+    await waitFor(`!!document.querySelector('.saved-record')`);
+    await evaluate(`[...document.querySelectorAll('.saved-record button')].find(button => button.textContent === 'View').click()`);
+    await delay(100);
+    assert.ok(await evaluate(`[...document.querySelectorAll('form table tbody input[type="number"]')].every(input => !input.required && input.value === '')`), 'Monthly costs stay blank and optional');
+    await checkLayout('Monthly Report');
+    await navigate('/offline-records');
+    await checkLayout('Offline Records');
+    await send('Page.navigate', { url: `${origin}/forgot-password` });
+    await waitFor(`!!document.querySelector('#forgot-email')`);
+    await checkLayout('Forgot Password');
+    await evaluate(`(() => { const input = document.querySelector('#forgot-email'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'test@example.test'); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await evaluate(`document.querySelector('form').requestSubmit()`);
+    await waitFor(`!!document.querySelector('[aria-label="Verification code"]')`);
+    await checkLayout('Email Code and Password');
+    console.log(`PASS ${checks} responsive checks for current changes.`);
+  } else if (process.env.DASHBOARD_ONLY) {
     for (const [width, height] of [[1024, 540], [1024, 600], [1280, 600], [1280, 720], [1366, 650], [1366, 768], [1440, 900], [1536, 864], [1920, 1080], [2560, 1440]]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
       await navigate('/dashboard');

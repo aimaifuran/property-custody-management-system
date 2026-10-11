@@ -1,3 +1,4 @@
+import { hasRowData } from '../utils/formRows';
 import { lineAmount, sumAmounts } from '../utils/formAmounts';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
@@ -60,10 +61,10 @@ const initial = {
     acceptanceStatus: 'Complete',
     acceptanceQuantity: '',
     custodian: '',
-    items: [emptyItem()]
+    items: []
 };
 
-const newForm = () => ({ ...initial, inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [emptyItem()] });
+const newForm = () => ({ ...initial, inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [] });
 
 const readDraft = key => {
     try {
@@ -112,7 +113,7 @@ const toForm = (record) => ({
         quantity: item.quantity ?? '',
         unitCost: item.unitCost ?? '',
         totalCost: lineAmount(item.quantity, item.unitCost)
-    })) : [emptyItem()]
+    })) : []
 });
 
 export default function IarPage() {
@@ -210,7 +211,7 @@ export default function IarPage() {
             ...form,
             iarNumber: form.iarNumber.trim(),
             ...(!editingId ? { autoNumber: !numberEdited } : {}),
-            items: form.items.filter((item) => item.stockPropertyNumber || item.description).map((item) => {
+            items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => {
                 const { unitCost, ...receivedItem } = item;
                 return {
                     ...receivedItem,
@@ -413,11 +414,11 @@ export default function IarPage() {
               <table className="min-w-full text-sm">
                 <thead>
                     <tr className="bg-slate-50 text-left">
-                    <th className="p-2">Stock/Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="min-w-[230px] p-2"><span className="whitespace-nowrap">Stock/Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></span></th>
                     <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                     <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                     <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
-                    <th className="p-2">Unit Cost (optional)</th>
+                    <th className="p-2">Unit Cost</th>
                     <th className="p-2">Total Cost</th>
                     <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                   </tr>
@@ -427,16 +428,16 @@ export default function IarPage() {
                     <tr key={index}>
                       {['stockPropertyNumber', 'description', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
-                          <input required aria-label={key} value={item[key]} onChange={(e) =>
+                          <input required={hasRowData(item, emptyItem())} aria-label={key} value={item[key]} onChange={(e) =>
                             updateItem(index, key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                         </td>
                       )}
                       <td className="p-2">
-                        <input required aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                        <input required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                       </td>
                       <td className="p-2"><input aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>
                       <td className="p-2"><input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" /></td>
-                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
+                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
                     </tr>
                   )}
                 </tbody>

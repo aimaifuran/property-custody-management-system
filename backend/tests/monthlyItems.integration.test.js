@@ -24,13 +24,15 @@ test('source saves persist monthly reports, refresh quantities, and retain heade
   assert.equal(report.rows.length, 1);
   assert.equal(report.recapitulation[0].unitCost, null);
   assert.equal(report.recapitulation[0].totalCost, null);
-  assert.equal(report.rows[0].unitCost, 100);
-  await PpeList.updateOne({ _id: report._id }, { $set: { custodian: 'Saved Custodian', fund: 'General Fund' } });
+  assert.equal(report.rows[0].unitCost, null);
+  await PpeList.updateOne({ _id: report._id }, { $set: { custodian: 'Saved Custodian', fund: 'General Fund', 'rows.0.unitCost': 17, 'rows.0.totalCost': 99, 'rows.0.accountingManual': true } });
   await IAR.updateOne({ _id: iar._id }, { $set: { 'items.0.quantity': 5 } });
   reports = await syncMonthlyItems('2026-10');
   report = reports.find(entry => entry.month === '2026-10');
   assert.equal(report.rows.length, 1);
   assert.equal(report.rows[0].quantity, 5);
+  assert.equal(report.rows[0].unitCost, 17);
+  assert.equal(report.rows[0].totalCost, 99, 'Manual amount survives refresh without recomputing');
   assert.equal(report.custodian, 'Saved Custodian');
   assert.equal(report.fund, 'General Fund');
   assert.equal(await PpeList.countDocuments({ automatic: true, month: '2026-10' }), 1);

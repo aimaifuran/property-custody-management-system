@@ -31,3 +31,4 @@ lerna-debug.log*
 *.sw?
 
 Flow Chart.excalidraw
+.tmp-user-management-review/

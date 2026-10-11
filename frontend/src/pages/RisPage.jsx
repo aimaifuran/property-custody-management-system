@@ -1,3 +1,4 @@
+import { hasRowData } from '../utils/formRows';
 import { useLocation } from 'react-router-dom';
 import OfficeSelect from '../components/OfficeSelect';
 import AddRowButton from '../components/AddRowButton';
@@ -60,13 +61,13 @@ const initialForm = {
   receivedBy: emptySignatory(),
   date: new Date().toISOString().slice(0, 10),
   status: 'PENDING_APPROVAL',
-  items: [createRow(), createRow(), createRow(), createRow(), createRow()],
+  items: [],
 };
 
 const newForm = () => ({
   ...initialForm,
   date: new Date().toISOString().slice(0, 10),
-  items: [createRow(), createRow(), createRow(), createRow(), createRow()],
+  items: [],
   requestedBy: getStickySignatory('requestedBy', emptySignatory()),
   approvedBy: getStickySignatory('approvedBy', emptySignatory()),
   issuedBy: getStickySignatory('issuedBy', emptySignatory()),
@@ -544,7 +545,7 @@ export default function RisPage() {
   const deleteRow = (index) => {
     setForm((prev) => {
       const items = prev.items.filter((_, itemIndex) => itemIndex !== index);
-      return { ...prev, items: items.length ? items : [createRow()] };
+      return { ...prev, items };
     });
   };
 
@@ -567,7 +568,7 @@ export default function RisPage() {
       ...formData,
       ...(!editingRis ? { autoNumber: true } : {}),
       items: form.items
-        .filter((item) => item.stockNumber || item.unit || item.description || item.quantityRequested || item.quantityIssued || item.remarks)
+        .filter(item => hasRowData(item, createRow()))
         .map((item) => ({
           ...item,
           quantityRequested: item.quantityRequested === '' ? 0 : Number(item.quantityRequested),
@@ -1079,7 +1080,7 @@ export default function RisPage() {
             {form.items.map((item, index) => (
               <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable border-b border-slate-300 last:border-b-0">
                 <div className="border-r border-slate-300 p-1">
-                  <input required
+                  <input required={hasRowData(item, createRow())}
                     type="text"
                     list="ris-stock-options" aria-label={`Stock Number, row ${index + 1}`}
                     value={item.stockNumber ?? ''}
@@ -1088,21 +1089,21 @@ export default function RisPage() {
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input required
+                  <input required={hasRowData(item, createRow())}
                     aria-label={`Unit, row ${index + 1}`} value={item.unit}
                     onChange={(e) => updateItem(index, 'unit', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input required
+                  <input required={hasRowData(item, createRow())}
                     aria-label={`Description, row ${index + 1}`} value={item.description}
                     onChange={(e) => updateItem(index, 'description', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input required
+                  <input required={hasRowData(item, createRow())}
                     type="number"
                     min="0"
                     data-positive="true" aria-label={`Quantity requested, row ${index + 1}`} value={item.quantityRequested}
@@ -1129,7 +1130,7 @@ export default function RisPage() {
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input required
+                  <input required={hasRowData(item, createRow())}
                     type="number"
                     min="0"
                     disabled={isUser} aria-label={`Quantity issued, row ${index + 1}`} value={item.quantityIssued}

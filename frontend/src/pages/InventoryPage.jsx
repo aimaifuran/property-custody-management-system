@@ -1,3 +1,4 @@
+import { hasRowData } from '../utils/formRows';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
@@ -49,7 +50,7 @@ const initialForm = {
     propertyNumber: '',
     description: '',
     serialNumber: '',
-    items: [emptyItem()]
+    items: []
 };
 const inputDate = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
 
@@ -100,7 +101,7 @@ export default function InventoryPage() {
         setForm({
             ...initialForm,
             ...card,
-            items: (items.length ? items : [emptyItem()]).map((item) => ({
+            items: (items.length ? items : []).map((item) => ({
                 ...emptyItem(),
                 ...item,
                 date: inputDate(item.date)
@@ -129,7 +130,7 @@ export default function InventoryPage() {
         try {
             await axios[editingCard?._id ? 'put' : 'post'](editingCard?._id ? `/property-cards/${editingCard._id}` : '/property-cards', {
                 ...form,
-                items: form.items.map((item) => ({
+                items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => ({
                     ...item,
                     propertyNumber: form.propertyNumber,
                     description: form.description,
@@ -267,7 +268,7 @@ export default function InventoryPage() {
       <>
         <div className="space-y-6">
           <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { setEditingCard({}); setForm({ ...initialForm, items: [emptyItem()] }); }} editorRef={editorRef} /></SavedReportsHeader>
+            <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { setEditingCard({}); setForm({ ...initialForm, items: [] }); }} editorRef={editorRef} /></SavedReportsHeader>
             <div className="mt-4 space-y-3">
               {visibleCards.map((card) => (
                 <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={card} />
@@ -331,7 +332,7 @@ export default function InventoryPage() {
                                 type={type}
                                 min={type === 'number' ? 0 : undefined}
                                 step={type === 'number' ? 'any' : undefined}
-                                required={['propertyNumber', 'description', 'date', 'receiptQuantity', 'amount'].includes(key)}
+                                required={hasRowData(item, emptyItem()) && (['propertyNumber', 'description', 'date', 'receiptQuantity', 'amount'].includes(key))}
                                 data-positive={key === 'receiptQuantity' ? 'true' : undefined}
                                 aria-label={`${itemLabels[itemFields.findIndex(([fieldKey]) => fieldKey === key)]} ${index + 1}`}
                                 value={item[key] ?? ''}
@@ -340,7 +341,7 @@ export default function InventoryPage() {
                               />
                             </td>
                           ))}
-                          <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
+                          <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
                         </tr>
                       ))}
                     </tbody>

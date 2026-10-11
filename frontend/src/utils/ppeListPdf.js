@@ -15,8 +15,8 @@ const RECAP_COLUMNS = [
   ['totalCost', 'Total Cost', 15], ['accountCode', 'Account Code', 13],
 ];
 export const PPE_TITLE = 'REPORT OF SUPPLIES AND MATERIALS ISSUED';
-export const ppeAmount = row => row.unitCost === '' || row.unitCost == null ? '' : (Number(row.quantity) * Number(row.unitCost)).toFixed(2);
-export const ppeTotal = rows => rows.some(row => row.unitCost !== '' && row.unitCost != null) ? rows.reduce((sum, row) => sum + Number(ppeAmount(row) || 0), 0).toFixed(2) : '';
+export const ppeAmount = row => !row.accountingManual || row.totalCost === '' || row.totalCost == null ? '' : Number(row.totalCost).toFixed(2);
+export const ppeTotal = rows => rows.some(row => ppeAmount(row) !== '') ? rows.reduce((sum, row) => sum + Number(ppeAmount(row) || 0), 0).toFixed(2) : '';
 export const ppeDate = value => value ? new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
 export const ppePeriod = record => {
   if (record.periodStart?.slice(0, 7) === record.periodEnd?.slice(0, 7) && record.periodStart && record.periodEnd) {
@@ -70,7 +70,7 @@ export async function buildPpePdf(record, { onDraw } = {}) {
   header();
   const money = value => value === '' || value == null ? '' : Number(value).toFixed(2);
   for (const row of record.rows || []) {
-    const values = PPE_COLUMNS.map(([key]) => key === 'amount' ? ppeAmount(row) : key === 'unitCost' ? money(row.unitCost) : row[key]);
+    const values = PPE_COLUMNS.map(([key]) => key === 'amount' ? ppeAmount(row) : key === 'unitCost' ? money(row.accountingManual ? row.unitCost : null) : row[key]);
     drawReportGridRow(layout, columns, values, regular, header);
   }
   if (record.recapitulation?.length) {

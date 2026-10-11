@@ -285,14 +285,14 @@ export default function Layout() {
               </div>
             </div>
             <div className="title-bar-account-group" ref={accountMenuRef} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setAccountMenuOpen(false); }}>
-              {user?.role === 'admin' ? <NavLink to="/profile" className="title-bar-account" aria-label="Open my admin profile">
-                <span className="title-bar-account-details"><strong>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</strong><span>Admin</span></span>
+              {user && <NavLink to="/profile" className="title-bar-account" aria-label="Open my profile">
+                <span className="title-bar-account-details"><strong>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</strong><span>{user.role === 'admin' ? 'Admin' : 'User'}</span></span>
                 <span className="title-bar-account-avatar">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : <span aria-hidden="true">{`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || user.username?.slice(0, 2).toUpperCase()}</span>}</span>
-              </NavLink> : <span className="text-sm text-white">User</span>}
+              </NavLink>}
               <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" title={pendingRegistrations ? `${pendingRegistrations} registration requests awaiting approval` : 'Account menu'} aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" /></button>
               {accountMenuOpen && <div id="header-account-menu" className="title-bar-account-menu" role="menu" aria-label="Account actions">
-                {user?.role === 'admin' && <>
                   <NavLink to="/profile" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />My Profile</NavLink>
+                {user?.role === 'admin' && <>
                   <NavLink to="/offline-records" role="menuitem" onClick={() => setAccountMenuOpen(false)}><ClipboardList size={16} aria-hidden="true" />Offline Records</NavLink>
                   <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{pendingResets + pendingRegistrations > 0 && <span className="account-menu-notification" aria-label={`${pendingResets + pendingRegistrations} account requests awaiting approval`}>{pendingResets + pendingRegistrations}</span>}</NavLink>
                 </>}

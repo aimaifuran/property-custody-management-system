@@ -9,6 +9,7 @@ const rowSchema = new mongoose.Schema({
   quantity: { type: Number, required: true, min: 0 },
   unitCost: { type: Number, min: 0, default: null },
   totalCost: { type: Number, min: 0, default: null },
+  accountingManual: { type: Boolean, default: false },
   accountCode: { type: String, trim: true, maxlength: 100 },
   source: String,
   sourceId: String,

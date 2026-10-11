@@ -16,8 +16,10 @@ test('the eight reference columns fill the table and blank costs remain blank', 
   assert.equal(PPE_COLUMNS.length, 8);
   assert.equal(PPE_COLUMNS.reduce((total, column) => total + column[2], 0), 100);
   assert.equal(ppeAmount(report.rows[0]), '');
-  assert.equal(ppeAmount({ quantity: 3, unitCost: 12.5 }), '37.50');
-  assert.equal(ppeAmount({ quantity: 3, unitCost: 0 }), '0.00');
+  assert.equal(ppeAmount({ quantity: 3, unitCost: 12.5, totalCost: 9, accountingManual: true }), '9.00');
+  assert.equal(ppeAmount({ totalCost: 0, accountingManual: true }), '0.00');
+  assert.equal(ppeAmount({ quantity: 3, unitCost: 12.5 }), '');
+  assert.equal(ppeAmount({ quantity: 3, unitCost: 0 }), '');
 });
 test('a short report fits portrait A4 at readable size without page numbering', async () => {
   const pdf = await PDFDocument.load(await buildPpePdf(report));
@@ -61,7 +63,7 @@ test('impossible header or signatory lengths fail clearly instead of clipping th
 
  test('recapitulation hides costs from older saved reports while main table retains costs', async () => {
   const pdf = await PDFDocument.load(await buildPpePdf({ ...report,
-    rows: [{ ...report.rows[0], unitCost: 12.5 }],
+    rows: [{ ...report.rows[0], unitCost: 12.5, totalCost: 19, accountingManual: true }],
     recapitulation: [{ item: 'Legacy recap', unit: 'UNIT', quantity: 1, unitCost: 987.65, totalCost: 1975.30 }],
   }));
   const text = (await inspectReportPdf(pdf, FORM_PDF_A4_PORTRAIT)).join('\n');

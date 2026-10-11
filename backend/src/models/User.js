@@ -21,10 +21,14 @@ const userSchema = new mongoose.Schema({
   lockUntil: { type: Date },
   resetToken: { type: String },
   resetTokenExpiry: { type: Date },
+  passwordResetCode: { type: String, select: false },
+  passwordResetCodeExpiry: { type: Date, select: false },
+  passwordResetCodeAttempts: { type: Number, default: 0, select: false },
   pendingEmail: { type: String, trim: true, lowercase: true },
   emailChangeCode: { type: String },
   emailChangeExpiry: { type: Date },
   lastLogin: { type: Date },
+  inactivityResetAt: { type: Date },
   deleted: { type: Boolean, default: false },
 }, { timestamps: true });
 

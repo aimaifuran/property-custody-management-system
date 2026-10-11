@@ -1,3 +1,4 @@
+import { hasRowData } from '../utils/formRows';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
@@ -50,7 +51,7 @@ const initial = {
     date: '',
     transferTypeChoice: null,
     transferTypeOther: '',
-    items: [emptyItem()],
+    items: [],
     remarks: '',
     reasonForTransfer: '',
     approvedBy: emptySignatory(),
@@ -60,7 +61,7 @@ const initial = {
 
 const newForm = () => ({
     ...initial,
-    items: [emptyItem()],
+    items: [],
     approvedBy: getStickySignatory('approvedBy', emptySignatory()),
     issuedBy: getStickySignatory('issuedBy', emptySignatory()),
     receivedBy: getStickySignatory('receivedBy', emptySignatory())
@@ -94,7 +95,7 @@ const toForm = (record) => ({
         description: item.description || '',
         amount: item.amount ?? '',
         condition: item.condition || ''
-    })) : [emptyItem()],
+    })) : [],
     remarks: record.remarks || '',
     reasonForTransfer: record.reasonForTransfer || '',
     approvedBy: toFormSignatory(record.approvedBy),
@@ -193,7 +194,7 @@ export default function PtrPage() {
             ptrNumber: form.ptrNumber,
             date: form.date,
             transferType,
-            items: form.items.filter((item) => item.propertyNumber || item.description).map((item) => ({
+            items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => ({
                 ...item,
                 amount: Number(item.amount || 0)
             })),
@@ -455,21 +456,21 @@ export default function PtrPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <input required readOnly={isUser} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = assets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select your accepted property</option>{assets.map(asset => <option key={asset._id} value={asset._id} disabled={!asset.acceptedAt || !!asset.pendingMovement}>{asset.inventory?.item?.description} - {asset.documentNumber}{!asset.acceptedAt ? ' (accept ICS/PAR first)' : asset.pendingMovement ? ' (pending movement)' : ''}</option>)}</select> : <input required aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                                        {isUser && !editingId ? <select required={hasRowData(item, emptyItem())} aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = assets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select your accepted property</option>{assets.map(asset => <option key={asset._id} value={asset._id} disabled={!asset.acceptedAt || !!asset.pendingMovement}>{asset.inventory?.item?.description} - {asset.documentNumber}{!asset.acceptedAt ? ' (accept ICS/PAR first)' : asset.pendingMovement ? ' (pending movement)' : ''}</option>)}</select> : <input required={hasRowData(item, emptyItem())} aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required readOnly={isUser} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required readOnly={isUser} aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <select required disabled={isUser} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
+                                        <select required={hasRowData(item, emptyItem())} disabled={isUser} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
                                     </td>
-                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.length > 1 ? previous.items.filter((_, rowIndex) => rowIndex !== index) : [emptyItem()] }))} /></td>
+                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
                                 </tr>
                             ))}
                         </tbody>
