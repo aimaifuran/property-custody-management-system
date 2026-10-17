@@ -1,3 +1,9 @@
+import FormRecordTabs from '../components/FormRecordTabs';
+import SignatoryValue from '../components/SignatoryValue';
+import SearchInput from '../components/SearchInput';
+import useSourceDocument from '../utils/useSourceDocument';
+import { todayManila } from '../utils/formDates';
+import EntityNameField from '../components/EntityNameField';
 import { hasRowData } from '../utils/formRows';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AddRowButton from '../components/AddRowButton';
@@ -46,7 +52,7 @@ const emptyItem = () => ({
     totalValue: 0
 });
 
-const emptySignatory = () => ({ date: '', name: '', designation: '' });
+const emptySignatory = () => ({ date: todayManila(), name: '', designation: '' });
 
 const initial = {
     prsNumber: '',
@@ -61,8 +67,8 @@ const initial = {
 
 const newForm = () => ({
     ...initial,
-    items: [],
-    returnedBy: getStickySignatory('returnedBy', emptySignatory()),
+    items: [emptyItem()],
+    returnedBy: emptySignatory(),
     returnedTo: getStickySignatory('returnedTo', emptySignatory())
 });
 
@@ -111,7 +117,11 @@ export default function PrsPage() {
     const returnFromRecords = user?.role === 'admin' ? location.state?.returnFromRecords : null;
     const appliedReturn = useRef(false);
     const isUser = user?.role !== 'admin';
-    const makeForm = () => ({ ...newForm(), ...(isUser ? { returnedBy: { user: user?._id, name: [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username, designation: user?.office, date: new Date().toISOString().slice(0, 10) } } : {}) });
+    const makeForm = () => {
+        const draft = newForm();
+        if (isUser) draft.returnedBy.user = user?._id;
+        return draft;
+    };
     const [decision, setDecision] = useState('receive');
     const [rejectionReason, setRejectionReason] = useState('');
     const [pageLoading, setPageLoading] = useState(true);
@@ -234,7 +244,6 @@ export default function PrsPage() {
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
         const signatory = { ...prev[section], [key]: value, ...(key === 'name' ? { user: undefined } : {}) };
-        saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
 
@@ -260,7 +269,7 @@ export default function PrsPage() {
                 ...nextForm.returnedTo,
                 name: nextForm.returnedTo.name || [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '',
                 designation: nextForm.returnedTo.designation || user?.office || '',
-                date: nextForm.returnedTo.date || new Date().toISOString().slice(0, 10),
+                date: nextForm.returnedTo.date || todayManila(),
             };
         }
         setForm(nextForm); setDecision('receive'); setRejectionReason('');
@@ -283,7 +292,7 @@ export default function PrsPage() {
             ...(!editingId ? { autoNumber: true } : {}),
             lguName: form.lguName,
             purpose,
-            items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => ({
+            items: form.items.filter(item => hasRowData(item, emptyItem())).map(({ issuedSearch: _issuedSearch, ...item }) => ({
                 ...item,
                 quantity: Number(item.quantity || 0),
                 unitValue: Number(item.unitValue || 0)
@@ -316,6 +325,7 @@ export default function PrsPage() {
             }
             setSearch('');
             cancelEdit();
+            setEditorOpen(false);
             load(true);
             loadIssued();
             if (editingId) scrollToRecords();
@@ -334,11 +344,11 @@ export default function PrsPage() {
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input required aria-label={`${label} Name`} value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <SignatoryValue  aria-label={`${label} Name`} value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="prs" role={section} field="name" managed={(!editingId || canReceive || canCorrectSignatory) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
-                    <input required aria-label={`${label} Designation`} value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <SignatoryValue  aria-label={`${label} Designation`} value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="prs" role={section} field="designation" managed={(!editingId || canReceive || canCorrectSignatory) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                 </label>
             </div>
         </fieldset>
@@ -480,12 +490,15 @@ export default function PrsPage() {
       await exportOfficialFormPdf('PRS', data, print);
     };
 
+    useSourceDocument(reports, setReports, startEdit, '/prs');
+
     if (pageLoading) return <PageSkeleton />;
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
         <div className="space-y-6">
-            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
+            <FormRecordTabs label="Property Return Slip" showForm={editorOpen} onForm={() => setEditorOpen(true)} onRecords={() => setEditorOpen(false)} />
+            {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Return Slips yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
@@ -507,16 +520,14 @@ export default function PrsPage() {
                     </div>
                 ))}
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
-            </div>
+            </div>}
 
             {editorOpen && (<ValidatedForm as={motion.form} ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={Boolean(processing)} inert={processing ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Return Slip" description="Saving a PRS automatically logs each item individually to Returned Supply." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
+            <div className="mb-4 flex justify-end"><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></div>
                 <fieldset disabled={readOnly} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-2">
-                    <label className="block">
-                        <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
-                        <input required value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                    </label>
+                    <EntityNameField value={form.lguName} onChange={value => update('lguName', value)} isNew={!editingId} />
                 </div>
 
                 <div className="mt-6">
@@ -559,12 +570,12 @@ export default function PrsPage() {
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-left">
-                                <th className="p-2">Issued item / User</th>
+                                <th className="p-2">Issued Item</th>
                                 <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Property Number</th>
-                                <th className="p-2">M. R. No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Material Record No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Unit Value <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Total Value</th>
                               <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
@@ -574,16 +585,18 @@ export default function PrsPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <select aria-label="Issued item to return" required={hasRowData(item, emptyItem()) && (Boolean(accountId(form.returnedBy)))} disabled={issuedLoading || Boolean(issuedError)} value={item.ris && item.risItem ? `${item.ris}:${item.risItem}` : ''} onChange={(e) => {
-                                            const [risId, itemId] = e.target.value.split(':');
+                                        <SearchInput aria-label="Issued item to return" required={hasRowData(item, emptyItem()) && Boolean(accountId(form.returnedBy))} disabled={issuedLoading || Boolean(issuedError)}
+                                            placeholder="Search issued item"
+                                            value={item.issuedSearch ?? (item.ris && item.risItem ? (() => { const record = issuedRecords.find(record => record._id === item.ris); const row = record?.items.find(row => row._id === item.risItem); return row ? `${row.description || row.stockNumber} ? ${record.risNumber} ? ${record.requestedBy?.name || record.receivedBy?.name || ''} (remaining ${row.quantityRemaining})` : item.description || ''; })() : '')}
+                                            options={eligibleRecords.flatMap(record => record.items.map(row => ({ value: `${record._id}:${row._id}`, label: `${row.description || row.stockNumber} ? ${record.risNumber} ? ${record.requestedBy?.name || record.receivedBy?.name || ''} (remaining ${row.quantityRemaining})` })))}
+                                            onChange={text => setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? { ...row, issuedSearch: text, ris: '', risItem: '', accountability: '' } : row) }))}
+                                            onSelect={option => {
+                                            const [risId, itemId] = option.value.split(':');
                                             const record = issuedRecords.find(row => row._id === risId);
                                             const issued = record?.items.find(row => row._id === itemId);
                                             const quantity = issued ? Math.min(Number(item.quantity) || issued.quantityRemaining, issued.quantityRemaining) : item.quantity;
-                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
-                                        }} className="w-64 rounded-xl border border-slate-200 px-2 py-2">
-                                            <option value="">{accountId(form.returnedBy) ? 'Select issued item to return' : 'Select issued item / manual historical return'}</option>
-                                            {eligibleRecords.flatMap(record => record.items.map(row => <option key={`${record._id}:${row._id}`} value={`${record._id}:${row._id}`}>{record.requestedBy?.name || record.receivedBy?.name} · {record.risNumber} · {row.description || row.stockNumber} (remaining {row.quantityRemaining})</option>))}
-                                        </select>
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, issuedSearch: undefined, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
+                                        }} className="w-64 rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} data-positive="true" aria-label="Quantity" type="number" min="0" step="any" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
@@ -598,7 +611,7 @@ export default function PrsPage() {
                                         <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="M. R. No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Material Record No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} onChange={(e) => updateItem(index, 'unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
@@ -606,7 +619,7 @@ export default function PrsPage() {
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
-                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
+                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} /></td>
                                 </tr>
                             ))}
                         </tbody>
@@ -637,7 +650,7 @@ export default function PrsPage() {
                 <div className="flex justify-end">
                   <button type="submit" disabled={!!processing || (readOnly && !canReceive && !canCorrectSignatory) || (!readOnly && Boolean(accountId(form.returnedBy)) && (issuedLoading || Boolean(issuedError) || !eligibleRecords.length))} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">
                       <RotateCcw size={16} />
-                      {processing ? 'Saving...' : canReceive ? decision === 'reject' ? 'Reject PRS' : 'Confirm Receipt' : canCorrectSignatory ? 'Update PRS' : readOnly ? 'Recorded Return' : isUser ? 'Submit PRS' : editingId ? 'Update PRS' : 'Create PRS'}
+                      {canReceive ? decision === 'reject' ? 'Reject PRS' : 'Confirm Receipt' : canCorrectSignatory ? 'Save' : readOnly ? 'Recorded Return' : 'Save'}
                   </button>
                 </div>
             </ValidatedForm>)}

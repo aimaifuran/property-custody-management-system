@@ -21,11 +21,9 @@ const primaryCards = [
 const secondaryCards = [
   { key: 'ptr', title: 'Property Transfer Report', icon: ArrowLeftRight, iconBg: 'bg-blue-50', iconColor: 'text-blue-700' },
   { key: 'prs', title: 'Property Return Slip', icon: RotateCcw, iconBg: 'bg-rose-50', iconColor: 'text-rose-700' },
-  { key: 'returnedSupply', title: 'Returned Supply', icon: ClipboardList, iconBg: 'bg-amber-50', iconColor: 'text-amber-700' },
 ];
 
 const RETURN_SLIP_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#db2777', '#16a34a', '#ea580c'];
-const RETURN_SUPPLY_COLORS = ['#d97706', '#059669', '#e11d48', '#4f46e5', '#0284c7', '#9333ea'];
 const REPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const renderReturnCount = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
@@ -59,7 +57,7 @@ export default function DashboardPage() {
   const [counts, setCounts] = useState(null);
 
   const [recentActivity, setRecentActivity] = useState([]);
-  const [chartData, setChartData] = useState({ returnSlip: [], returnedSupply: [] });
+  const [chartData, setChartData] = useState({ returnSlip: [] });
   const [issuedReports, setIssuedReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,7 +75,6 @@ export default function DashboardPage() {
         setIssuedReports(issuedData.data || []);
         setChartData({
           returnSlip: data.data.returnSlipBreakdown || [],
-          returnedSupply: data.data.returnedSupplyBreakdown || [],
         });
       } catch (err) {
         setError(err.response?.data?.message || 'Unable to load dashboard data');
@@ -127,15 +124,34 @@ export default function DashboardPage() {
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-2">
             <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="75%" labelLine={false} label={renderReturnCount}>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={RETURN_SLIP_COLORS[index % RETURN_SLIP_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
-            <div className="dashboard-return-summary dashboard-return-supply minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Supply</h2>{chartData.returnedSupply.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnedSupply} dataKey="count" nameKey="label" innerRadius="40%" outerRadius="65%" label>{chartData.returnedSupply.map((entry, index) => <Cell key={entry.label} fill={RETURN_SUPPLY_COLORS[index % RETURN_SUPPLY_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
-          </div>
-
-          <div className="dashboard-reports grid gap-4">
             <div className="dashboard-monthly minimal-surface p-4">
               <h2 className="text-sm font-semibold">Monthly Reports</h2>
               <p className="text-xs text-slate-500">Issued reports this year</p>
               <div className="monthly-report-chart mt-2"><ResponsiveContainer width="100%" height="100%"><LineChart data={monthlyReportData} margin={{ top: 12, right: 12, bottom: 8, left: 4 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 9 }} height={26} minTickGap={8} padding={{ left: 6, right: 6 }} /><YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} /><Tooltip /><Line type="monotone" dataKey="reports" name="Reports" stroke="#2f6f68" strokeWidth={2} dot={{ r: 2 }} /></LineChart></ResponsiveContainer></div>
             </div>
+          </div>
+
+          <div className="dashboard-reports grid gap-4">
+      <div className="dashboard-other">
+        <h2 className="mb-3 text-lg font-semibold text-slate-700">Other Records</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {secondaryCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.key} className="minimal-surface flex items-start justify-between gap-3 p-4">
+                <div>
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <span className={`shrink-0 rounded-md p-1.5 ${card.iconBg} ${card.iconColor}`}><Icon size={16} /></span>
+                    <span className="dashboard-card-label text-xs font-semibold uppercase tracking-wide leading-snug">{card.title}</span>
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-slate-900">{loading ? <Skeleton className="h-4 w-20" /> : (counts?.[card.key] ?? 0)}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
 
           </div>
 
@@ -167,25 +183,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="dashboard-other">
-        <h2 className="mb-3 text-lg font-semibold text-slate-700">Other Records</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {secondaryCards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <div key={card.key} className="minimal-surface flex items-start justify-between gap-3 p-4">
-                <div>
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <span className={`shrink-0 rounded-md p-1.5 ${card.iconBg} ${card.iconColor}`}><Icon size={16} /></span>
-                    <span className="dashboard-card-label text-xs font-semibold uppercase tracking-wide leading-snug">{card.title}</span>
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{loading ? <Skeleton className="h-4 w-20" /> : (counts?.[card.key] ?? 0)}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+
 
     </div>
   );

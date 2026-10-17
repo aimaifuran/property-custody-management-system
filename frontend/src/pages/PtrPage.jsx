@@ -1,3 +1,9 @@
+import FormRecordTabs from '../components/FormRecordTabs';
+import UserAccountSelect from '../components/UserAccountSelect';
+import SignatoryValue from '../components/SignatoryValue';
+import useSourceDocument from '../utils/useSourceDocument';
+import { todayManila } from '../utils/formDates';
+import IarSourceSelect from '../components/IarSourceSelect';
 import { hasRowData } from '../utils/formRows';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
@@ -33,14 +39,14 @@ import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
 const FIXED_TRANSFER_TYPES = ['Donation', 'Reassignment', 'Relocation'];
 
 const emptyItem = () => ({
-    dateAcquired: '',
+    dateAcquired: todayManila(),
     propertyNumber: '',
     description: '',
     amount: '',
     condition: ''
 });
 
-const emptySignatory = () => ({ name: '', designation: '', date: '' });
+const emptySignatory = () => ({ name: '', designation: '', date: todayManila() });
 
 const initial = {
     entityName: '',
@@ -51,7 +57,7 @@ const initial = {
     date: '',
     transferTypeChoice: null,
     transferTypeOther: '',
-    items: [],
+    items: [emptyItem()],
     remarks: '',
     reasonForTransfer: '',
     approvedBy: emptySignatory(),
@@ -61,10 +67,11 @@ const initial = {
 
 const newForm = () => ({
     ...initial,
-    items: [],
+    date: todayManila(),
+    items: [emptyItem()],
     approvedBy: getStickySignatory('approvedBy', emptySignatory()),
     issuedBy: getStickySignatory('issuedBy', emptySignatory()),
-    receivedBy: getStickySignatory('receivedBy', emptySignatory())
+    receivedBy: emptySignatory()
 });
 
 const toDateInputValue = (date) => {
@@ -90,6 +97,7 @@ const toForm = (record) => ({
     transferTypeChoice: FIXED_TRANSFER_TYPES.includes(record.transferType) ? record.transferType : 'Other',
     transferTypeOther: FIXED_TRANSFER_TYPES.includes(record.transferType) ? '' : (record.transferType || ''),
     items: record.items && record.items.length ? record.items.map((item) => ({
+        inventory: item.inventory, property: item.property, serialNumber: item.serialNumber,
         dateAcquired: toDateInputValue(item.dateAcquired),
         propertyNumber: item.propertyNumber || '',
         description: item.description || '',
@@ -157,7 +165,6 @@ export default function PtrPage() {
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
         const signatory = { ...prev[section], [key]: value };
-        saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
 
@@ -222,6 +229,7 @@ export default function PtrPage() {
                 toast.success('PTR created');
             }
             setSearch('');
+            setEditorOpen(false);
             setEditingId(null);
             setForm(makeForm()); setDecision('confirm'); setRejectionReason('');
             refreshNumberPreview();
@@ -232,7 +240,7 @@ export default function PtrPage() {
         } finally { setSaving(false); }
     };
 
-    const field = (label, key, type = 'text') => key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '' })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
+    const field = (label, key, type = 'text') => key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <input required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
@@ -243,13 +251,14 @@ export default function PtrPage() {
         <div className="rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
+                {section === 'receivedBy' && !editingId && <UserAccountSelect person={form[section]} onChange={person => setForm(previous => ({ ...previous, [section]: { ...previous[section], ...person, designation: person.designation || person.office || '' } }))} />}
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input required value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <SignatoryValue  value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="ptr" role={section} field="name" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
-                    <input required value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <SignatoryValue  value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="ptr" role={section} field="designation" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
@@ -376,12 +385,15 @@ export default function PtrPage() {
       await exportOfficialFormPdf('PTR', data, print);
     };
 
+    useSourceDocument(reports, setReports, startEdit, '/ptr');
+
     if (pageLoading) return <PageSkeleton />;
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
         <div className="space-y-6">
-            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
+            <FormRecordTabs label="Property Transfer Report" showForm={editorOpen} onForm={() => setEditorOpen(true)} onRecords={() => setEditorOpen(false)} />
+            {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
@@ -400,10 +412,12 @@ export default function PtrPage() {
                     </div>
                 ))}
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
-            </div>
+            </div>}
 
             {editorOpen && (<ValidatedForm as={motion.form} ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Transfer Report" description="Transfer an accountable asset to another custodian." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
+            <div className="mb-4 flex justify-end"><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></div>
+                {!editingId && !isUser && <IarSourceSelect type="ptr" setForm={setForm} />}
                 <fieldset disabled={workflow} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-3">
                     {field('Entity Name', 'entityName')}
@@ -470,7 +484,7 @@ export default function PtrPage() {
                                     <td className="p-2">
                                         <select required={hasRowData(item, emptyItem())} disabled={isUser} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
                                     </td>
-                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
+                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} /></td>
                                 </tr>
                             ))}
                         </tbody>
@@ -502,7 +516,7 @@ export default function PtrPage() {
                 <div className="flex justify-end">
                   <button type="submit" disabled={saving || (workflow && !canProcess)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
                       <Send size={16} />
-                      {saving ? 'Saving...' : workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : isUser ? 'Submit PTR' : editingId ? 'Update PTR' : 'Create PTR'}
+                      {workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : 'Save'}
                   </button>
                 </div>
             </ValidatedForm>)}

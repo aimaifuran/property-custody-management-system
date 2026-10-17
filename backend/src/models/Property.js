@@ -14,6 +14,8 @@ const eventSchema = new mongoose.Schema({
 }, { _id: false });
 
 const propertySchema = new mongoose.Schema({
+  inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory', index: true },
+  iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport' },
   propertyCode: { type: String, required: true, unique: true, trim: true, uppercase: true },
   propertyName: { type: String, required: true, trim: true },
   description: { type: String, trim: true },

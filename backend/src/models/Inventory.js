@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 
 const inventorySchema = new mongoose.Schema({
   item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
+  property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
+  serialIdentity: { type: String, unique: true, sparse: true },
   serialNumber: { type: String, trim: true },
   propertyNumber: { type: String, trim: true },
   quantity: { type: Number, required: true, default: 0 },
@@ -18,5 +20,9 @@ const inventorySchema = new mongoose.Schema({
   inspectionAcceptanceReport: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport' },
   deleted: { type: Boolean, default: false },
 }, { timestamps: true });
+
+inventorySchema.pre('validate', function () {
+  this.serialIdentity = this.serialNumber?.trim() ? this.serialNumber.trim().toLowerCase() : undefined;
+});
 
 module.exports = mongoose.model('Inventory', inventorySchema);

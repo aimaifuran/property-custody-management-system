@@ -72,7 +72,7 @@ router.post('/', authenticate, validateAdminForm('prs'), authorize('canManageInv
       await validateLinks(payload.items, null, session);
       if (automaticNumber) payload.prsNumber = await reserveDocumentNumber(PropertyReturnSlip, 'prsNumber', new Date(), session);
       const [created] = await PropertyReturnSlip.create([payload], { session });
-      await postPropertyReturn(created, session);
+      await postPropertyReturn(created, session, req.user);
       return created;
     });
   } catch (error) { return errorResponse(res, error.message, [], 400); }
@@ -108,7 +108,7 @@ router.post('/:id/confirm', authenticate, authorize('canManageInventory'), async
         designation: pending.returnedTo?.designation || req.user.office,
         date: pending.returnedTo?.date || new Date(),
       });
-      await postPropertyReturn(pending, session);
+      await postPropertyReturn(pending, session, req.user);
       await notifyUsers([pending.submittedBy || pending.returnedBy?.user], 'Return received', `${pending.prsNumber || 'PRS'} received and accountability updated.`, '/my-returns', session);
       return pending;
     });

@@ -1,9 +1,10 @@
+import usePendingReturns from '../utils/usePendingReturns';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { preloadFormFonts } from '../utils/formPdfFonts';
@@ -29,7 +30,6 @@ const navItems = [
   { to: '__issue__', label: 'Issue', icon: FileText, permissions: [] },
   { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
-  { to: '/returned-supply', label: 'Returned Supply', icon: ClipboardList, permissions: ['canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
 ];
 
@@ -57,10 +57,12 @@ export default function Layout() {
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); };
   }, [accountMenuOpen]);
+  const pendingReturns = usePendingReturns(user?.role === 'admin');
   const [pendingResets, setPendingResets] = useState(0);
   const notifiedResets = useRef(new Set());
   const [pendingRegistrations, setPendingRegistrations] = useState(0);
   const notifiedRegistrations = useRef(new Set());
+  const accountNoticeCount = pendingResets + pendingRegistrations + pendingReturns.length;
 
   useEffect(() => {
     const warmFonts = () => { preloadFormFonts(['regular', 'bold']).catch(() => {}); };
@@ -286,15 +288,15 @@ export default function Layout() {
             </div>
             <div className="title-bar-account-group" ref={accountMenuRef} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setAccountMenuOpen(false); }}>
               {user && <NavLink to="/profile" className="title-bar-account" aria-label="Open my profile">
-                <span className="title-bar-account-details"><strong>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</strong><span>{user.role === 'admin' ? 'Admin' : 'User'}</span></span>
+                <span className="title-bar-account-details"><strong>{[user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ') || user.username}</strong><span>{user.role === 'admin' ? 'Admin' : 'User'}</span></span>
                 <span className="title-bar-account-avatar">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : <span aria-hidden="true">{`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || user.username?.slice(0, 2).toUpperCase()}</span>}</span>
               </NavLink>}
-              <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" title={pendingRegistrations ? `${pendingRegistrations} registration requests awaiting approval` : 'Account menu'} aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" /></button>
+              <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" title={accountNoticeCount ? `${accountNoticeCount} requests awaiting confirmation` : 'Account menu'} aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" />{accountNoticeCount > 0 && <span className="account-return-badge" aria-label={`${accountNoticeCount} requests awaiting confirmation`}>{accountNoticeCount}</span>}</button>
               {accountMenuOpen && <div id="header-account-menu" className="title-bar-account-menu" role="menu" aria-label="Account actions">
                   <NavLink to="/profile" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />My Profile</NavLink>
                 {user?.role === 'admin' && <>
-                  <NavLink to="/offline-records" role="menuitem" onClick={() => setAccountMenuOpen(false)}><ClipboardList size={16} aria-hidden="true" />Offline Records</NavLink>
-                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{pendingResets + pendingRegistrations > 0 && <span className="account-menu-notification" aria-label={`${pendingResets + pendingRegistrations} account requests awaiting approval`}>{pendingResets + pendingRegistrations}</span>}</NavLink>
+                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{accountNoticeCount > 0 && <span className="account-menu-notification" aria-label={`${accountNoticeCount} requests awaiting confirmation`}>{accountNoticeCount}</span>}</NavLink>
+                  <NavLink to="/settings" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Settings size={16} aria-hidden="true" />System Settings</NavLink>
                 </>}
                 <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); logout(); }}><LogOut size={16} aria-hidden="true" />Logout</button>
               </div>}

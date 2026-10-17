@@ -18,8 +18,9 @@ async function bootstrapSeed() {
   const adminPassword = await bcrypt.hash('Admin123!', 10);
 
   await User.create({
-    firstName: 'System',
-    lastName: 'Administrator',
+    firstName: 'Ralph',
+    middleName: 'M.',
+    lastName: 'Saveret Jr.',
     email: 'admin@pcms.gov',
     username: 'admin',
     password: adminPassword,

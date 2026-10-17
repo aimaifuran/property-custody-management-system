@@ -1,3 +1,9 @@
+import SignatoryValue from '../components/SignatoryValue';
+import SearchInput from '../components/SearchInput';
+import { stockItemOption, stockItemNames, selectIarStockItem } from '../utils/iarItemSelection';
+import useSourceDocument from '../utils/useSourceDocument';
+import { withCurrentDates } from '../utils/formDates';
+import { useNavigate } from 'react-router-dom';
 import { hasRowData } from '../utils/formRows';
 import { lineAmount, sumAmounts } from '../utils/formAmounts';
 import AddRowButton from '../components/AddRowButton';
@@ -30,7 +36,6 @@ import { saveAs } from "file-saver";
 import { ChevronLeft, ChevronRight, FileText, Printer, RotateCcw } from 'lucide-react';
 import FundClusterField from '../components/FundClusterField';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
-import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 
@@ -38,9 +43,11 @@ const emptyItem = () => ({
     serialNumber: '',
     propertyNumber: '',
     stockPropertyNumber: '',
+    propertyPlantAndEquipment: '',
     description: '',
     unit: '',
     quantity: '',
+    acceptedQuantity: '',
     unitCost: '',
     totalCost: 0
 });
@@ -64,7 +71,7 @@ const initial = {
     items: []
 };
 
-const newForm = () => ({ ...initial, inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [] });
+const newForm = () => withCurrentDates({ ...initial, submissionKey: crypto.randomUUID(), inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [emptyItem()] });
 
 const readDraft = key => {
     try {
@@ -87,6 +94,7 @@ const toDateInputValue = (date) => {
 };
 
 const toForm = (record) => ({
+    submissionKey: record.submissionKey,
     entityName: record.entityName || '',
     fundCluster: record.fundCluster || '',
     supplierName: record.supplierName || record.supplier?.name || '',
@@ -106,17 +114,21 @@ const toForm = (record) => ({
     items: record.items && record.items.length ? record.items.map((item) => ({
         itemType: item.itemType || 'ASSET',
         serialNumber: item.serialNumber || '',
+        serialNumbers: item.serialNumbers || [],
         propertyNumber: item.propertyNumber || '',
         stockPropertyNumber: item.stockPropertyNumber || item.stockNumber || '',
+        propertyPlantAndEquipment: item.propertyPlantAndEquipment || '',
         description: item.description || item.item || '',
         unit: item.unit || '',
         quantity: item.quantity ?? '',
+        acceptedQuantity: item.acceptedQuantity ?? item.quantity ?? '',
         unitCost: item.unitCost ?? '',
         totalCost: lineAmount(item.quantity, item.unitCost)
     })) : []
 });
 
 export default function IarPage() {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const draftKey = `pams.iar-draft.${user._id}`;
     const [restoredDraft] = useState(() => readDraft(draftKey));
@@ -124,12 +136,13 @@ export default function IarPage() {
     const [pageLoadError, setPageLoadError] = useState('');
 
     const [iar, setIar] = useState([]);
-    const [form, setForm] = useState(() => restoredDraft?.form || newForm());
+    const [stockItems, setStockItems] = useState([]);
+    const [stockError, setStockError] = useState('');
+    const [people, setPeople] = useState([]);
+    const [form, setForm] = useState(() => restoredDraft?.form ? { ...restoredDraft.form, ...(!restoredDraft.editingId && !restoredDraft.numberEdited ? { iarNumber: '' } : {}) } : newForm());
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
-    const [numberEdited, setNumberEdited] = useState(restoredDraft?.numberEdited || false);
     const [sessionExpired, setSessionExpired] = useState(false);
-    const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('IAR', 'iarNumber', setForm);
     const [editingId, setEditingId] = useState(restoredDraft?.editingId || null);
     const [editorOpen, setEditorOpen] = useState(true);
     const [search, setSearch] = useState('');
@@ -139,9 +152,7 @@ export default function IarPage() {
     const update = (key, value) => {
         setSaveError('');
         if (key === 'iarNumber') {
-            cancelNumberPreview();
             value = value.replace(/[^0-9]/g, '').slice(0, 4);
-            setNumberEdited(true);
         }
         if (['inspectedBy', 'custodian'].includes(key)) saveStickySignatory(key, { name: value }, 'name');
         setForm(prev => ({ ...prev, [key]: value }));
@@ -151,7 +162,8 @@ export default function IarPage() {
       setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? {
             ...item,
-            [key]: value
+            [key]: value,
+            ...(key === 'stockPropertyNumber' ? { stockNumber: value } : {})
         } : item);
         if (key === 'quantity' || key === 'unitCost') items[index].totalCost = lineAmount(items[index].quantity, items[index].unitCost);
         return {
@@ -160,6 +172,20 @@ export default function IarPage() {
         };
       });
     };
+    const selectStock = (index, value) => {
+      const selected = stockItems.find(item => stockItemOption(item) === value);
+      if (!selected) { updateItem(index, 'propertyPlantAndEquipment', value); return; }
+      setForm(previous => ({ ...previous, items: previous.items.map((row, rowIndex) => rowIndex === index ? selectIarStockItem(row, selected) : row) }));
+    };
+    useEffect(() => {
+      const controller = new AbortController();
+      const loadItems = () => axios.get('/items', { signal: controller.signal }).then(({ data }) => { setStockItems(data.data || []); setStockError(''); }).catch(() => { if (!controller.signal.aborted) setStockError('Unable to load stock items. Refresh to retry.'); });
+      const loadPeople = () => axios.get('/users', { signal: controller.signal }).then(({ data }) => setPeople(data.data || [])).catch(() => {});
+      loadPeople();
+      loadItems(); window.addEventListener('focus', loadItems);
+      window.addEventListener('focus', loadPeople);
+      return () => { controller.abort(); window.removeEventListener('focus', loadItems); window.removeEventListener('focus', loadPeople); };
+    }, []);
     const load = async (background = false) => {
       if (!background) { setPageLoading(true); setPageLoadError(''); }
       try {
@@ -176,11 +202,11 @@ export default function IarPage() {
         if (!background) setPageLoading(false);
       }
     };
-    useEffect(() => { load(); if (!restoredDraft || (!restoredDraft.editingId && !restoredDraft.form.iarNumber)) refreshNumberPreview(); }, []);
+    useEffect(() => { load(); }, []);
     const filteredReports = useMemo(() => {
       const keyword = search.trim().toLowerCase();
       const ordered = sortSavedReports(iar);
-      return keyword ? ordered.filter((report) => [report.iarNumber, report.entityName, report.supplierName, report.poNumber, report.invoiceNumber].some((value) => String(value || '').toLowerCase().includes(keyword))) : ordered;
+      return keyword ? ordered.filter((report) => [report.iarDate, formatDate(report.iarDate || report.createdAt), report.iarNumber, report.entityName, report.supplierName, report.poNumber, report.invoiceNumber].some((value) => String(value || '').toLowerCase().includes(keyword))) : ordered;
     }, [iar, search]);
     useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
     const totalPages = Math.max(1, Math.ceil(filteredReports.length / perPage));
@@ -188,8 +214,7 @@ export default function IarPage() {
     const updateSearch = (value) => { setSearch(value); setPage(1); };
     const updatePerPage = (value) => { setPerPage(Number(value)); setPage(1); };
     const startEdit = (item) => {
-        cancelNumberPreview();
-        setSaveError(''); setNumberEdited(false);
+        setSaveError('');
         setEditorOpen(true);
         setEditingId(item._id);
         setForm(toForm(item));
@@ -198,19 +223,20 @@ export default function IarPage() {
     const cancelEdit = () => {
         try { sessionStorage.removeItem(draftKey); } catch { /* The form can still be used when storage is unavailable. */ }
         setSessionExpired(false);
-        setSaveError(''); setNumberEdited(false);
+        setSaveError('');
         setEditingId(null);
         setForm(newForm());
-        refreshNumberPreview();
     };
 
     const save = async (event) => {
         event.preventDefault();
         if (saving) return;
+        if (!form.iarNumber.trim()) { setSaveError('Enter the IAR number before saving.'); return; }
         const payload = {
             ...form,
             iarNumber: form.iarNumber.trim(),
-            ...(!editingId ? { autoNumber: !numberEdited } : {}),
+            ...(form.acceptanceStatus === 'Partial' ? { acceptanceQuantity: form.items.reduce((sum, item) => sum + Number(item.acceptedQuantity || 0), 0) } : {}),
+            ...(!editingId ? { autoNumber: false } : {}),
             items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => {
                 const { unitCost, ...receivedItem } = item;
                 return {
@@ -232,21 +258,31 @@ export default function IarPage() {
             } else {
                 const { data } = await axios.post('/iar', payload);
                 savedRecord = data.data;
-                toast.success('IAR saved. Property Card and RIS draft created. ICS/PAR will be generated when issued.');
+                toast.success('IAR saved. Opening Property Card history.');
             }
             if (savedRecord?._id) {
                 setIar(previous => [savedRecord, ...previous.filter(record => record._id !== savedRecord._id)]);
                 markUpdated(savedRecord._id);
             }
+            const refreshedItems = await axios.get('/items').catch(() => null);
+            if (refreshedItems) setStockItems(refreshedItems.data.data || []);
+            const linkedCard = savedRecord?.propertyCards?.[0];
+            const linkedCardId = linkedCard?._id || linkedCard;
+            if (!editingId && linkedCardId) {
+                try { sessionStorage.removeItem(draftKey); } catch { /* Navigation can continue without storage. */ }
+                navigate(`/inventory?card=${encodeURIComponent(linkedCardId)}`);
+                return;
+            }
             setSearch(''); setPage(1);
             cancelEdit();
+            setEditorOpen(false);
             await load(true);
             scrollToRecords();
         } catch (error) {
             const expired = error.response?.status === 401;
             if (expired) {
                 setSessionExpired(true);
-                try { sessionStorage.setItem(draftKey, JSON.stringify({ form, editingId, numberEdited })); } catch { /* Keep the current form mounted if browser storage is unavailable. */ }
+                try { sessionStorage.setItem(draftKey, JSON.stringify({ form, editingId, numberEdited: true })); } catch { /* Keep the current form mounted if browser storage is unavailable. */ }
             }
             const message = expired ? 'Your session has expired. Sign in again and reopen IAR to continue with your saved entries.' : error.response?.data?.message || 'Unable to save IAR. Check the connection and try again.';
             setSaveError(message);
@@ -255,6 +291,12 @@ export default function IarPage() {
     };
     const field = (label, key, type = 'text') => {
         if (key === 'entityName') return <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} />;
+        if (['inspectedBy', 'custodian'].includes(key)) return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><SignatoryValue formType="iar" role={key} value={form[key]} managed={!editingId} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} aria-label={label} /></label>;
+        if (key === 'supplierName') {
+            const names = key === 'supplierName' ? iar.map(record => record[key]) : [...people.map(person => [person.firstName, person.middleName, person.lastName].filter(Boolean).join(' ')), ...iar.flatMap(record => [record.inspectedBy, record.custodian])];
+            const options = [...new Set(names.filter(Boolean))].map(name => ({ value: name, label: name }));
+            return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><SearchInput required aria-label={label} value={form[key] || ''} options={options} onChange={value => update(key, value)} placeholder={`Search or enter ${label.toLowerCase()}`} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+        }
         // Already issued document numbers remain intact until explicitly changed.
         const legacyNumber = key === 'iarNumber' && editingId && !/^[0-9]{3,4}$/.test(form.iarNumber) && iar.some(record => record._id === editingId && record.iarNumber === form.iarNumber);
         const numberProps = key === 'iarNumber' ? {
@@ -265,10 +307,10 @@ export default function IarPage() {
             title: 'Enter a 3 or 4 digit IAR number',
             autoComplete: 'off'
         } : {};
-        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? '001' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR number' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     };
 
-    const formatDate = (date) => {
+    function formatDate(date) {
       if (!date) return '';
       const parsed = new Date(date);
       if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
@@ -370,16 +412,22 @@ export default function IarPage() {
       await exportOfficialFormPdf('IAR', data, print);
     };
 
+    useSourceDocument(iar, setIar, startEdit, '/iar');
+
     if (pageLoading) return <PageSkeleton />;
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={() => load()} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
       <>
-        <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
-          <SavedReportsHeader search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></SavedReportsHeader>
+        <nav aria-label="IAR sections" className="mb-5 flex flex-wrap gap-2">
+          <button type="button" aria-pressed={editorOpen} onClick={() => setEditorOpen(true)} className={`rounded-xl border px-4 py-2 font-semibold ${editorOpen ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Inspection and Acceptance Report</button>
+          <button type="button" aria-pressed={!editorOpen} onClick={() => setEditorOpen(false)} className={`rounded-xl border px-4 py-2 font-semibold ${!editorOpen ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Saved Reports</button>
+        </nav>
+        {!editorOpen && <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
+          <SavedReportsHeader search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}></SavedReportsHeader>
           {visibleReports.map((item) =>
             <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}><NewFormBadge record={item} />
               <div>
-                <b className="text-sm tracking-tight text-[#285943]">{item.iarNumber}</b>
+                <b className="text-sm tracking-tight text-[#285943]">{formatDate(item.iarDate || item.createdAt)}</b>
                 <div className="mt-1 text-xs text-slate-500">
                   {item.entityName || 'No entity'} · linked records created
                 </div>
@@ -393,11 +441,11 @@ export default function IarPage() {
             </div>
           )}
           <ClientPagination showPageSize={false} page={page} pageCount={totalPages} perPage={perPage} onPageChange={setPage} onPerPageChange={updatePerPage} />
-        </div>
-        <hr className="border-slate-300 border-2 my-8" />
+        </div>}
         <div className="space-y-6">
           {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => setSaveError(`${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`)} className="form-document form-frame scroll-mt-6 p-6">
             <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock and creates a Property Card and RIS draft. ICS/PAR are generated during issuance.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
+            <div className="mb-4 flex justify-end"><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></div>
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
               <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
@@ -410,14 +458,19 @@ export default function IarPage() {
               {field('Invoice No.', 'invoiceNumber')}
               {field('Invoice Date', 'invoiceDate', 'date')}
             </div>
+            <p className="mt-4 text-sm text-slate-600">Type an item name to see matching suggestions. Enter the description and serial number separately for each unit. For a new item name, enter a new Stock/Property No.</p>
+            {stockError && <p role="alert" className="mt-2 text-sm text-rose-700">{stockError}</p>}
             <TableScroll className="mt-6 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                     <tr className="bg-slate-50 text-left">
                     <th className="min-w-[230px] p-2"><span className="whitespace-nowrap">Stock/Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></span></th>
+                    <th className="min-w-[230px] p-2">Property, Plant and Equipment</th>
                     <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="min-w-[180px] p-2">Serial Number</th>
                     <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                     <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    {form.acceptanceStatus === 'Partial' && <th className="p-2">Accepted Qty</th>}
                     <th className="p-2">Unit Cost</th>
                     <th className="p-2">Total Cost</th>
                     <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
@@ -426,24 +479,26 @@ export default function IarPage() {
                 <tbody>
                   {form.items.map((item, index) =>
                     <tr key={index}>
-                      {['stockPropertyNumber', 'description', 'unit'].map((key) =>
+                      {['stockPropertyNumber', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
-                          <input required={hasRowData(item, emptyItem())} aria-label={key} value={item[key]} onChange={(e) =>
-                            updateItem(index, key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                          {key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={item[key] ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
+                            <input required={key !== 'serialNumber' && hasRowData(item, emptyItem())} aria-label={key === 'serialNumber' ? 'Serial Number' : key} value={item[key] ?? ''} onChange={event => updateItem(index, key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                          {key === 'serialNumber' && item.serialNumbers?.length > 0 && <p className="mt-1 break-words text-xs text-slate-500">Assigned: {item.serialNumbers[0]}{item.serialNumbers.length > 1 ? ` to ${item.serialNumbers.at(-1)} (${item.serialNumbers.length} units)` : ''}</p>}
                         </td>
                       )}
                       <td className="p-2">
                         <input required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                       </td>
+                      {form.acceptanceStatus === 'Partial' && <td className="p-2"><input type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>}
                       <td className="p-2"><input aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>
                       <td className="p-2"><input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" /></td>
-                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
+                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} /></td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </TableScroll>
-            <p className="mt-2 text-sm text-slate-600">Row cost = quantity ? unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
+            <p className="mt-2 text-sm text-slate-600"> Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
             <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
             <div className="mt-3 flex justify-end"><AddRowButton onClick={() => update('items', [...form.items, emptyItem()])} /></div>
             <div className="mt-6 grid gap-3 border-t pt-4 md:grid-cols-3">
@@ -459,12 +514,12 @@ export default function IarPage() {
                   <option value="Partial">Partial</option>
                 </select>
               </label>
-              {field('Partial Quantity (if applicable)', 'acceptanceQuantity', 'number')}
+              {form.acceptanceStatus === 'Partial' && <div><span className="mb-1 block text-sm font-semibold">Total Accepted Quantity</span><p>{form.items.reduce((sum, item) => sum + Number(item.acceptedQuantity || 0), 0)}</p></div>}
               {field('Supply/Property Custodian', 'custodian')}
             </div>
             {saveError && <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">{saveError}{sessionExpired && <Link to="/login" className="ml-2 font-semibold underline">Sign in again</Link>}</p>}
             <div className="flex justify-end">
-              <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end disabled:opacity-50">{saving ? 'Saving...' : editingId ? 'Update IAR' : 'Save IAR'}</button>
+              <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white justify-end disabled:opacity-50">Save</button>
             </div>
           </ValidatedForm>)}
         </div>

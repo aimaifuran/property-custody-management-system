@@ -66,3 +66,32 @@ test('user workflows retain their existing validation rather than requiring admi
   validateAdminForm('ptr')({ user: { role: 'user' }, method: 'POST', body: {} }, {}, () => { continued = true; });
   assert.equal(continued, true);
 });
+
+test('RIS saves with an omitted, blank or spaces-only division on create and update', () => {
+  const body = {
+    entityName: 'Municipality', fundCluster: 'General Fund', responsibilityCenterCode: 'RCC-01',
+    office: 'Treasury', purpose: 'Office use', date: '2026-10-17',
+    requestedBy: person, approvedBy: person, issuedBy: person, receivedBy: person,
+    items: [{ stockNumber: 'ST-01', unit: 'unit', description: 'Printer', quantityRequested: 1, quantityIssued: 1 }],
+  };
+  for (const method of ['POST', 'PUT']) {
+    for (const division of [undefined, '', '   ']) {
+      assert.deepEqual(getAdminFormErrors('ris', { ...body, division }, method), []);
+    }
+  }
+});
+
+test('RIS purpose is optional on create and update while requested items remain required', () => {
+  const body = {
+    entityName: 'Municipality', fundCluster: 'General Fund', responsibilityCenterCode: 'RCC-01',
+    office: 'Treasury', date: '2026-10-17',
+    requestedBy: person, approvedBy: person, issuedBy: person, receivedBy: person,
+    items: [{ stockNumber: 'ST-01', unit: 'unit', description: 'Printer', quantityRequested: 1, quantityIssued: 1 }],
+  };
+  for (const method of ['POST', 'PUT']) {
+    for (const purpose of [undefined, '', '   ']) {
+      assert.deepEqual(getAdminFormErrors('ris', { ...body, purpose }, method), []);
+    }
+    assert.ok(getAdminFormErrors('ris', { ...body, items: [] }, method).some(error => error.path === 'items'));
+  }
+});

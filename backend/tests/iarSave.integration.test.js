@@ -40,6 +40,7 @@ test('IAR editor payload saves stock atomically and reports field and number con
     binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') },
   });
   await mongoose.connect(database.getUri());
+  await require('../src/models/Setting').create({ entityName: 'Municipality of Carigara' });
   await Promise.all([IAR, Item, Inventory, Card, RIS, Ledger].map(Model => Model.init()));
   const server = require('../src/app').listen(0);
   t.after(async () => {
@@ -71,7 +72,7 @@ test('IAR editor payload saves stock atomically and reports field and number con
     assert.equal(stock.quantityOnHand, 5);
     assert.equal(await Inventory.countDocuments({ inspectionAcceptanceReport: saved._id }), 1);
     assert.equal(await Card.countDocuments({ iar: saved._id }), 1);
-    assert.equal(await RIS.countDocuments({ iar: saved._id }), 1);
+    assert.equal(await RIS.countDocuments({ iar: saved._id }), 0, 'Receiving stock does not create a request');
     assert.equal(await Ledger.countDocuments({ reference: saved.iarNumber, type: 'incoming' }), 1);
     const updated = await request(completedForm(saved.iarNumber, 'IAR-SAVE-PAPER'), `/iar/${saved._id}`, 'PUT');
     assert.equal(updated.status, 200, JSON.stringify(updated.body));
@@ -105,20 +106,21 @@ test('IAR editor payload saves stock atomically and reports field and number con
     assert.equal(paper.quantityOnHand, 8);
     const inventories = await Inventory.find({ inspectionAcceptanceReport: response.body.data._id }).sort({ unitCost: 1 });
     assert.deepEqual(inventories.map(row => [row.unitCost, row.assetCost]), [[250, 750], [60000, 60000]]);
-    const card = await Card.findOne({ iar: response.body.data._id });
-    assert.deepEqual(card.items.map(row => row.amount), [750, 60000]);
+    const cards = await Card.find({ 'items.sourceDocument': response.body.data._id });
+    const amounts = cards.flatMap(card => card.items.filter(row => String(row.sourceDocument) === response.body.data._id).map(row => row.amount));
+    assert.deepEqual(amounts.sort((a, b) => a - b), [750, 60000]);
   });
 
-  await t.test('explicit legacy classification and zero cost still override existing stock defaults', async () => {
+  await t.test('incompatible classifications require another stock code; explicit zero cost is preserved', async () => {
     await Item.create({ stockNumber: 'IAR-SAVE-EXPLICIT', description: 'Existing stock', unit: 'piece', itemType: 'SUPPLY', cost: 400 });
     const payload = completedForm('1004', 'IAR-SAVE-EXPLICIT');
-    Object.assign(payload.items[0], { itemType: 'ASSET', unitCost: 0 });
+    Object.assign(payload.items[0], { itemType: 'ASSET', unitCost: 0, unit: 'piece' });
+    assert.equal((await request(payload)).status, 400);
+    payload.items[0].itemType = 'SUPPLY';
     const response = await request(payload);
     assert.equal(response.status, 201, JSON.stringify(response.body));
-    assert.equal(response.body.data.items[0].itemType, 'ASSET');
     assert.equal(response.body.data.items[0].unitCost, 0);
-    assert.equal((await Item.findOne({ stockNumber: 'IAR-SAVE-EXPLICIT' })).itemType, 'ASSET');
-    assert.equal((await Inventory.findOne({ inspectionAcceptanceReport: response.body.data._id })).unitCost, 0);
+    assert.equal((await Item.findOne({ stockNumber: 'IAR-SAVE-EXPLICIT' })).itemType, 'SUPPLY');
   });
 
   await t.test('genuinely new stock retains asset and zero cost defaults when the hidden fields are omitted', async () => {

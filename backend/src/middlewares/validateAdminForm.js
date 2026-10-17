@@ -31,7 +31,7 @@ const rules = {
     items: ['propertyNumber', 'description', 'date', 'receiptQuantity', 'amount'], positive: ['receiptQuantity'], nonnegative: ['amount'],
   },
   ris: {
-    fields: ['entityName', 'fundCluster', 'division', 'responsibilityCenterCode', 'office', 'purpose', 'date', ...signatory('requestedBy'), ...signatory('approvedBy'), ...signatory('issuedBy'), ...signatory('receivedBy')],
+    fields: ['entityName', 'fundCluster', 'responsibilityCenterCode', 'office', 'date', ...signatory('requestedBy'), ...signatory('approvedBy'), ...signatory('issuedBy'), ...signatory('receivedBy')],
     items: ['stockNumber', 'unit', 'description', 'quantityRequested', 'quantityIssued'], positive: ['quantityRequested'], nonnegative: ['quantityIssued'],
   },
   suppliers: { fields: ['name', 'address', 'contactNumber'] },
@@ -55,9 +55,6 @@ function getAdminFormErrors(type, body = {}, method = 'POST') {
   if (!rule) return [];
   const errors = [];
   const add = (path, message) => errors.push({ path, msg: `${labelFor(path)}: ${message}` });
-  if (type === 'property-cards' && !missing(body.serialNumber) && !/^[a-zA-Z0-9]{1,18}$/.test(body.serialNumber)) {
-    add('serialNumber', 'Enter letters and numbers only, up to 18 characters.');
-  }
   // Completed return slips permit corrections to the receiver signatory alone.
   const signatoryOnly = type === 'prs' && method === 'PUT' && Object.keys(body).length === 1 && body.returnedTo;
   const fields = signatoryOnly ? signatory('returnedTo') : rule.fields;
@@ -77,8 +74,9 @@ function getAdminFormErrors(type, body = {}, method = 'POST') {
   checkNumbers(body, rule.nonnegativeFields, '', false);
   if (type === 'users' && method === 'POST' && missing(body.password)) add('password', 'This field is required.');
   if (type === 'iar' && body.acceptanceStatus === 'Partial') {
-    if (missing(body.acceptanceQuantity)) add('acceptanceQuantity', 'This field is required.');
-    else checkNumbers(body, ['acceptanceQuantity'], '', true);
+    const perLine = Array.isArray(body.items) && body.items.length && body.items.every(item => !missing(item.acceptedQuantity));
+    if (!perLine && missing(body.acceptanceQuantity)) add('acceptanceQuantity', 'Enter the accepted quantity for each item.');
+    else if (!missing(body.acceptanceQuantity)) checkNumbers(body, ['acceptanceQuantity'], '', true);
   }
   if (rule.items && !signatoryOnly) {
     const array = rule.array || 'items';
@@ -99,8 +97,30 @@ function getAdminFormErrors(type, body = {}, method = 'POST') {
   return errors;
 }
 
-const validateAdminForm = type => (req, res, next) => {
+// New forms use the fixed entity; updates retain their historical entity.
+const entityModels = {
+  iar: 'InspectionAcceptanceReport', 'property-cards': 'PropertyCard',
+  ris: 'RequisitionIssueSlip', ics: 'InventoryCustodianSlip',
+  par: 'PropertyAcknowledgementReceipt', ptr: 'PropertyTransferReport', prs: 'PropertyReturnSlip',
+};
+const validateAdminForm = type => async (req, res, next) => {
   if (req.user?.role !== 'admin') return next();
+  if (entityModels[type]) {
+    const field = type === 'prs' ? 'lguName' : 'entityName';
+    const preliminary = getAdminFormErrors(type, req.body, req.method).filter(error => error.path !== field);
+    if (preliminary.length) return errorResponse(res, `Form was not saved. ${preliminary[0].msg}`, preliminary, 400);
+    // Signatory-only corrections do not submit an entity field.
+    const signatoryOnly = type === 'prs' && req.method === 'PUT' && Object.keys(req.body).length === 1 && req.body.returnedTo;
+    if (!signatoryOnly) {
+      if (req.method === 'PUT' && req.params?.id) {
+        const Model = require(`../models/${entityModels[type]}`);
+        const record = await Model.findById(req.params.id).select(field).lean();
+        if (record) req.body[field] = record[field] || '';
+      } else if (req.method === 'POST') {
+        req.body[field] = require('../config/entityName');
+      }
+    }
+  }
   const errors = getAdminFormErrors(type, req.body, req.method);
   if (errors.length) return errorResponse(res, `Form was not saved. ${errors[0].msg}`, errors, 400);
   return next();

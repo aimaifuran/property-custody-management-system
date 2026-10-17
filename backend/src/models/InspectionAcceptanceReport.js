@@ -2,6 +2,7 @@ const { sumAmounts } = require('../utils/formAmounts');
 const mongoose = require('mongoose');
 
 const inspectionAcceptanceReportSchema = new mongoose.Schema({
+  submissionKey: { type: String, unique: true, sparse: true },
   entityName: { type: String, trim: true },
   fundCluster: { type: String, trim: true },
   supplierName: { type: String, trim: true },
@@ -33,17 +34,23 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
     default: 'PENDING_INSPECTION',
   },
   items: [{
+    inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },
+    inventories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' }],
+    property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
+    serialNumbers: [String],
+    serialNumber: { type: String, trim: true },
     itemType: { type: String, enum: ['SUPPLY', 'ASSET'], default: 'ASSET' },
     stockNumber: String,
     stockPropertyNumber: String,
+    propertyPlantAndEquipment: { type: String, trim: true },
     description: String,
     unit: String,
     quantity: Number,
+    acceptedQuantity: { type: Number, min: 0 },
     unitCost: Number,
     totalCost: Number,
     // Legacy item fields retained for older records.
     item: String,
-    serialNumber: String,
     propertyNumber: String,
     acceptanceStatus: String,
     remarks: String,

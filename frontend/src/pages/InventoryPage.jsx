@@ -1,369 +1,127 @@
-import { hasRowData } from '../utils/formRows';
-import AddRowButton from '../components/AddRowButton';
-import DeleteRowButton from '../components/DeleteRowButton';
-import ValidatedForm from '../components/ValidatedForm';
-import { sortSavedReports } from '../utils/savedReportOrder';
-import useSavedReportPage from '../utils/useSavedReportPage';
-import NewFormBadge from '../components/NewFormBadge';
-import FormEditorHeader from '../components/FormEditorHeader';
-import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
-import EntityNameField from '../components/EntityNameField';
-import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
-import NewFormButton from '../components/NewFormButton';
-import { PageSkeleton } from '../components/Skeleton';
-import TableScroll from '../components/TableScroll';
-import RecordActionButton from '../components/RecordActionButton';
-import {
-    useEffect,
-    useState
-} from 'react';
+import { buildItemPropertyCardExport, itemLedgerSelection } from '../utils/itemPropertyCardExport';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import ExcelJS from "exceljs";
-import PizZip from "pizzip";
-import Docxtemplater from "docxtemplater";
-import { saveAs } from "file-saver";
-import FundClusterField from '../components/FundClusterField';
+import { FileText, RefreshCw } from 'lucide-react';
+import { PageSkeleton } from '../components/Skeleton';
+import TableScroll from '../components/TableScroll';
 import Pagination from '../components/Pagination';
-import { FileText, Printer, RotateCcw } from 'lucide-react';
+import RecordActionButton from '../components/RecordActionButton';
+import FormEditorHeader from '../components/FormEditorHeader';
+import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 
-const emptyItem = () => ({
-    propertyNumber: '',
-    description: '',
-    serialNumber: '',
-    date: '',
-    referenceParNo: '',
-    receiptQuantity: '',
-    itdQuantity: '',
-    itdOfficeOfficer: '',
-    balanceQuantity: '',
-    amount: '',
-    remarks: ''
-});
-const initialForm = {
-    month: '',
-    poNumber: '',
-    entityName: '',
-    fundCluster: '',
-    propertyPlantAndEquipment: '',
-    propertyNumber: '',
-    description: '',
-    serialNumber: '',
-    items: []
-};
-const inputDate = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
+const dateLabel = value => value ? new Date(value).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) : '?';
+const money = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const categoryLabel = value => String(value || '').trim().toLowerCase() === 'general' ? '' : value || '';
+const control = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
+const Info = ({ label, value }) => <div><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 text-sm text-slate-900">{value ?? 'Not configured'}</dd></div>;
 
 export default function InventoryPage() {
-    const [pageLoading, setPageLoading] = useState(true);
-    const [pageLoadError, setPageLoadError] = useState('');
-    const [saving, setSaving] = useState(false);
-
-    const [cards, setCards] = useState([]);
-    const [editingCard, setEditingCard] = useState(null);
-    const [form, setForm] = useState(initialForm);
-    const [page, setPage] = useState(1);
-    const [perPage, setPerPage] = useState(5);
+  const [params, setParams] = useSearchParams();
+  const selectedId = params.get('item');
+  const legacyCard = params.get('card');
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(sortSavedReports(cards), search);
-    const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingCard?._id);
-    useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
-    const load = async () => {
-      setPageLoading(true);
-      setPageLoadError('');
-      try {
+  const [category, setCategory] = useState('');
+  const [status, setStatus] = useState('');
+  const [sort, setSort] = useState('received');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [data, setData] = useState(null);
+  const [details, setDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [detailError, setDetailError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const [type, setType] = useState('');
+  const [office, setOffice] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const { editorRef, recordsRef } = useUpdateFormNavigation(selectedId);
+  const select = id => { setType(''); setOffice(''); setFrom(''); setTo(''); setParams(id ? { item: id } : {}); };
 
-        const {
-            data
-        } = await axios.get('/property-cards');
-        setCards(data.data || []);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true); setError('');
+    axios.get('/property-cards/stock-ledger', { signal: controller.signal, params: { search, category, status, sort, page, limit, ...(legacyCard ? { card: legacyCard } : {}) } })
+      .then(({ data: response }) => { setData(response.data); if (legacyCard && response.data.initialItemId) setParams({ item: response.data.initialItemId }, { replace: true }); })
+      .catch(error => { if (!controller.signal.aborted) setError(error.response?.data?.message || 'Unable to load Property Cards.'); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [search, category, status, sort, page, limit, refresh, legacyCard, setParams]);
 
-      } catch (error) {
-        setPageLoadError(error.response?.data?.message || 'Unable to load records.');
-      } finally {
-        setPageLoading(false);
-      }
-    };
-    useEffect(() => {
-        load();
-    }, []);
-    const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
-    const visibleCards = filteredReports.slice((page - 1) * perPage, page * perPage);
+  useEffect(() => {
+    if (!selectedId) { setDetails(null); return; }
+    const controller = new AbortController();
+    setDetailLoading(true); setDetailError('');
+    axios.get(`/property-cards/stock-ledger/${selectedId}`, { signal: controller.signal })
+      .then(({ data }) => setDetails(data.data))
+      .catch(error => { if (!controller.signal.aborted) setDetailError(error.response?.data?.message || 'Unable to load item history.'); })
+      .finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
+    return () => controller.abort();
+  }, [selectedId, refresh]);
 
-    const edit = (card) => {
-        const items = card.items?.length ? card.items : (card.entries || []).map((entry) => ({
-            ...entry,
-            propertyNumber: card.propertyNumber,
-            description: card.description,
-            serialNumber: card.serialNumber
-        }));
-        setEditingCard(card);
-        setForm({
-            ...initialForm,
-            ...card,
-            items: (items.length ? items : []).map((item) => ({
-                ...emptyItem(),
-                ...item,
-                date: inputDate(item.date)
-            }))
-        });
-    };
-    const update = (key, value) => setForm((previous) => ({
-        ...previous,
-        [key]: key === 'serialNumber' ? value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 18) : value
-    }));
-    const updateItem = (index, key, value) => setForm((previous) => ({
-        ...previous,
-        items: previous.items.map((item, itemIndex) => itemIndex === index ? {
-            ...item,
-            [key]: value
-        } : item)
-    }));
-    const closeEditor = () => {
-        setEditingCard(null);
-        setForm(initialForm);
-    };
-    const save = async (event) => {
-        event.preventDefault();
-        if (saving) return;
-        setSaving(true);
-        try {
-            await axios[editingCard?._id ? 'put' : 'post'](editingCard?._id ? `/property-cards/${editingCard._id}` : '/property-cards', {
-                ...form,
-                items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => ({
-                    ...item,
-                    propertyNumber: form.propertyNumber,
-                    description: form.description,
-                    serialNumber: form.serialNumber,
-                    date: item.date || null,
-                    receiptQuantity: item.receiptQuantity === '' ? null : Number(item.receiptQuantity),
-                    itdQuantity: item.itdQuantity === '' ? null : Number(item.itdQuantity),
-                    balanceQuantity: item.balanceQuantity === '' ? null : Number(item.balanceQuantity),
-                    amount: item.amount === '' ? null : Number(item.amount)
-                })),
-            });
-            toast.success(editingCard?._id ? 'Property Card updated' : 'Property Card created');
-            if (editingCard?._id) markUpdated(editingCard._id);
-            setSearch('');
-            closeEditor();
-            await load();
-            scrollToRecords();
-        } catch (error) {
-            toast.error(error.response?.data?.message || 'Unable to update Property Card');
-        } finally { setSaving(false); }
-    };
-    const field = (label, key, type = 'text') => key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingCard?._id} /> : <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'serialNumber'} type={type} aria-label={label} {...(key === 'serialNumber' ? { maxLength: 18, pattern: '[a-zA-Z0-9]{0,18}', title: 'Enter letters and numbers only, up to 18 characters' } : {})} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
-    const itemLabels = ['Date', 'Reference PAR No.', 'Receipt Qty', 'ITD Qty', 'ITD Office/Officer', 'Balance Qty', 'Amount', 'Remarks'];
-    const itemFields = [
-        ['date', 'date'],
-        ['referenceParNo', 'text'],
-        ['receiptQuantity', 'number'],
-        ['itdQuantity', 'number'],
-        ['itdOfficeOfficer', 'text'],
-        ['balanceQuantity', 'number'],
-        ['amount', 'number'],
-        ['remarks', 'text']
-    ];
+  useEffect(() => {
+    const update = () => { if (!document.hidden) setRefresh(value => value + 1); };
+    const timer = setInterval(update, 30000); window.addEventListener('focus', update);
+    return () => { clearInterval(timer); window.removeEventListener('focus', update); };
+  }, []);
 
-    const formatDate = (date) => {
-      if (!date) return '';
-      const parsed = new Date(date);
-      if (Number.isNaN(parsed.getTime())) return escapeHtml(date);
-      return `${String(parsed.getMonth() + 1).padStart(2, '0')}/${String(parsed.getDate()).padStart(2, '0')}/${parsed.getFullYear().toString().slice(-2)}`;
-    };
+  const { rows, beginning, ending, initialStock } = itemLedgerSelection(details, { from, to, type, office, activityOnly: true });
+  const exportCard = async (print = false) => {
+    if (!details || exporting) return;
+    setExporting(true);
+    try {
+      const payload = buildItemPropertyCardExport(details, { from, to, type, office, activityOnly: true });
+      await exportOfficialFormPdf('PROPERTY CARD', payload, print);
+    } catch { toast.error('Unable to prepare Property Card PDF'); }
+    finally { setExporting(false); }
+  };
 
-    const formatAmount = (amount) => {
-      return amount.toLocaleString('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-      });
-    };
-
-    async function generateExcel(data) {
-      console.log('Generating Excel for Property Card:', data);
-
-      // Load the template
-      const response = await fetch("/forms/templates/pc-template.xlsx");
-      const arrayBuffer = await response.arrayBuffer();
-
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(arrayBuffer);
-
-      // Select the worksheet
-      const worksheet = workbook.getWorksheet("PC");
-
-      // Insert data into specific cells
-      worksheet.getCell("C3").value = formatDate(data.month);
-      worksheet.getCell("E3").value = data.poNumber;
-      worksheet.getCell("D5").value = data.entityName;
-      worksheet.getCell("J5").value = data.fundCluster;
-      worksheet.getCell("E7").value = data.propertyPlantAndEquipment;
-      worksheet.getCell("J8").value = data.propertyNumber;
-      worksheet.getCell("D9").value = data.description;
-
-      // Table data insertion
-      const startRow = 12; // Starting row for table data
-      data.items.forEach((item, index) => {
-        worksheet.getCell(`B${startRow + index}`).value = formatDate(item.date);
-        worksheet.getCell(`C${startRow + index}`).value = item.referenceParNo;
-        worksheet.getCell(`D${startRow + index}`).value = item.receiptQuantity;
-        worksheet.getCell(`E${startRow + index}`).value = item.itdQuantity;
-        worksheet.getCell(`F${startRow + index}`).value = item.itdOfficeOfficer;
-        worksheet.getCell(`H${startRow + index}`).value = item.balanceQuantity;
-        worksheet.getCell(`I${startRow + index}`).value = item.amount;
-        worksheet.getCell(`J${startRow + index}`).value = item.remarks;
-      });
-
-      // Generate the modified Excel file
-      const buffer = await workbook.xlsx.writeBuffer();
-
-      // Download
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-
-      saveAs(blob, "Property Card.xlsx");
-    };
-
-    async function generateDoc(data) {
-      const response = await fetch("/forms/templates/iar-template.docx");
-      const content = await response.arrayBuffer();
-
-      const zip = new PizZip(content);
-
-      const doc = new Docxtemplater(zip, {
-          paragraphLoop: true,
-          linebreaks: true,
-      });
-
-      doc.render({
-          entityName: data.entityName,
-          fundCluster: data.fundCluster,
-          supplierName: data.supplierName,
-          poNumber: data.poNumber,
-          reqOffice: data.requisitioningOffice,
-          rcc: data.responsibilityCenterCode,
-          iarNumber: data.iarNumber,
-          iarDate: formatDate(data.iarDate),
-          invoiceNumber: data.invoiceNumber,
-          invoiceDate: formatDate(data.invoiceDate),
-      });
-
-      const blob = doc.getZip().generate({
-          type: "blob",
-          mimeType:
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-
-      saveAs(blob, "IAR.docx");
-    };
-
-    async function generatePdf(data, print = false) {
-      await exportOfficialFormPdf('PROPERTY CARD', data, print);
-    };
-
-    if (pageLoading) return <PageSkeleton />;
-    if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
- return (
-      <>
-        <div className="space-y-6">
-          <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={() => { setEditingCard({}); setForm({ ...initialForm, items: [] }); }} editorRef={editorRef} /></SavedReportsHeader>
-            <div className="mt-4 space-y-3">
-              {visibleCards.map((card) => (
-                <div key={card._id} className={`saved-record rounded-xl border p-4 ${updatedId === card._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={card} />
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold">{card.iar?.iarNumber || 'Property Card'}</div>
-                      <div className="text-sm text-slate-500">
-                        {card.entityName || 'No entity'} · PO {card.poNumber || '—'} · {card.items?.length || card.entries?.length || 0} item(s)
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <RecordActionButton action="edit" title="Update record" onClick={() => edit(card)} />
-                      {/* <button type="button" onClick={() => generateDoc(card)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
-                      <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(card)} />
-                      <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(card, true)} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
-              {!cards.length && (
-                <p className="py-4 text-slate-500">
-                  No Property Cards yet. Select New Form or save an IAR to create one.
-                </p>
-              )}
-            </div>
-          </div>
-          {editingCard ? (
-            <ValidatedForm ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 mx-auto max-w-7xl p-6">
-              <div className="min-w-0 text-slate-900">
-                <FormEditorHeader title="Property Card" description="Record property items here. Cards linked to an Inspection and Acceptance Report are also created automatically." onClose={closeEditor} />
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  {field('Month','month')}
-                  {field('PO No.','poNumber')}
-                  {field('Entity Name','entityName')}
-                  <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
-                  {field('Property, Plant and Equipment','propertyPlantAndEquipment')}
-                  {field('Property Number','propertyNumber')}
-                  {field('Description','description')}
-                  {field('S/N','serialNumber')}
-                </div>
-                <TableScroll className="mt-6 overflow-x-auto">
-                  <h3 className="mb-2 text-lg font-semibold">Items</h3>
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-100 text-left">
-                        {itemLabels.map((label, index) => (
-                          <th key={label} className="p-2">
-                            {label} {['date', 'receiptQuantity', 'amount'].includes(itemFields[index][0]) && <span className="required-marker text-red-600" aria-hidden="true">*</span>}
-                          </th>
-                        ))}
-                        <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.items.map((item, index) => (
-                        <tr key={index}>
-                          {itemFields.map(([key, type]) => (
-                            <td className="p-1" key={key}>
-                              <input
-                                type={type}
-                                min={type === 'number' ? 0 : undefined}
-                                step={type === 'number' ? 'any' : undefined}
-                                required={hasRowData(item, emptyItem()) && (['propertyNumber', 'description', 'date', 'receiptQuantity', 'amount'].includes(key))}
-                                data-positive={key === 'receiptQuantity' ? 'true' : undefined}
-                                aria-label={`${itemLabels[itemFields.findIndex(([fieldKey]) => fieldKey === key)]} ${index + 1}`}
-                                value={item[key] ?? ''}
-                                onChange={(event) => updateItem(index, key, event.target.value)}
-                                className="w-full rounded-lg border border-slate-200 px-2 py-2"
-                              />
-                            </td>
-                          ))}
-                          <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TableScroll>
-                <div className="mt-3 flex justify-end">
-                  <AddRowButton onClick={() => update('items', [...form.items, emptyItem()])} />
-                </div>
-                <div className="mt-4 flex flex-wrap justify-end gap-3">
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    aria-busy={saving}
-                    className="rounded-xl bg-teal-600 px-4 py-2 font-semibold text-white"
-                  >
-                    {saving ? 'Saving...' : editingCard?._id ? 'Update Property Card' : 'Save New Form'}
-                  </button>
-                </div>
-              </div>
-            </ValidatedForm>
-          ) : null}
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-3xl font-semibold">Property Card</h1><p className="mt-1 text-sm text-slate-500">View stock balances and the complete movement history of each item.</p></div><button type="button" onClick={() => setRefresh(value => value + 1)} className={control} aria-label="Refresh Property Cards"><RefreshCw size={16} /></button></div>
+    {data && <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">{[['Total Items Tracked', data.summary.total], ['Items In Stock', data.summary.inStock], ['Out-of-Stock Items', data.summary.outOfStock]].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="mt-2 text-2xl font-semibold">{value}</div></div>)}</div>}
+    <section ref={recordsRef} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-wrap gap-3"><label className="flex-1 text-xs font-semibold">Search items<input aria-label="Search items" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Item code, name or description" className={`${control} mt-1 w-full`} /></label><label className="text-xs font-semibold">Category<select aria-label="Category" value={category} onChange={event => { setCategory(event.target.value); setPage(1); }} className={`${control} mt-1 block`}><option value="">All categories</option>{data?.categories.filter(value => categoryLabel(value)).map(value => <option key={value}>{value}</option>)}</select></label><label className="text-xs font-semibold">Stock status<select aria-label="Stock status" value={status} onChange={event => { setStatus(event.target.value); setPage(1); }} className={`${control} mt-1 block`}><option value="">All statuses</option>{['In Stock', 'Out of Stock'].map(value => <option key={value}>{value}</option>)}</select></label><label className="text-xs font-semibold">Sort<select aria-label="Sort Property Card items" value={sort} onChange={event => { setSort(event.target.value); setPage(1); }} className={`${control} mt-1 block`}><option value="received">Recently Received</option><option value="name">Item Name</option></select></label></div>
+      {error && <p role="alert" className="mb-4 text-rose-700">{error}</p>}
+      {loading && !data ? <PageSkeleton /> : <TableScroll><table className="property-stock-table w-full text-left text-sm"><thead className="bg-slate-100"><tr>{['Item Code', 'Category', 'Description', 'Unit', 'Current Balance', 'Stock Status', 'Last Movement', 'Actions'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{data?.items.map(item => <tr key={item._id} className={`border-b border-slate-200 ${item.isNew ? 'property-stock-row-new' : ''}`}><td className="p-3 font-semibold">{item.stockNumber}</td><td className="p-3">{categoryLabel(item.category)}</td><td className="p-3">{item.description}</td><td className="p-3">{item.unit}</td><td className="p-3 font-semibold">{item.quantityOnHand}</td><td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${item.stockStatus === 'Out of Stock' ? 'bg-rose-50 text-rose-800' : item.stockStatus === 'Low Stock' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>{item.stockStatus}</span></td><td className="p-3">{dateLabel(item.lastMovement)}</td><td className="p-3"><button type="button" onClick={() => select(item._id)} className="whitespace-nowrap rounded-lg border px-3 py-2">View Property Card</button></td></tr>)}</tbody></table>{!data?.items.length && <p className="py-8 text-center text-sm text-slate-500">No stock items match these filters.</p>}</TableScroll>}
+      {data && <Pagination showPageSize page={page} pageCount={data.pagination.totalPages} perPage={limit} onPageChange={setPage} onPerPageChange={value => { setLimit(value); setPage(1); }} />}
+    </section>
+    {selectedId && <section ref={editorRef} className="form-document form-frame property-card-ledger scroll-mt-6 p-6">
+      <FormEditorHeader title="Property Card" description="Records appear after issuance to a user. Each issuance, return or transfer is grouped by document; balances include all stock receipts." onClose={() => select(null)} />
+      {detailError && <p role="alert" className="mt-4 text-rose-700">{detailError}</p>}
+      {detailLoading && (!details || String(details.item._id) !== selectedId) ? <PageSkeleton /> : details && String(details.item._id) === selectedId && <>
+        <dl className="pc-item-information mt-5 grid gap-3 md:grid-cols-2">
+          <Info label="Entity Name" value={details.exportHeader?.entityName || 'Not configured'} />
+          <Info label="Fund Cluster" value={details.exportHeader?.fundCluster || 'Not recorded'} />
+        </dl>
+        <dl className="pc-stock-summary mt-5 grid grid-cols-2 gap-4 border-y border-slate-300 py-4 lg:grid-cols-5">{[['Stock Before First Issuance', initialStock], ['Total Received', details.summary.received], ['Total Issued', details.summary.issued], ['Eligible Returns', details.summary.returned], ['Current Available Stock', details.summary.availableStock]].map(([label, value]) => <Info key={label} label={label} value={value} />)}</dl>
+        {details.summary.reconciliationNeeded && <p role="alert" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Ledger balance ({details.summary.currentBalance}) differs from available stock ({details.summary.availableStock}). Review the source transactions with the administrator; balances cannot be edited here.</p>}
+        <div className="mt-5 flex flex-wrap items-end gap-3"><label className="text-xs font-semibold">From<input type="date" aria-label="History from date" value={from} onChange={event => setFrom(event.target.value)} className={`${control} mt-1 block`} /></label><label className="text-xs font-semibold">To<input type="date" aria-label="History to date" min={from} value={to} onChange={event => setTo(event.target.value)} className={`${control} mt-1 block`} /></label><label className="text-xs font-semibold">Transaction type<select aria-label="Transaction type" value={type} onChange={event => setType(event.target.value)} className={`${control} mt-1 block`}><option value="">All issuance activity</option>{['Issue', 'Return', 'Transfer'].map(value => <option key={value}>{value}</option>)}</select></label><label className="text-xs font-semibold">Office / custodian<input aria-label="Office or custodian" value={office} onChange={event => setOffice(event.target.value)} className={`${control} mt-1 block`} /></label><div className="ml-auto flex gap-2"><RecordActionButton action="pdf" busy={exporting} onClick={() => exportCard()} /><RecordActionButton action="print" busy={exporting} onClick={() => exportCard(true)} /></div></div>
+        <div className="mt-3 text-sm text-slate-500">{from ? 'Period beginning' : 'Stock before first issuance'}: {beginning} | Period ending: {ending} | Current available stock: {details.summary.availableStock}. Row balances show remaining stock after each approved issuance or confirmed return.</div>
+        <div className="pc-history-container mt-4">
+          <TableScroll label="Property Card history">
+            <table className="pc-history-table w-full text-left text-sm">
+              <thead><tr>{['Date', 'Reference No.', 'Transaction Type', 'Received', 'Issued', 'Balance After Transaction', 'Amount', 'Office / Custodian', 'Action'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+              <tbody>{rows.map(row => <tr key={row.id}>
+                <td className="pc-history-date">{dateLabel(row.date)}</td>
+                <td>{row.source?.type} {row.reference}</td>
+                <td>{row.type}</td>
+                <td>{row.received || ''}</td>
+                <td>{row.issued || ''}</td>
+                <td><span className="pc-history-balance">{row.balance}</span></td>
+                <td className="pc-history-amount">{money(row.amount)}</td>
+                <td>{row.office || row.person || '?'}</td>
+                <td>{row.source ? <Link to={row.source.href} className="pc-history-document" aria-label={`View ${row.source.type} ${row.reference}`}><FileText size={16} aria-hidden="true" /><span>View Document</span></Link> : <span className="text-xs text-slate-500">Legacy reference</span>}</td>
+              </tr>)}</tbody>
+            </table>
+            {!rows.length && <p className="py-8 text-center text-sm text-slate-500">No issuance records yet for this selection. Records appear after items are issued to a user.</p>}
+          </TableScroll>
         </div>
-      </>
-    );
+      </>}
+    </section>}
+  </div>;
 }

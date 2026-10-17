@@ -1,3 +1,4 @@
+import usePendingReturns, { returnRequestUserId } from '../utils/usePendingReturns';
 import OfficeSelect from '../components/OfficeSelect';
 import RegistrationRequests from '../components/RegistrationRequests';
 import UserRecordsDialog from '../components/UserRecordsDialog';
@@ -28,7 +29,6 @@ export default function UsersPage() {
   const [reviewing, setReviewing] = useState('');
   const [reasons, setReasons] = useState({});
   const [users, setUsers] = useState([]);
-  const [admins, setAdmins] = useState([]);
   const [page, setPage] = useState(1);
   const [editingUser, setEditingUser] = useState(null);
   const [form, setForm] = useState(emptyUser);
@@ -36,6 +36,8 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [openMenu, setOpenMenu] = useState(null);
+  const pendingReturns = usePendingReturns(currentUser?.role === 'admin');
+  const pendingReturnCount = id => pendingReturns.filter(request => returnRequestUserId(request) === String(id)).length;
   const [recordsUser, setRecordsUser] = useState(null);
   const recordsTriggerRef = useRef(null);
   const dialogRef = useRef(null);
@@ -43,8 +45,7 @@ export default function UsersPage() {
   const editorTriggerRef = useRef(null);
   const menuTriggerRef = useRef(null);
 
-  const load = () => axios.get('/users').then(({ data }) => {
-    setAdmins((data.data || []).filter(account => account.role === 'admin'));
+  const load = () => axios.get('/users', { params: { role: 'user' } }).then(({ data }) => {
     setUsers((data.data || []).filter(account => account.role === 'user')); setPageLoadError('');
   }).catch(error => {
     setPageLoadError(error.response?.data?.message || 'Unable to load records.');
@@ -172,7 +173,7 @@ export default function UsersPage() {
     } finally { setLockingUser(''); }
   };
 
-  const pageSize = 12;
+  const pageSize = 4;
   const pageCount = Math.max(1, Math.ceil(users.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pagedUsers = users.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -186,33 +187,19 @@ export default function UsersPage() {
         {currentUser?.role === 'admin' && <div className="user-management-create-actions"><button type="button" className="user-create-button" aria-haspopup="dialog" aria-expanded={editorOpen && !editingUser} onClick={createUser}><Plus size={16} aria-hidden="true" /> Add User</button></div>}
       </header>
       {currentUser?.role === 'admin' && <RegistrationRequests onApproved={load} />}
-      <section aria-labelledby="admin-accounts-heading" className="admin-account-section">
-        <h2 id="admin-accounts-heading" className="account-section-heading">Administrator accounts</h2>
-        <div className="user-account-grid" aria-label="Administrator accounts">{admins.map(admin => <article key={admin._id} className="user-account-record">
-          <div className="user-card-avatar user-card-avatar--slate account-directory-picture" aria-hidden="true">{admin.profilePicture ? <img src={admin.profilePicture} alt="" /> : initials(admin)}</div>
-          <div className="user-card-details"><h2>{[admin.firstName, admin.middleName, admin.lastName].filter(Boolean).join(' ') || admin.username}</h2><p className="user-card-username">@{admin.username}</p><p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{admin.office}</span></p><p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{admin.email}</span></p><div className="user-card-labels"><span className="user-role user-role--admin">Administrator</span></div></div>
-          <div className="user-card-footer"><span className={`user-account-status ${admin.locked || admin.status === 'inactive' ? 'user-account-status--inactive' : ''}`}><span aria-hidden="true" />{admin.locked ? 'Account locked' : admin.status === 'inactive' ? 'Inactive account' : 'Account active'}</span><span>{admin.division}</span></div>
-        </article>)}</div>
-        {!admins.length && <p className="mt-3 text-slate-500">No administrator accounts found.</p>}
-      </section>
-      <hr className="account-directory-divider" />
       <h2 className="account-section-heading">User accounts</h2>
       <section className="user-account-grid" aria-label="Office accounts">
         {pagedUsers.map(user => <article key={user._id} className="user-account-record">
           <div className={`user-card-avatar user-card-avatar--${avatarColor(user)} account-directory-picture`} aria-hidden="true">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : initials(user)}</div>
           <div className="user-card-details">
-            <h2>{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.username}</h2>
-            <p className="user-card-username" title={user.email}>@{user.username}</p>
-            <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{user.office || user.division || 'Office not assigned'}</span></p>
-            {user.position && <p className="user-card-position">{user.position}</p>}
-            {user.email && <p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{user.email}</span></p>}
-            <div className="user-card-labels"><span className="user-role user-role--user">User / Office account</span>{user.locked && <span className="user-locked-label">Locked</span>}</div>
+            <h2>{[user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ') || user.username}</h2>
+            <p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{user.email || 'Email not recorded'}</span></p>
+            <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{user.office || 'Office not assigned'}</span></p>
           </div>
-          <div className="user-card-footer"><span className={`user-account-status ${user.locked ? 'user-account-status--locked' : user.status === 'inactive' ? 'user-account-status--inactive' : ''}`}><span aria-hidden="true" />{user.locked ? 'Account locked' : user.status === 'inactive' ? 'Inactive account' : 'Account active'}</span><span>{user.division || 'Office member'}</span></div>
           {currentUser?.role === 'admin' && <div className="user-card-actions" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(previous => previous === user._id ? null : previous); }}>
-            <button type="button" className="user-card-menu-toggle" aria-label={`Actions for ${user.username}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" /></button>
+            <button type="button" className="user-card-menu-toggle relative" aria-label={`Actions for ${user.username}${pendingReturnCount(user._id) ? `, ${pendingReturnCount(user._id)} return requests awaiting confirmation` : ''}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" />{pendingReturnCount(user._id) > 0 && <span className="account-return-badge" aria-hidden="true">{pendingReturnCount(user._id)}</span>}</button>
             {openMenu === user._id && <div ref={menuRef} id={`user-actions-${user._id}`} className="user-card-menu" role="group" aria-label={`Account actions for ${user.username}`}>
-              <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records</button>
+              <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records{pendingReturnCount(user._id) > 0 && <span className="ml-auto rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white" aria-label={`${pendingReturnCount(user._id)} return requests awaiting confirmation`}>{pendingReturnCount(user._id)}</span>}</button>
                     <button type="button" onClick={event => editUser(user, event)}><Pencil size={15} aria-hidden="true" /> Edit user</button>
               <div className="user-card-lock"><span>{user.status === 'inactive' ? 'Inactive account' : user.locked ? 'Unlock account' : 'Lock account'}</span><AccountLockButton locked={user.locked} username={user.username || user.email} busy={lockingUser === user._id} disabled={!!lockingUser || user.status === 'inactive'} onClick={() => toggleLock(user)} /></div>
             </div>}
@@ -267,7 +254,7 @@ export default function UsersPage() {
           <div className="mt-3 flex flex-wrap gap-2">{(form.role === 'admin' ? ['All system pages', 'Manage records', 'Manage accounts'] : ['Issued Items', 'Returned Items']).map(label => <span key={label} className="rounded-lg bg-emerald-100 px-3 py-2 text-sm font-medium text-emerald-800">{label}</span>)}</div>
         </div>
         </fieldset>
-        <div className="user-editor-footer"><button type="button" disabled={saving} onClick={cancelEdit}>Cancel</button><button type="submit" disabled={saving} className="user-editor-save">{saving ? 'Saving...' : editingUser ? 'Save Account Changes' : form.role === 'admin' ? 'Create Admin Account' : 'Create User Account'}</button></div>
+        <div className="user-editor-footer"><button type="button" disabled={saving} onClick={cancelEdit}>Cancel</button><button type="submit" disabled={saving} className="user-editor-save">Save</button></div>
         </ValidatedForm>
       </dialog>}
       {(requestLoading || requestError || resetRequests.length > 0) && <section className="user-password-requests minimal-surface" aria-label="Password recovery notifications">

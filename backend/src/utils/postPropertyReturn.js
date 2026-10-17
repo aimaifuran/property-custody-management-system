@@ -8,7 +8,7 @@ const ReturnedSupply = require('../models/ReturnedSupply');
 const { queueWorkflowEmail } = require('./workflowEmails');
 
 // Call in the same transaction as PRS receipt. Pending requests never change stock.
-module.exports = async function postPropertyReturn(report, session) {
+module.exports = async function postPropertyReturn(report, session, actor) {
   if (report.stockPosted) return;
   // Serialize linked receipts, including legacy rows without inventory/accountability.
   for (const ris of [...new Set(report.items.map(entry => entry.ris && String(entry.ris)).filter(Boolean))]) {
@@ -39,7 +39,7 @@ module.exports = async function postPropertyReturn(report, session) {
       const ris = await RIS.findById(entry.ris).session(session);
       const line = ris?.items.id(entry.risItem);
       const stock = line ? await Item.findOne({ stockNumber: line.stockNumber, deleted: false }).session(session) : null;
-      if (stock) inventory = await Inventory.findOne({ item: stock._id, deleted: false }).sort({ createdAt: -1 }).session(session);
+      if (stock) inventory = await Inventory.findOne({ ...(line.inventory ? { _id: line.inventory } : {}), item: stock._id, deleted: false }).sort({ createdAt: -1 }).session(session);
     }
     if (inventory) {
       const serviceable = condition === 'Serviceable';
@@ -52,7 +52,11 @@ module.exports = async function postPropertyReturn(report, session) {
       inventory.status = inUse ? 'ACTIVE_IN_USE' : serviceable ? 'IN_STORAGE_AVAILABLE' : 'RETURNED_UNSERVICEABLE';
       if (!inUse) inventory.accountability = undefined;
       await inventory.save({ session });
-      if (serviceable) await Ledger.create([{ inventory: inventory._id, type: 'incoming', quantity, reference: report.prsNumber || String(report._id), description: 'PRS returned - serviceable', runningBalance: stock.quantityOnHand }], { session });
+      if (serviceable) await Ledger.create([{ postedBy: actor?._id, sourceType: 'PRS', sourceDocument: report._id, sourceLine: entry._id, sourceKey: `PRS:${report._id}:${entry._id}`, office: report.returnedBy?.designation, inventory: inventory._id, type: 'incoming', quantity, reference: report.prsNumber || String(report._id), description: 'PRS returned - serviceable', runningBalance: stock.quantityOnHand }], { session });
+      if (inventory.property) await require('../models/Property').findByIdAndUpdate(inventory.property, {
+        $set: { status: serviceable ? 'AVAILABLE' : 'DAMAGED', currentCustodian: {} },
+        $push: { events: { action: 'Returned', status: serviceable ? 'AVAILABLE' : 'DAMAGED', remarks: report.prsNumber } },
+      }, { session });
       await Card.updateMany({ deleted: false, 'items.inventory': inventory._id }, { $push: { items: { inventory: inventory._id, propertyNumber: inventory.propertyNumber || stock.stockNumber, description: entry.description, date: report.returnedTo?.date || new Date(), receiptQuantity: serviceable ? quantity : 0, itdQuantity: 0, balanceQuantity: stock.quantityOnHand, amount: quantity * Number(entry.unitValue || 0), remarks: `PRS ${report.prsNumber || report._id}: Returned - ${condition}` } } }, { session });
     }
   }

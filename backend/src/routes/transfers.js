@@ -8,6 +8,8 @@ const { authenticate, authorize } = require('../middlewares/auth');
 const { listRecords } = require('../utils/paginate');
 const { reserveDocumentNumber } = require('../utils/documentNumber');
 const router = express.Router();
+const mongoose = require('mongoose');
+const syncTransferCard = require('../utils/syncTransferCard');
 
 const PTR_SEARCH_FIELDS = [
   'entityName', 'fundCluster', 'fromAccountableOfficer', 'toAccountableOfficer', 'ptrNumber',
@@ -29,7 +31,11 @@ router.post('/', authenticate, validateAdminForm('ptr'), authorize('canManageInv
   delete payload.autoNumber;
   for (const key of ['fromUser', 'toUser', 'receiverConfirmedAt', 'rejectionReason']) delete payload[key];
   payload.status = 'RECORDED';
-  const report = await PropertyTransferReport.create(payload);
+  const report = await mongoose.connection.transaction(async session => {
+    const [created] = await PropertyTransferReport.create([payload], { session });
+    await syncTransferCard(created, session);
+    return created;
+  });
 
   await ActivityLog.create({
     user: req.user._id,
@@ -47,11 +53,13 @@ router.put('/:id', authenticate, validateAdminForm('ptr'), authorize('canManageI
   if (existing?.fromUser) return errorResponse(res, 'Use the receiver confirmation and admin approval actions for a transfer request', [], 409);
   const payload = { ...req.body, lastEditedAt: new Date() };
   for (const key of ['fromUser', 'toUser', 'status', 'receiverConfirmedAt', 'rejectionReason']) delete payload[key];
-  const report = await PropertyTransferReport.findOneAndUpdate(
-    { _id: req.params.id, deleted: false },
-    payload,
-    { new: true, runValidators: true },
-  );
+  const report = await mongoose.connection.transaction(async session => {
+    const updated = await PropertyTransferReport.findOneAndUpdate(
+      { _id: req.params.id, deleted: false }, payload, { returnDocument: 'after', runValidators: true, session },
+    );
+    if (updated) await syncTransferCard(updated, session);
+    return updated;
+  });
   if (!report) return errorResponse(res, 'PTR not found', [], 404);
 
   await ActivityLog.create({

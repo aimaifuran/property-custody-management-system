@@ -20,7 +20,7 @@ const rowSchema = new mongoose.Schema({
 const schema = new mongoose.Schema({
   month: String,
   automatic: { type: Boolean, default: false },
-  serialNumber: { type: String, required: true, trim: true, maxlength: 100 },
+  serialNumber: { type: String, required: true, trim: true },
   lgu: { type: String, required: true, trim: true, maxlength: 200 },
   fund: { type: String, trim: true, maxlength: 200 },
   periodStart: { type: String, required: true },
@@ -35,6 +35,7 @@ const schema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   lastEditedAt: Date,
 }, { timestamps: true });
+schema.plugin(require('../utils/reportSoftDelete'));
 schema.index({ month: 1 }, { unique: true, partialFilterExpression: { automatic: true } });
 
 module.exports = mongoose.model('PpeList', schema);

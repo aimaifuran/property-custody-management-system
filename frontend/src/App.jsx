@@ -1,4 +1,3 @@
-import OfflineRecordsPage from './pages/OfflineRecordsPage';
 import HourglassLoader from './components/HourglassLoader';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -13,9 +12,9 @@ import InventoryPage from './pages/InventoryPage';
 import PtrPage from './pages/PtrPage';
 import PrsPage from './pages/PrsPage';
 import UsersPage from './pages/UsersPage';
+import SettingsPage from './pages/SettingsPage';
 import IcsPage from './pages/IcsPage';
 import ParPage from './pages/ParPage';
-import ReturnedSupplyPage from './pages/ReturnedSupplyPage';
 import MyReturnsPage from './pages/MyReturnsPage';
 import MyIssuedItemsPage from './pages/MyIssuedItemsPage';
 import MonthlyItemsReportPage from './pages/MonthlyItemsReportPage';
@@ -61,9 +60,8 @@ const permissionRoutes = {
   '/par': ['canViewRIS', 'canManageRIS', 'canManageInventory'],
   '/transfers': ['canViewRIS', 'canViewDashboard', 'canManageInventory'],
   '/returns': ['canViewRIS', 'canViewDashboard', 'canManageInventory'],
-  '/returned-supply': ['canViewDashboard', 'canManageInventory'],
   '/users': 'canManageUsers',
-  '/offline-records': 'adminOnly',
+  '/settings': 'canManageSettings',
   '/profile': null,
   '/my-returns': 'canViewRIS',
   '/my-issued-items': 'canViewRIS',
@@ -79,8 +77,8 @@ function AppRoutes() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/about" element={<AboutPage />} />
-          <Route path="/settings" element={<RoleRedirect />} />
           <Route path="/my-ris" element={<Navigate to="/ris" replace />} />
+          <Route path="/issued-items" element={<Navigate to="/ris?view=issued" replace />} />
           <Route path="/my-requests" element={<Navigate to="/ris" replace />} />
           <Route path="/custody" element={<RoleRedirect adminTo="/inventory-custodian" />} />
           <Route path="/" element={<RoleRedirect />} />
@@ -98,9 +96,8 @@ function AppRoutes() {
               '/par': ParPage,
               '/transfers': PtrPage,
               '/returns': PrsPage,
-              '/returned-supply': ReturnedSupplyPage,
               '/users': UsersPage,
-              '/offline-records': OfflineRecordsPage,
+              '/settings': SettingsPage,
               '/profile': ProfilePage,
               '/my-returns': MyReturnsPage,
               '/my-issued-items': MyIssuedItemsPage,

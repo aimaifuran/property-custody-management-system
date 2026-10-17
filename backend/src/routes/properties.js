@@ -36,6 +36,8 @@ router.post('/', authenticate, validateAdminForm('properties'), authorize('canMa
     const count = await Property.countDocuments({ propertyCode: new RegExp(`^${prefix}-${year}-`) });
     payload.propertyCode = `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
   }
+  delete payload.inventory;
+  delete payload.iar;
   payload.status = payload.status || 'AVAILABLE';
   payload.events = [{ action: 'Registered', performedBy: nameOf(req.user), status: payload.status, condition: payload.condition || 'Serviceable', remarks: payload.remarks }];
   try {
@@ -49,6 +51,10 @@ router.post('/', authenticate, validateAdminForm('properties'), authorize('canMa
 });
 
 router.put('/:id', authenticate, validateAdminForm('properties'), authorize('canManageInventory'), async (req, res) => {
+  const linked = await Property.findOne({ _id: req.params.id, deleted: false });
+  if (linked?.inventory) return errorResponse(res, 'Use the linked IAR, issuance and custody workflows to update this property', [], 409);
+  delete req.body.inventory;
+  delete req.body.iar;
   delete req.body.events;
   const property = await Property.findOneAndUpdate({ _id: req.params.id, deleted: false }, req.body, { new: true, runValidators: true });
   if (!property) return errorResponse(res, 'Property not found', [], 404);
@@ -58,6 +64,8 @@ router.put('/:id', authenticate, validateAdminForm('properties'), authorize('can
 
 router.post('/:id/actions', authenticate, authorize('canManageInventory'), async (req, res) => {
   const { action, date, custodian, office, status, condition, remarks, expectedQuantity, physicalQuantity } = req.body;
+  const linked = await Property.findOne({ _id: req.params.id, deleted: false });
+  if (linked?.inventory) return errorResponse(res, 'Use Property Card / RIS issuance or the custody workflow for this linked property', [], 409);
   const property = await Property.findOne({ _id: req.params.id, deleted: false });
   if (!property) return errorResponse(res, 'Property not found', [], 404);
   const nextStatus = status || ({ Issue: 'ISSUED', Transfer: 'TRANSFERRED', Return: 'RETURNED', 'Report damaged': 'DAMAGED', 'Report lost': 'LOST', 'Mark for disposal': 'FOR_DISPOSAL', Dispose: 'DISPOSED', 'Physical inventory': property.status }[action]);

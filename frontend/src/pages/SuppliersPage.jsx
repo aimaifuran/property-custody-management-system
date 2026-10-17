@@ -92,7 +92,7 @@ export default function SuppliersPage() {
               <span className="mb-1 block text-sm font-semibold text-slate-700">Contact Number</span>
               <input id="supplier-contact" required value={form.contactNumber} onChange={(e) => setForm({ ...form, contactNumber: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Contact Number" />
             </label>
-            <button className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white">Save Supplier</button>
+            <button className="w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white">Save</button>
           </div>
         </ValidatedForm>
       </div>

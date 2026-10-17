@@ -28,7 +28,6 @@ const formatDate = (value) => { const date = new Date(value); return Number.isNa
 export default function HistoricalRecordsPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [type, setType] = useState(null);
-  const [condition, setCondition] = useState('ALL');
   const [folderSearches, setFolderSearches] = useState({});
   const [records, setRecords] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -42,7 +41,7 @@ export default function HistoricalRecordsPage() {
       setLoading(true);
       setError('');
       try {
-        const { data } = await axios.get('/reports/archive', { params: { year, type: 'ALL', condition }, signal: controller.signal });
+        const { data } = await axios.get('/reports/archive', { params: { year, type: 'ALL' }, signal: controller.signal });
         if (!controller.signal.aborted) setRecords(data.data || []);
       } catch (requestError) {
         if (!controller.signal.aborted) setError(requestError.response?.data?.message || 'Unable to load historical records');
@@ -52,7 +51,7 @@ export default function HistoricalRecordsPage() {
     };
     const timer = window.setTimeout(load, 250);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [condition, year]);
+  }, [year]);
 
   const search = folderSearches[type] || '';
   const visibleRecords = useMemo(() => {
@@ -86,7 +85,6 @@ export default function HistoricalRecordsPage() {
     <div className="space-y-6">
       <div className="minimal-surface flex flex-wrap gap-4 p-4">
         <label className="text-sm font-medium text-slate-600">Year<select value={year} onChange={event => setYear(Number(event.target.value))} className="mt-1 block rounded-lg border border-slate-200 bg-white px-3 py-2 font-normal text-slate-900">{YEARS.map(value => <option key={value}>{value}</option>)}</select></label>
-        <label className="text-sm font-medium text-slate-600">Condition<select value={condition} onChange={event => setCondition(event.target.value)} className="mt-1 block rounded-lg border border-slate-200 bg-white px-3 py-2 font-normal text-slate-900"><option value="ALL">All conditions</option><option value="SERVICEABLE">Serviceable</option><option value="UNSERVICEABLE">Unserviceable</option><option value="MISSING">Missing / lost</option></select></label>
       </div>
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
       {!type ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

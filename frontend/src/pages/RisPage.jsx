@@ -1,3 +1,9 @@
+import SignatoryValue from '../components/SignatoryValue';
+import SearchInput from '../components/SearchInput';
+import useSourceDocument from '../utils/useSourceDocument';
+import IssuedItemsPage from './IssuedItemsPage';
+import { createRisRow, risDraftRows, risItemName, risItemChoices, selectRisItem, setRisRequestedQuantity, risSelectedFunds, risSelectedCenters } from '../utils/risItemSelection';
+import { todayManila } from '../utils/formDates';
 import { hasRowData } from '../utils/formRows';
 import { useLocation } from 'react-router-dom';
 import OfficeSelect from '../components/OfficeSelect';
@@ -33,19 +39,9 @@ import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
 
-const createRow = () => ({
-  stockNumber: '',
-  unit: '',
-  description: '',
-  quantityRequested: '',
-  isAvailable: null,
-  stockAvailable: '',
-  quantityIssued: '',
-  remarks: '',
-  totalCost: null,
-});
+const createRow = createRisRow;
 
-const emptySignatory = () => ({ name: '', designation: '', date: '' });
+const emptySignatory = () => ({ name: '', designation: '', date: todayManila() });
 
 const initialForm = {
   risNumber: '',
@@ -59,19 +55,19 @@ const initialForm = {
   approvedBy: emptySignatory(),
   issuedBy: emptySignatory(),
   receivedBy: emptySignatory(),
-  date: new Date().toISOString().slice(0, 10),
+  date: todayManila(),
   status: 'PENDING_APPROVAL',
   items: [],
 };
 
 const newForm = () => ({
   ...initialForm,
-  date: new Date().toISOString().slice(0, 10),
-  items: [],
-  requestedBy: getStickySignatory('requestedBy', emptySignatory()),
+  date: todayManila(),
+  items: [createRow()],
+  requestedBy: emptySignatory(),
   approvedBy: getStickySignatory('approvedBy', emptySignatory()),
   issuedBy: getStickySignatory('issuedBy', emptySignatory()),
-  receivedBy: getStickySignatory('receivedBy', emptySignatory()),
+  receivedBy: emptySignatory(),
 });
 
 const toDateInputValue = (date) => {
@@ -419,7 +415,7 @@ const toFormSignatory = (signatory) => {
 export default function RisPage() {
   const { user } = useAuth();
   const isUser = user?.role !== 'admin';
-  const makeForm = () => isUser ? { ...newForm(), division: user?.division || '', office: user?.office || '', requestedBy: { name: [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '', designation: user?.office || '', date: new Date().toISOString().slice(0, 10) }, approvedBy: emptySignatory(), issuedBy: emptySignatory(), receivedBy: emptySignatory() } : newForm();
+  const makeForm = () => isUser ? { ...newForm(), division: user?.division || '', office: user?.office || '', requestedBy: { name: [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '', designation: user?.office || '', date: todayManila() }, approvedBy: emptySignatory(), issuedBy: emptySignatory(), receivedBy: emptySignatory() } : newForm();
   const [decision, setDecision] = useState('save');
   const [rejectionReason, setRejectionReason] = useState('');
   const [pageLoading, setPageLoading] = useState(true);
@@ -430,18 +426,31 @@ export default function RisPage() {
   const [ris, setRis] = useState([]);
   const [items, setItems] = useState([]);
   const location = useLocation();
+  const [risView, setRisView] = useState(() => new URLSearchParams(location.search).get('view') === 'issued' ? 'issued' : 'requests');
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    if (query.has('record')) setRisView('requests');
+    else if (query.get('view') === 'issued') setRisView('issued');
+    else if (query.get('view') === 'approved') setRisView('approved');
+    else {
+      setRisView('requests');
+      if (user?.role === 'admin' && !location.state?.offlineRequest) {
+        setForm(makeForm()); setEditingRis(null); setCreatingRis(true);
+        setReviewTarget(null); setReviewDraft(null); setDecision('save'); setRejectionReason('');
+      }
+    }
+  }, [location.key]);
   const offlineRequest = user?.role === 'admin' ? location.state?.offlineRequest : null;
   const [form, setForm] = useState(() => {
     const draft = makeForm();
     if (!offlineRequest) return draft;
-    const person = { offlineRecipient: offlineRequest._id, name: offlineRequest.name, designation: offlineRequest.designation || offlineRequest.office, date: new Date().toISOString().slice(0, 10) };
+    const person = { offlineRecipient: offlineRequest._id, name: offlineRequest.name, designation: offlineRequest.designation || offlineRequest.office, date: todayManila() };
     return { ...draft, office: offlineRequest.office, requestedBy: person, receivedBy: { ...person }, ...(location.state?.offlineRequestedItems?.length ? { items: location.state.offlineRequestedItems.map(item => ({ ...createRow(), ...item })) } : {}) };
   });
   const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('RIS', 'risNumber', setForm);
   const [savingRis, setSavingRis] = useState(false);
-  const [fundClusterOption, setFundClusterOption] = useState('');
   const [editingRis, setEditingRis] = useState(null);
-  const [creatingRis, setCreatingRis] = useState(!!offlineRequest);
+  const [creatingRis, setCreatingRis] = useState(user?.role === 'admin' || !!offlineRequest);
   const [issueErrors, setIssueErrors] = useState({});
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewDraft, setReviewDraft] = useState(null);
@@ -470,7 +479,7 @@ export default function RisPage() {
 
     setStockLoadError('');
 
-    const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get(isUser ? '/ris/request-items' : '/items')]);
+    const [risResult, itemsResult] = await Promise.allSettled([axios.get('/ris'), axios.get('/ris/request-items')]);
 
     if (risResult.status === 'fulfilled') {
       setRis(risResult.value.data.data || []);
@@ -520,11 +529,43 @@ export default function RisPage() {
     [items],
   );
 
+  useEffect(() => {
+    if (!creatingRis && !editingRis) return;
+    const controller = new AbortController();
+    let latestRequest = 0;
+    const refresh = () => {
+      const request = ++latestRequest;
+      return axios.get('/ris/request-items', { signal: controller.signal })
+      .then(({ data }) => { if (request === latestRequest && !controller.signal.aborted) { setItems(data.data || []); setStockLoadError(''); } })
+      .catch(() => { if (request === latestRequest && !controller.signal.aborted) { setItems([]); setStockLoadError('Unable to refresh available stock. Reopen this form to retry.'); } });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 10000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('ris-stock-search', refresh);
+    return () => { controller.abort(); window.clearInterval(interval); window.removeEventListener('focus', refresh); window.removeEventListener('ris-stock-search', refresh); };
+  }, [creatingRis, editingRis?._id]);
+
+  const selectedFunds = useMemo(() => risSelectedFunds(form.items, items), [form.items, items]);
+  const inheritedFund = selectedFunds.length === 1 ? selectedFunds[0] : '';
+  useEffect(() => {
+    if (inheritedFund && !['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(editingRis?.status)) {
+      setForm(previous => previous.fundCluster === inheritedFund ? previous : { ...previous, fundCluster: inheritedFund });
+    }
+  }, [inheritedFund, editingRis?.status]);
+
+  const selectedCenters = useMemo(() => risSelectedCenters(form.items, items), [form.items, items]);
+  const inheritedCenter = selectedCenters.length === 1 ? selectedCenters[0] : '';
+  useEffect(() => {
+    if (inheritedCenter && !['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(editingRis?.status)) {
+      setForm(previous => previous.responsibilityCenterCode === inheritedCenter ? previous : { ...previous, responsibilityCenterCode: inheritedCenter });
+    }
+  }, [inheritedCenter, editingRis?.status]);
+
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
   const updateSignatory = (section, key, value) => setForm((prev) => {
     const signatory = { ...prev[section], [key]: value, ...(key === 'name' ? { user: undefined } : {}) };
-    saveStickySignatory(section, signatory, key);
     return { ...prev, [section]: signatory };
   });
 
@@ -552,7 +593,7 @@ export default function RisPage() {
   const resetForm = () => {
     setForm(makeForm());
     setDecision('save'); setRejectionReason('');
-    setFundClusterOption('');
+
     setEditingRis(null);
     setCreatingRis(false);
     refreshNumberPreview();
@@ -561,6 +602,8 @@ export default function RisPage() {
   const save = async (e) => {
     e.preventDefault();
     if (savingRis) return;
+    if (selectedCenters.length > 1) { toast.error('Items from different Responsibility Center Codes must be recorded in separate RIS forms.'); return; }
+    if (selectedFunds.length > 1) { toast.error('Items from different Fund Clusters must be recorded in separate RIS forms.'); return; }
     const approveAfterSave = e.nativeEvent.submitter?.value === 'approve';
 
     const { _id, createdAt, updatedAt, __v, ...formData } = form;
@@ -571,6 +614,7 @@ export default function RisPage() {
         .filter(item => hasRowData(item, createRow()))
         .map((item) => ({
           ...item,
+          inventory: item.inventory?._id || item.inventory || undefined,
           quantityRequested: item.quantityRequested === '' ? 0 : Number(item.quantityRequested),
           stockAvailable: item.stockAvailable === '' ? 0 : Number(item.stockAvailable),
           quantityIssued: item.quantityIssued === '' ? null : Number(item.quantityIssued),
@@ -594,9 +638,19 @@ export default function RisPage() {
         toast.success(approveAfterSave ? 'RIS approved and issued. The user can now return the items.' : 'RIS updated');
         markUpdated(editingRis._id);
       } else if (creatingRis) {
-        await axios.post('/ris', payload);
+        const { data } = await axios.post('/ris', payload);
+        if (approveAfterSave) {
+          const created = data.data;
+          try { await axios.post(`/ris/${created._id}/approve`); }
+          catch (error) {
+            setCreatingRis(false); setEditingRis(created);
+            await load();
+            toast.error(error.response?.data?.message || 'RIS saved, but issuance failed. Retry Approve and Issue.');
+            return;
+          }
+        }
         setPage(1);
-        toast.success('Request form added');
+        toast.success(approveAfterSave ? 'RIS approved and issued.' : 'Request form added');
       } else return;
       setSearch('');
       setApprovedSearch('');
@@ -784,8 +838,8 @@ export default function RisPage() {
     };
 
   const editDraft = async (record) => {
+    setRisView('requests');
     cancelNumberPreview();
-    setFundClusterOption(record.fundCluster === 'Trust Fund' ? 'Trust Fund' : record.fundCluster ? 'Specify' : '');
     setCreatingRis(false);
     setEditingRis(record);
     setForm({
@@ -796,7 +850,7 @@ export default function RisPage() {
       approvedBy: toFormSignatory(record.approvedBy),
       issuedBy: toFormSignatory(record.issuedBy),
       receivedBy: toFormSignatory(record.receivedBy),
-      items: (record.items || []).map((item) => ({
+      items: risDraftRows(record).map((item) => ({
         ...createRow(),
         ...item,
         quantityRequested: item.quantityRequested ?? '',
@@ -818,36 +872,281 @@ export default function RisPage() {
     DRAFT: 'bg-slate-100 text-slate-700',
   };
 
+    useSourceDocument(ris, setRis, editDraft, '/ris');
+
   if (pageLoading) return <PageSkeleton />;
   if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
     <div className="space-y-6">
-      {[{ key: 'drafts', title: 'Drafts & Pending Items', records: visibleRis, page, pageCount, perPage, search, setPage, setPerPage, setSearch },
-        { key: 'approved', title: 'Approved Items', records: visibleApproved, page: approvedPage, pageCount: approvedPageCount, perPage: approvedPerPage, search: approvedSearch, setPage: setApprovedPage, setPerPage: setApprovedPerPage, setSearch: setApprovedSearch }].map(group => (
+      {user?.role === 'admin' && <nav aria-label="RIS sections" className="flex flex-wrap gap-2">
+        {[['requests', 'Requisition and Issue Slip'], ['issued', 'Issued Items'], ['approved', 'Approved Items']].map(([value, label]) => <button key={value} type="button" aria-pressed={risView === value} onClick={() => { setRisView(value); if (value === 'requests' && !editingRis && !creatingRis) { resetForm(); setCreatingRis(true); } }} className={`rounded-xl border px-4 py-2 font-semibold ${risView === value ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-teal-50'}`}>{label}</button>)}
+      </nav>}
+      {user?.role === 'admin' && risView === 'issued' ? <IssuedItemsPage embedded /> : <>
+      {risView === 'requests' && (editingRis || creatingRis) ? (<>
+      <ValidatedForm as={motion.form} validationSelector={decision === 'reject' ? '[data-rejection-reason]' : undefined}
+        ref={editorRef}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        onSubmit={save}
+        aria-busy={savingRis}
+        inert={savingRis ? true : undefined}
+        className="form-document form-frame scroll-mt-6 mx-auto max-w-6xl p-4"
+      >
+        <div className="min-w-0 text-slate-900">
+          <FormEditorHeader title="Requisition and Issue Slip" description="Record all requested items here. Offline and registered-account requests share the same requisition list." onClose={resetForm} />
+            {user?.role === 'admin' && <div className="mb-4 flex justify-end"><NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} /></div>}
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <EntityNameField value={form.entityName} onChange={entityName => updateForm({ entityName })} isNew={!editingRis} />
+            <label className="block min-w-0 font-semibold"><span className="mb-1 block">Fund Cluster:</span>
+              <input readOnly aria-label="Fund Cluster" value={form.fundCluster || ''} className="w-full rounded-lg border px-2 py-2 font-normal" />
+            </label>
+          </div>
+
+          <div className="ris-header-fields mt-4 grid gap-3 sm:grid-cols-2">
+            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span>{key === 'office' ? <OfficeSelect required aria-label={label} readOnly={isUser} value={form.office} onChange={event => updateForm({ office: event.target.value })} className="w-full rounded-lg border px-2 py-2" /> : <input required={key !== 'division'} type="text" aria-label={label} readOnly={isUser || key === 'responsibilityCenterCode' || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" />}</label>)}
+          </div>
+
+          <TableScroll showHint={false} className="mt-4 overflow-x-auto border border-slate-700">
+            <div className="ris-table-grid ris-table-grid--editable ris-table-grid--item-picker border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
+              <div className="col-span-5 border-r border-slate-700 py-2 italic justify-center">Requisition</div>
+              <div className="col-span-4 border-r border-slate-700 py-2 italic justify-center">Stock Available?</div>
+              <div className="py-2" />
+            </div>
+            <div className="ris-table-grid ris-table-grid--editable ris-table-grid--item-picker border-b border-slate-700 text-center text-sm font-semibold">
+              <div className="border-r border-slate-700 px-2 py-2">Item <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Stock No. <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Qty Req. <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
+              <div className="border-r border-slate-700 px-2 py-2">Yes</div>
+              <div className="border-r border-slate-700 px-2 py-2">No</div>
+              <div className="border-r border-slate-700 px-2 py-2">Actual Qty</div>
+              <div className="border-r border-slate-700 px-2 py-2">Remarks</div>
+              <div className="px-2 py-2" />
+            </div>
+
+            {form.items.map((item, index) => {
+              const choices = risItemChoices(items, form.items, index);
+              const selectedStock = selectedInventoryMap.get(item.stockNumber);
+              const selectedName = (selectedStock ? risItemName(selectedStock) : item.itemName || '').toLowerCase();
+              const selectedChoice = choices.find(choice => choice.key === selectedName);
+              const availableCandidate = choices.flatMap(choice => choice.candidates).find(candidate => candidate.stock.stockNumber === item.stockNumber);
+              const availableQuantity = item.stockNumber ? availableCandidate?.available ?? 0 : '';
+              const exactUnit = !!(item.inventory?._id || item.inventory);
+              const unavailable = !!item.stockNumber && (!selectedChoice || (exactUnit && !selectedChoice.candidates.some(candidate => candidate.stock.stockNumber === item.stockNumber && candidate.stock.units?.some(unit => unit._id === (item.inventory?._id || item.inventory)))));
+              return (
+              <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable ris-table-grid--item-picker border-b border-slate-300 last:border-b-0">
+                <div className="flex-col gap-1 border-r border-slate-300 p-1">
+                  <SearchInput required onFocus={() => window.dispatchEvent(new Event('ris-stock-search'))} aria-label={`Item, row ${index + 1}`} placeholder={choices.length ? 'Search item name' : 'No available items'} value={selectedStock ? risItemName(selectedStock) : item.itemName || ''}
+                    options={choices.map(choice => ({ value: choice.key, label: choice.name }))}
+                    onChange={name => {
+                      const choice = choices.find(option => option.name.toLowerCase() === name.trim().toLowerCase());
+                      setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? (choice ? selectRisItem(row, choice) : { ...selectRisItem(row, null), itemName: name }) : row) }));
+                    }}
+                    onSelect={option => {
+                      const choice = choices.find(choice => choice.key === option.value);
+                      setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? selectRisItem(row, choice) : row) }));
+                    }} className="w-full rounded-lg border bg-transparent px-2 py-2 text-sm" />
+                  {unavailable && <span className="text-xs text-red-700" role="status">Select an available item again.</span>}
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input readOnly aria-label={`Stock Number, row ${index + 1}`} value={item.stockNumber ?? ''} className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none" />
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input required={hasRowData(item, createRow())}
+                    aria-label={`Unit, row ${index + 1}`} value={item.unit}
+                    onChange={(e) => updateItem(index, 'unit', e.target.value)}
+                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input required={hasRowData(item, createRow())}
+                    aria-label={`Description, row ${index + 1}`} value={item.description}
+                    onChange={(e) => updateItem(index, 'description', e.target.value)}
+                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input required={hasRowData(item, createRow())}
+                    type="number"
+                    min="0"
+                    step="1" data-positive="true" aria-label={`Quantity requested, row ${index + 1}`} value={item.quantityRequested}
+                    onChange={event => {
+                      const value = event.target.value;
+                      setForm(previous => ({ ...previous, items: previous.items.map((row, i) => {
+                        if (i !== index) return row;
+                        const candidate = risItemChoices(items, previous.items, index).flatMap(choice => choice.candidates).find(candidate => candidate.stock.stockNumber === row.stockNumber);
+                        return setRisRequestedQuantity(row, value, candidate?.available ?? row.stockAvailable, isUser);
+                      }) }));
+                    }}
+                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1 flex items-center justify-center">
+                  <input
+                    type="radio" disabled={isUser}
+                    name={`ris-yes-${index}`}
+                    checked={item.isAvailable === true}
+                    onChange={() => updateItem(index, 'isAvailable', true)}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1 flex items-center justify-center">
+                  <input
+                    type="radio" disabled={isUser}
+                    name={`ris-no-${index}`}
+                    checked={item.isAvailable === false}
+                    onChange={() => updateItem(index, 'isAvailable', false)}
+                    className="h-4 w-4"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input readOnly type="number" min="0" step="1"
+                    aria-label={`Available stock, row ${index + 1}`} value={availableQuantity}
+                    title="Current available stock"
+                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div className="border-r border-slate-300 p-1">
+                  <input
+                    value={item.remarks}
+                    onChange={(e) => updateItem(index, 'remarks', e.target.value)}
+                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div className="flex items-center justify-center p-1">
+                  <DeleteRowButton index={index} onClick={() => deleteRow(index)} />
+                </div>
+              </div>
+            ); })}
+          </TableScroll>
+
+          <div className="mt-3 flex justify-end">
+            <AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" />
+          </div>
+
+          <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold">Purpose</span>
+              <input
+                value={form.purpose}
+                onChange={(e) => updateForm({ purpose: e.target.value })}
+                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
+                placeholder="Purpose of requisition"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold">Date</span>
+              <input required
+                type="date"
+                value={form.date}
+                onChange={(e) => updateForm({ date: e.target.value })}
+                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {[
+              ['Requested by', 'requestedBy'],
+              ['Approved by', 'approvedBy'],
+              ['Issued by', 'issuedBy'],
+              ['Received by', 'receivedBy'],
+            ].map(([label, section]) => (
+              <fieldset disabled={isUser} key={section} className="min-w-0 rounded-xl border border-slate-700 p-4">
+                <h3 className="mb-3 text-sm font-semibold">{label}</h3>
+                {user?.role === 'admin' && ['requestedBy', 'receivedBy'].includes(section) && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, ...(section === 'requestedBy' ? { office: person.office || person.designation || prev.office, receivedBy: { ...prev.receivedBy, user: person.user, offlineRecipient: person.offlineRecipient, name: person.name, designation: person.designation } } : {}) }))} />}
+                <div className="grid gap-3 md:grid-cols-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>
+                    <SignatoryValue
+                      aria-label={`${label} name`} value={form[section].name}
+                      onChange={(e) => updateSignatory(section, 'name', e.target.value)}
+                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
+                    formType="ris" role={section} field="name" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Designation</span>
+                    <SignatoryValue
+                      aria-label={`${label} designation`} value={form[section].designation}
+                      onChange={(e) => updateSignatory(section, 'designation', e.target.value)}
+                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
+                    formType="ris" role={section} field="designation" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
+                    <input required
+                      type="date"
+                      aria-label={`${label} date`} value={form[section].date}
+                      onChange={(e) => updateSignatory(section, 'date', e.target.value)}
+                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
+                    />
+                  </label>
+                </div>
+              </fieldset>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-300 pt-4">
+            <div className="text-sm text-slate-600">
+              Showing {completedRows.length} filled row{completedRows.length === 1 ? '' : 's'} on the sheet.
+            </div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {decision === 'reject' && <label className="text-sm">Reason for rejection<input required data-rejection-reason value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 rounded-lg border p-2" /></label>}
+              {decision !== 'reject' && <button
+                type="submit" name="action" value={user?.role === 'admin' && creatingRis ? 'approve' : 'save'}
+                disabled={savingRis}
+                className="ris-form-action bg-slate-900 text-white hover:bg-slate-800"
+              >
+                <Save size={16} />
+                {user?.role === 'admin' && creatingRis ? 'Approve / Issue Items' : 'Save'}
+              </button>}
+              {user?.role === 'admin' && editingRis && !['ISSUED', 'ACCOUNTABILITY_LOCKED', 'REJECTED'].includes(editingRis.status) && <>
+                <button
+                  type={decision === 'reject' ? 'submit' : 'button'}
+                  disabled={savingRis}
+                  onClick={decision === 'reject' ? undefined : () => setDecision('reject')}
+                  className="ris-form-action bg-rose-700 text-white hover:bg-rose-800"
+                ><XCircle size={16} /> Reject Request</button>
+                {decision !== 'reject' && <button
+                  type="submit" name="action" value="approve" disabled={savingRis}
+                  className="ris-form-action bg-emerald-700 text-white hover:bg-emerald-800"
+                ><CheckCircle2 size={16} /> Approve and Issue</button>}
+                {decision === 'reject' && <button type="button" onClick={() => setDecision('save')} disabled={savingRis} className="ris-form-action border border-slate-200 text-slate-700 hover:bg-slate-50">Cancel</button>}
+              </>}
+            </div>
+          </div>
+        </div>
+        </ValidatedForm>
+      </>) : null}
+      {[{ key: 'drafts', title: 'Requests', records: visibleRis, page, pageCount, perPage, search, setPage, setPerPage, setSearch },
+        { key: 'approved', title: 'Approved Items', records: visibleApproved, page: approvedPage, pageCount: approvedPageCount, perPage: approvedPerPage, search: approvedSearch, setPage: setApprovedPage, setPerPage: setApprovedPerPage, setSearch: setApprovedSearch }].filter(group => user?.role !== 'admin' || (risView === 'approved' && group.key === 'approved')).map(group => (
       <section key={group.key} aria-label={group.title} ref={group.key === 'drafts' ? recordsRef : undefined} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <SavedReportsHeader title={group.title} search={group.search} onSearch={value => { group.setSearch(value); group.setPage(1); }} perPage={group.perPage} onPerPage={value => { group.setPerPage(value); group.setPage(1); }}>{group.key === 'drafts' && <NewFormButton onNew={() => { resetForm(); setCreatingRis(true); }} editorRef={editorRef} />}</SavedReportsHeader>
+        <SavedReportsHeader title={group.title} search={group.search} onSearch={value => { group.setSearch(value); group.setPage(1); }} perPage={group.perPage} onPerPage={value => { group.setPerPage(value); group.setPage(1); }}></SavedReportsHeader>
         {group.key === 'drafts' && stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {stockLoadError}
           </div>
         ) : null}
         <div className="mt-4 space-y-3">
-          {!group.records.length && <p className="text-slate-500">{group.key === 'approved' ? 'No approved items found.' : 'No draft or pending items found.'}</p>}
+          {!group.records.length && <p className="text-slate-500">{group.key === 'approved' ? 'No approved items found.' : 'No requests found.'}</p>}
           {group.records.map((item) => (
-            <div key={item._id} className={`saved-record rounded-xl border p-4 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
+            <div key={item._id} className={`saved-record rounded-xl border p-4 ${group.key === 'approved' ? 'ris-approved-record' : ''} ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="font-semibold">{item.risNumber}</div>
-                  <div className="text-sm text-slate-500">{item.entityName}</div>
+                  <h3 className="break-words font-semibold text-slate-900">{(item.itemNames?.length ? item.itemNames : [...new Set((item.items || []).map(row => row.itemName || row.description).filter(Boolean))]).join(', ') || 'No items selected'}</h3>
+                  {group.key !== 'approved' && <div className="mt-1 break-words text-sm text-slate-700">Requested by: {item.requestedBy?.name || 'N/A'}</div>}
+                  <div className="mt-1 text-xs text-slate-500">RIS {item.risNumber}{item.entityName ? ` · ${item.entityName}` : ''}</div>
                   <div className="text-sm text-slate-500">{item.purpose}</div>
                 </div>
-                <div className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[item.status] || 'bg-slate-100 text-slate-700'}`}>
+                {item.status !== 'ACCOUNTABILITY_LOCKED' && <div className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[item.status] || 'bg-slate-100 text-slate-700'}`}>
                   {item.status}
-                </div>
+                </div>}
               </div>
+              {group.key !== 'approved' && (
               <div className="mt-2 grid min-w-0 grid-cols-1 gap-x-4 gap-y-1 text-sm text-slate-600 sm:grid-cols-2">
                 <div className="min-w-0 space-y-1 break-words">
-                <div>Requested by: {item.requestedBy?.name || 'N/A'}</div>
                 <div>Approved by: {item.approvedBy?.name || 'Pending'}</div>
                 </div>
                 <div className="min-w-0 space-y-1 break-words">
@@ -856,8 +1155,9 @@ export default function RisPage() {
                 </div>
                 {item.rejectionReason ? <div className="break-words text-rose-600 sm:col-span-2">Rejection reason: {item.rejectionReason}</div> : null}
               </div>
+              )}
               {canManage ? (
-              <div className="mt-3 inline-flex w-full flex-wrap items-center justify-end gap-2">
+              <div className="ris-record-actions mt-3 inline-flex w-full flex-wrap items-center justify-end gap-2">
                 <div className="inline-flex flex-wrap items-center gap-2">
                 {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
                   <button
@@ -911,7 +1211,7 @@ export default function RisPage() {
       </section>
       ))}
 
-      {reviewTarget && reviewDraft ? (
+      {risView === 'requests' && reviewTarget && reviewDraft ? (
         <div
           ref={supplyReviewRef}
           tabIndex={-1}
@@ -941,7 +1241,7 @@ export default function RisPage() {
                     onClick={saveReview}
                     className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
                   >
-                    Save Review
+                    Save
                   </button>
                   <button
                     type="button"
@@ -959,8 +1259,7 @@ export default function RisPage() {
             </div>
           </div>
 
-          <datalist id="ris-stock-options">{items.map(item => <option key={item._id} value={item.stockNumber}>{item.description}</option>)}</datalist>
-          <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
+          <TableScroll showHint={false} className="mt-4 overflow-x-auto border border-slate-700">
             <div className="ris-table-grid border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
               <div className="col-span-4 border-r border-slate-700 py-2 italic justify-center">Requisition</div>
               <div className="col-span-4 py-2 italic justify-center">Stock Available?</div>
@@ -1028,228 +1327,8 @@ export default function RisPage() {
         </div>
       ) : null}
 
-      {editingRis || creatingRis ? (<>
-      <ValidatedForm as={motion.form} validationSelector={decision === 'reject' ? '[data-rejection-reason]' : undefined}
-        ref={editorRef}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        onSubmit={save}
-        aria-busy={savingRis}
-        inert={savingRis ? true : undefined}
-        className="form-document form-frame scroll-mt-6 mx-auto max-w-6xl p-4"
-      >
-        <div className="min-w-0 text-slate-900">
-          <FormEditorHeader title="Requisition and Issue Slip" description="Record all requested items here. Offline and registered-account requests share the same requisition list." onClose={resetForm} />
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3"><p className="text-sm text-teal-900">One request can contain multiple items. Add a row for each item, select its stock number, and enter the requested quantity.</p><AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" /></div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
-            <EntityNameField value={form.entityName} onChange={entityName => updateForm({ entityName })} isNew={!editingRis} />
-            <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-              <label className="block font-semibold"><span className="mb-1 block">Fund Cluster:</span>
-                <select aria-label="Fund Cluster" required={!isUser} value={fundClusterOption} onChange={event => { setFundClusterOption(event.target.value); updateForm({ fundCluster: event.target.value === 'Trust Fund' ? 'Trust Fund' : '' }); }} className="w-full rounded-lg border px-2 py-2">
-                  <option value="">Select fund source</option><option value="Trust Fund">Trust Fund</option><option value="Specify">Specify</option>
-                </select>
-              </label>
-              {fundClusterOption === 'Specify' && <label className="block"><span className="mb-1 block">Specific fund source:</span><input type="text" aria-label="Specific fund source" required={!isUser} value={form.fundCluster} onChange={event => updateForm({ fundCluster: event.target.value })} placeholder="e.g., General Fund" className="w-full rounded-lg border px-2 py-2" /></label>}
-            </div>
-          </div>
-
-          <div className="ris-header-fields mt-4 grid gap-3 sm:grid-cols-2">
-            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span>{key === 'office' ? <OfficeSelect required aria-label={label} readOnly={isUser} value={form.office} onChange={event => updateForm({ office: event.target.value })} className="w-full rounded-lg border px-2 py-2" /> : <input required type="text" aria-label={label} readOnly={isUser || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" />}</label>)}
-          </div>
-
-          <datalist id="ris-stock-options">{items.map(item => <option key={item._id} value={item.stockNumber}>{item.description}</option>)}</datalist>
-          <TableScroll className="mt-4 overflow-x-auto border border-slate-700">
-            <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 bg-slate-100 text-center text-sm font-semibold">
-              <div className="col-span-4 border-r border-slate-700 py-2 italic justify-center">Requisition</div>
-              <div className="col-span-4 border-r border-slate-700 py-2 italic justify-center">Stock Available?</div>
-              <div className="py-2" />
-            </div>
-            <div className="ris-table-grid ris-table-grid--editable border-b border-slate-700 text-center text-sm font-semibold">
-              <div className="border-r border-slate-700 px-2 py-2">Stock No. <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
-              <div className="border-r border-slate-700 px-2 py-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
-              <div className="border-r border-slate-700 px-2 py-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
-              <div className="border-r border-slate-700 px-2 py-2">Qty Req. <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
-              <div className="border-r border-slate-700 px-2 py-2">Yes</div>
-              <div className="border-r border-slate-700 px-2 py-2">No</div>
-              <div className="border-r border-slate-700 px-2 py-2">Actual Qty <span className="required-marker text-red-600" aria-hidden="true">*</span></div>
-              <div className="border-r border-slate-700 px-2 py-2">Remarks</div>
-              <div className="px-2 py-2" />
-            </div>
-
-            {form.items.map((item, index) => (
-              <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable border-b border-slate-300 last:border-b-0">
-                <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
-                    type="text"
-                    list="ris-stock-options" aria-label={`Stock Number, row ${index + 1}`}
-                    value={item.stockNumber ?? ''}
-                    onChange={event => { const stock = selectedInventoryMap.get(event.target.value); setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? { ...row, stockNumber: event.target.value, unit: stock?.unit || '', description: stock?.description || '', ...(row.stockNumber !== event.target.value ? { stockAvailable: stock?.quantityOnHand ?? '', isAvailable: null, quantityIssued: '', unitCost: undefined, totalCost: null } : {}) } : row) })); }}
-                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
-                    aria-label={`Unit, row ${index + 1}`} value={item.unit}
-                    onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
-                    aria-label={`Description, row ${index + 1}`} value={item.description}
-                    onChange={(e) => updateItem(index, 'description', e.target.value)}
-                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
-                    type="number"
-                    min="0"
-                    data-positive="true" aria-label={`Quantity requested, row ${index + 1}`} value={item.quantityRequested}
-                    onChange={(e) => updateItem(index, 'quantityRequested', e.target.value)}
-                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div className="border-r border-slate-300 p-1 flex items-center justify-center">
-                  <input
-                    type="radio" disabled={isUser}
-                    name={`ris-yes-${index}`}
-                    checked={item.isAvailable === true}
-                    onChange={() => updateItem(index, 'isAvailable', true)}
-                    className="h-4 w-4"
-                  />
-                </div>
-                <div className="border-r border-slate-300 p-1 flex items-center justify-center">
-                  <input
-                    type="radio" disabled={isUser}
-                    name={`ris-no-${index}`}
-                    checked={item.isAvailable === false}
-                    onChange={() => updateItem(index, 'isAvailable', false)}
-                    className="h-4 w-4"
-                  />
-                </div>
-                <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
-                    type="number"
-                    min="0"
-                    disabled={isUser} aria-label={`Quantity issued, row ${index + 1}`} value={item.quantityIssued}
-                    onChange={(e) => updateItem(index, 'quantityIssued', e.target.value)}
-                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div className="border-r border-slate-300 p-1">
-                  <input
-                    value={item.remarks}
-                    onChange={(e) => updateItem(index, 'remarks', e.target.value)}
-                    className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div className="flex items-center justify-center p-1">
-                  <DeleteRowButton index={index} onClick={() => deleteRow(index)} />
-                </div>
-              </div>
-            ))}
-          </TableScroll>
-
-          <div className="mt-3 flex justify-end">
-            <AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" />
-          </div>
-
-          <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Purpose</span>
-              <input required
-                value={form.purpose}
-                onChange={(e) => updateForm({ purpose: e.target.value })}
-                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
-                placeholder="Purpose of requisition"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold">Date</span>
-              <input required
-                type="date"
-                value={form.date}
-                onChange={(e) => updateForm({ date: e.target.value })}
-                className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
-              />
-            </label>
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {[
-              ['Requested by', 'requestedBy'],
-              ['Approved by', 'approvedBy'],
-              ['Issued by', 'issuedBy'],
-              ['Received by', 'receivedBy'],
-            ].map(([label, section]) => (
-              <fieldset disabled={isUser} key={section} className="min-w-0 rounded-xl border border-slate-700 p-4">
-                <h3 className="mb-3 text-sm font-semibold">{label}</h3>
-                {user?.role === 'admin' && ['requestedBy', 'receivedBy'].includes(section) && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, ...(section === 'requestedBy' ? { office: person.office || person.designation || prev.office, receivedBy: { ...prev.receivedBy, user: person.user, offlineRecipient: person.offlineRecipient, name: person.name, designation: person.designation } } : {}) }))} />}
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>
-                    <input required
-                      aria-label={`${label} name`} value={form[section].name}
-                      onChange={(e) => updateSignatory(section, 'name', e.target.value)}
-                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">Designation</span>
-                    <input required
-                      aria-label={`${label} designation`} value={form[section].designation}
-                      onChange={(e) => updateSignatory(section, 'designation', e.target.value)}
-                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
-                    <input required
-                      type="date"
-                      aria-label={`${label} date`} value={form[section].date}
-                      onChange={(e) => updateSignatory(section, 'date', e.target.value)}
-                      className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
-                    />
-                  </label>
-                </div>
-              </fieldset>
-            ))}
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-300 pt-4">
-            <div className="text-sm text-slate-600">
-              Showing {completedRows.length} filled row{completedRows.length === 1 ? '' : 's'} on the sheet.
-            </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              {decision === 'reject' && <label className="text-sm">Reason for rejection<input required data-rejection-reason value={rejectionReason} onChange={event => setRejectionReason(event.target.value)} className="mt-1 rounded-lg border p-2" /></label>}
-              {decision !== 'reject' && <button
-                type="submit"
-                disabled={savingRis}
-                className="ris-form-action bg-slate-900 text-white hover:bg-slate-800"
-              >
-                <Save size={16} />
-                {isUser ? 'Submit RIS' : editingRis ? 'Update RIS' : 'Save Request'}
-              </button>}
-              {user?.role === 'admin' && editingRis && !['ISSUED', 'ACCOUNTABILITY_LOCKED', 'REJECTED'].includes(editingRis.status) && <>
-                <button
-                  type={decision === 'reject' ? 'submit' : 'button'}
-                  disabled={savingRis}
-                  onClick={decision === 'reject' ? undefined : () => setDecision('reject')}
-                  className="ris-form-action bg-rose-700 text-white hover:bg-rose-800"
-                ><XCircle size={16} /> Reject Request</button>
-                {decision !== 'reject' && <button
-                  type="submit" name="action" value="approve" disabled={savingRis}
-                  className="ris-form-action bg-emerald-700 text-white hover:bg-emerald-800"
-                ><CheckCircle2 size={16} /> Approve and Issue</button>}
-                {decision === 'reject' && <button type="button" onClick={() => setDecision('save')} disabled={savingRis} className="ris-form-action border border-slate-200 text-slate-700 hover:bg-slate-50">Cancel</button>}
-              </>}
-            </div>
-          </div>
-        </div>
-        </ValidatedForm>
-      </>) : null}
+      </>}
     </div>
   );
 }

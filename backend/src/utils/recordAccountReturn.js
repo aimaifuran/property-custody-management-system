@@ -54,7 +54,7 @@ module.exports = (offline = false) => async (req, res) => {
         returnedBy: { [offline ? 'offlineRecipient' : 'user']: owner._id, name: offline ? owner.name : accountName(owner), designation: owner.designation || owner.position || owner.office, date: now },
         returnedTo: { name: accountName(req.user), designation: req.user.position || req.user.office, date: now },
         items: [entry] }], { session });
-      await postPropertyReturn(created, session);
+      await postPropertyReturn(created, session, req.user);
       await ActivityLog.create([{ user: req.user._id, action: 'User item returned', details: `${created.prsNumber}: ${quantity} ${item.description} returned by ${owner.username || owner.name}` }], { session });
       return created;
     });

@@ -24,7 +24,7 @@ export const TEMPLATE_ROW_LINE_HEIGHT = 12;
 const minimumRowHeight = 22;
 const tableDefinitions = {
   iar: { left: 90, right: 522, top: 612, bottom: 273, widths: [82, 221, 63, 66], labels: ['Stock / Property No.', 'Description', 'Unit', 'Quantity'] },
-  pc: { left: 75, right: 766, top: 380, bottom: 80, widths: [60, 84, 50, 50, 205, 50, 85, 107], labels: ['Date', 'Reference / PAR No.', 'Qty.', 'Qty.', 'Office / Officer', 'Qty.', 'Amount', 'Remarks'], groups: [{ start: 2, count: 1, label: 'Receipt' }, { start: 3, count: 2, label: 'Issue / Transfer / Disposal' }, { start: 5, count: 1, label: 'Balance' }] },
+  pc: { left: 75, right: 766, top: 380, bottom: 80, widths: [74, 99, 74, 74, 235, 74, 119, 140], labels: ['Date', 'Reference/\nPAR No.', 'Qty.', 'Qty.', 'Office/Officer', 'Qty.', 'Amount', 'Remarks'], groups: [{ start: 2, count: 1, label: 'Receipt' }, { start: 3, count: 2, label: 'Issue/Transfer/Disposal' }, { start: 5, count: 1, label: 'Balance' }] },
   ics: { left: 90, right: 523, top: 680, bottom: 319, widths: [46, 37, 60, 65, 95, 72, 58], labels: ['Quantity', 'Unit', 'Unit Cost', 'Total Cost', 'Description', 'Inventory Item No.', 'Estimated Useful Life'], groups: [{ start: 2, count: 2, label: 'Amount' }], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 2, count: 2, separateColumns: true }, { key: 'remarks', label: 'REMARKS:', start: 1, count: 6 }] },
   par: { left: 92, right: 520, top: 677, bottom: 318, widths: [46, 37, 140, 71, 62, 72], labels: ['Quantity', 'Unit', 'Description', 'Property Number', 'Date Acquired', 'Amount'], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 5, count: 1 }, { key: 'remarks', label: 'Remarks:', start: 1, count: 5 }] },
   prs: { left: 51, right: 531, top: 671, bottom: 346, widths: [35, 35, 89, 65, 66, 70, 60, 60], labels: ['Qty.', 'Unit', 'Description', 'Property Number', 'M.R. No.', 'Name of End User', 'Unit Value', 'Total Value'], footers: [{ key: 'note', label: 'NOTE:', start: 2, count: 6 }, { key: 'totalAmount', label: 'TOTAL', start: 7, count: 1 }, { label: 'CERTIFICATION' }] },
@@ -56,7 +56,7 @@ export function templateRowLayout(template, font, fontSize = FORM_PDF_FONT_SIZE)
   const pageSize = template === 'pc' ? FORM_PDF_A4_LANDSCAPE : FORM_PDF_A4_PORTRAIT;
   const width = pageSize[0] - FORM_PDF_MARGIN * 2;
   const originalWidth = original.widths.reduce((sum, value) => sum + value, 0);
-  const definition = { ...original, left: FORM_PDF_MARGIN, right: pageSize[0] - FORM_PDF_MARGIN, top: { iar: 624, pc: 430, ics: 714, par: 714, prs: 714 }[template], bottom: { iar: 206, pc: FORM_PDF_MARGIN, ics: 180, par: 192, prs: 214 }[template], widths: original.widths.map(value => value / originalWidth * width) };
+  const definition = { ...original, left: FORM_PDF_MARGIN, right: pageSize[0] - FORM_PDF_MARGIN, top: { iar: 624, pc: 406, ics: 714, par: 714, prs: 714 }[template], bottom: { iar: 206, pc: FORM_PDF_MARGIN, ics: 180, par: 192, prs: 214 }[template], widths: original.widths.map(value => value / originalWidth * width) };
   let x = definition.left;
   const tableColumns = columns[template].map((key, index) => {
     const width = definition.widths[index];
@@ -211,7 +211,7 @@ export function drawTemplateTableFrame(page, fonts, rows, layout, options = {}) 
     for (const column of layout.columns) tableCell(page, { x: column.x, y, width: column.width, height: row._height });
   }
   const remaining = y - layout.bodyBottom;
-  const blankCount = Math.max(1, Math.floor(remaining / Math.max(minimumRowHeight, layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2)));
+  const blankCount = layout.template === 'pc' ? Math.max(1, 18 - rows.length) : Math.max(1, Math.floor(remaining / Math.max(minimumRowHeight, layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2)));
   if (remaining > .01) for (let index = 0; index < blankCount; index++) {
     const height = remaining / blankCount;
     y -= height;
@@ -308,6 +308,7 @@ function drawChoice(page, font, text, key, checked, x, top, width, options) {
 }
 
 export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, options = {}) {
+  if (layout.template === 'pc') return drawPropertyCardHeaders(page, fonts, layout, valueFor, data, options);
   const { template, left, right, pageSize } = layout;
   const width = right - left, half = width / 2;
   const top = pageSize[1] - FORM_PDF_MARGIN;
@@ -341,11 +342,6 @@ export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, opt
     drawChoice(page, fonts.regular, 'Complete', 'Complete', data.acceptanceStatus === 'Complete', acceptance.x + 12, layout.bottom - 60, acceptance.width - 24, options);
     drawChoice(page, fonts.regular, 'Partial (pls. specify quantity)', 'Partial', data.acceptanceStatus === 'Partial', acceptance.x + 12, layout.bottom - 87, acceptance.width - 24, options);
     if (data.acceptanceStatus === 'Partial') fields.push({ key: 'acceptanceQuantity', rectangle: { x: acceptance.x + 34, y: layout.bottom - 119, width: acceptance.width - 54, height: 11 } });
-  } else if (template === 'pc') {
-    pair(508, ['Month', 'month'], ['PO No.', 'poNumber']);
-    pair(484, ['Entity Name', 'entityName'], ['Fund Cluster', 'fundCluster']);
-    pair(460, ['Property, Plant and Equipment', 'propertyPlantAndEquipment'], ['Property Number', 'propertyNumber']);
-    pair(436, ['Description', 'description'], ['S/N', 'serialNumber']);
   } else if (template === 'prs') {
     add('Name of Local Government Unit:', 'lguName', left, 754, width * .7 - 10);
 
@@ -363,6 +359,42 @@ export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, opt
   }
   for (const [key, bounds] of Object.entries(layout.headerBounds)) fields.push({ key, rectangle: bounds, cellBounds: bounds.cellBounds });
   return drawTemplateHeaders(page, fonts.regular, template, valueFor, options, fields);
+}
+
+// Appendix 69 uses one connected, bordered form rather than a report header.
+// The same renderer is shared by PDF downloads and the printable PDF preview.
+function drawPropertyCardHeaders(page, fonts, layout, valueFor, data, options) {
+  const { left, right, top, columns } = layout;
+  const width = right - left;
+  const split = columns[6].x;
+  const detailsTop = top + 58;
+  const entityTop = detailsTop + 39;
+  const titleTop = entityTop + 35;
+  const title = { x: left, y: entityTop, width, height: 35 };
+  page.drawRectangle({ ...title, color: rgb(1, 1, 0), borderColor: rgb(0, 0, 0), borderWidth: 1 });
+  options.onDecoration?.({ section: 'title background', color: [1, 1, 0], bounds: title, page: options.page });
+  drawValue(page, fonts.italic || fonts.regular, 'Appendix 69', { x: left, y: titleTop + 8, width, height: 14 }, { ...options, section: 'appendix' }, 'right');
+  drawValue(page, fonts.bold, 'PROPERTY CARD', title, { ...options, section: 'form title' }, 'center');
+  tableCell(page, { x: left, y: detailsTop, width: split - left, height: 39 });
+  tableCell(page, { x: split, y: detailsTop, width: right - split, height: 39 });
+  tableCell(page, { x: left, y: top, width: split - left, height: 58 });
+  tableCell(page, { x: split, y: top, width: right - split, height: 58 });
+  const fields = [];
+  const field = (label, key, x, y, fieldWidth, height = 14, underline = false) => {
+    const labelWidth = fonts.bold.widthOfTextAtSize(label, options.fontSize) + 4;
+    drawValue(page, fonts.bold, label, { x, y, width: labelWidth, height: 14 }, { ...options, section: `${key} caption` });
+    const rectangle = { x: x + labelWidth, y, width: fieldWidth - labelWidth, height };
+    fields.push({ key, rectangle });
+    if (underline) page.drawLine({ start: { x: rectangle.x, y: y - 1 }, end: { x: x + fieldWidth, y: y - 1 }, thickness: .5 });
+  };
+  field('Entity Name :', 'entityName', left + 3, detailsTop + 7, split - left - 10, 14, true);
+  field('Fund Cluster:', 'fundCluster', split + 3, detailsTop + 7, right - split - 13, 14, true);
+  field('Property, Plant and Equipment :', 'propertyPlantAndEquipment', left + 3, top + 34, split - left - 10);
+  field('Description :', 'description', left + 3, top + 7, split - left - 10);
+  field('Property Number:', 'propertyNumber', split + 3, top + 24, right - split - 13, 14, true);
+  // Appendix 69 has no separate S/N field; keep unit identity in its description.
+  const description = [valueFor('description'), valueFor('serialNumber') ? `S/N: ${valueFor('serialNumber')}` : ''].filter(Boolean).join(' | ');
+  return drawTemplateHeaders(page, fonts.regular, 'pc', key => key === 'description' ? description : valueFor(key), options, fields);
 }
 
 function fieldCaption(key) {

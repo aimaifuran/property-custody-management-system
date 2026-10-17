@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const ledgerTransactionSchema = new mongoose.Schema({
+  sourceType: { type: String, enum: ['IAR', 'RIS', 'PRS'] },
+  sourceDocument: mongoose.Schema.Types.ObjectId,
+  sourceLine: mongoose.Schema.Types.ObjectId,
+  sourceKey: { type: String, unique: true, sparse: true },
+  postedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  office: String,
   inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory', required: true },
   type: { type: String, enum: ['incoming', 'outgoing'], required: true },
   quantity: { type: Number, required: true },

@@ -20,7 +20,6 @@ const FORM_OPTIONS = [
   { value: 'PAR', label: 'Property Acknowledgement Receipt', path: '/par' },
   { value: 'PTR', label: 'Property Transfer Report', path: '/transfers' },
   { value: 'PRS', label: 'Property Return Slip', path: '/returns' },
-  { value: 'RETURNED SUPPLY', label: 'Returned Supply', path: '/returned-supply' },
 ];
 
 const formLabel = (value) => FORM_OPTIONS.find((option) => option.value === value)?.label || value;

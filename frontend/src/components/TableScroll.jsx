@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export default function TableScroll({ children, className = '', label = 'Scrollable item table', preserveTable = false }) {
+export default function TableScroll({ children, className = '', label = 'Scrollable item table', preserveTable = false, showHint = true }) {
   const container = useRef(null);
   useEffect(() => {
     const region = container.current;
@@ -46,7 +46,7 @@ export default function TableScroll({ children, className = '', label = 'Scrolla
   }, [children, preserveTable]);
   return (
     <div ref={container} className={`table-scroll ${className}`} role="region" aria-label={label} tabIndex={0}>
-      <div className="table-scroll__hint" aria-hidden="true">Swipe horizontally to view all columns</div>
+      {showHint && <div className="table-scroll__hint" aria-hidden="true">Swipe horizontally to view all columns</div>}
       <div className="table-scroll__content">{children}</div>
     </div>
   );

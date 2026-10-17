@@ -20,4 +20,5 @@ const schema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   lastEditedAt: Date,
 }, { timestamps: true });
+schema.plugin(require('../utils/reportSoftDelete'));
 module.exports = mongoose.model('PpeStationReport', schema);

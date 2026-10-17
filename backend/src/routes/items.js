@@ -10,7 +10,8 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 router.post('/', authenticate, authorize('canManageInventory'), async (req, res) => {
-  const item = await Item.create(req.body);
+  if (Number(req.body.quantityOnHand || 0) !== 0) return errorResponse(res, 'Record initial stock through an accepted IAR or an inventory receipt', [], 400);
+  const item = await Item.create({ ...req.body, quantityOnHand: 0 });
   return successResponse(res, 'Item created', item, 201);
 });
 

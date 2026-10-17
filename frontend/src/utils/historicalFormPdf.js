@@ -66,7 +66,7 @@ export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}
   const data = { ...(record.details || {}), _template: template };
   const items = Array.isArray(data.items) ? data.items : record.type === 'RETURNED SUPPLY' ? [data] : [];
   const output = await PDFDocument.create();
-  const fonts = await embedFormFonts(output, ['regular', 'bold']);
+  const fonts = await embedFormFonts(output, template === 'pc' ? ['regular', 'bold', 'italic'] : ['regular', 'bold']);
   options = { ...options, ...(template === 'pc' ? { fontSize: 11 } : {}), certificationDates: [templateFieldValue('returnedToDate', data, []), templateFieldValue('returnedByDate', data, [])] };
   const layout = templateRowLayout(template, fonts.bold, options.fontSize);
   const itemOverflow = [];

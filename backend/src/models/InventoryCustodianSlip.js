@@ -15,6 +15,9 @@ const inventoryCustodianSlipSchema = new mongoose.Schema({
   // IARs below the PAR threshold to share an unassigned ICS number.
   icsNumber: { type: String, unique: true, sparse: true, trim: true },
   items: [{
+    inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },
+    property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
+    serialNumber: { type: String, trim: true },
     quantity: Number,
     unit: String,
     unitCost: Number,

@@ -16,6 +16,9 @@ const propertyTransferReportSchema = new mongoose.Schema({
   // form, this stores the free-text value the user specified instead.
   transferType: { type: String, trim: true },
   items: [{
+    inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },
+    property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
+    serialNumber: { type: String, trim: true },
     accountability: { type: mongoose.Schema.Types.ObjectId, ref: 'PropertyAccountability' },
     dateAcquired: Date,
     propertyNumber: String,

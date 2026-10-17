@@ -104,6 +104,11 @@ textarea[aria-invalid='true'] {
   grid-template-columns: minmax(140px, 1.1fr) 64px minmax(180px, 2fr) 80px 48px 48px 88px minmax(160px, 1.5fr) 48px;
 }
 
+.ris-table-grid--item-picker {
+  min-width: 72rem;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(100px, 0.8fr) 72px minmax(180px, 1.5fr) 80px 48px 48px 88px minmax(140px, 1fr) 48px;
+}
+
 .ris-table-grid > div {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -2002,3 +2007,152 @@ body { font-size: var(--app-text-size); }
 .monthly-report-month-controls label > span { position: absolute; left: 0; bottom: calc(100% + 6px); }
 .app-shell main .monthly-report-month-controls input { margin-top: 0; min-height: 42px; }
 .app-shell main .monthly-report-month-controls button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Property Card uses the same document frame and controls as issuance forms. */
+.property-card-ledger .pc-item-information dt,
+.property-card-ledger .pc-stock-summary dt {
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.entity-name-field .entity-name-value,
+.property-card-ledger .pc-item-information dd,
+.property-card-ledger .pc-stock-summary dd {
+  margin: 4px 0 0;
+  padding: 0 0 2px;
+  border-bottom: 1px solid #64748b;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.property-card-ledger .pc-stock-summary dd { color: #18332b; font-weight: 600; }
+.property-card-ledger table td { overflow-wrap: anywhere; }
+
+.property-card-ledger .pc-history-container {
+  overflow: hidden;
+  border: 1px solid #dce8de;
+  border-radius: 18px;
+}
+.property-card-ledger .pc-history-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.property-card-ledger .pc-history-table :is(th, td) {
+  border: 0;
+  border-bottom: 1px solid #e2ebe3;
+  padding: 16px 20px;
+  text-align: left;
+  vertical-align: middle;
+  line-height: 1.5;
+}
+.property-card-ledger .pc-history-table th {
+  background: #f1f6f2;
+  color: #52755f;
+  font-weight: 600;
+}
+.property-card-ledger .pc-history-table tbody tr:last-child td { border-bottom: 0; }
+.property-card-ledger .pc-history-table tbody tr:hover { background: #edf7ef; }
+.property-card-ledger .pc-history-table :is(.pc-history-date, .pc-history-amount) { white-space: nowrap; }
+.property-card-ledger .pc-history-balance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 3px 12px;
+  border-radius: 12px;
+  background: #ccfbe5;
+  color: #075b46;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.property-card-ledger a.pc-history-document {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border: 1px solid #bfd8c7;
+  border-radius: 10px;
+  color: #235c43;
+  background: #f3faf4;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.property-card-ledger a.pc-history-document:hover { background: #dff2e5; border-color: #8cb79c; }
+.property-card-ledger a.pc-history-document:focus-visible { outline: 2px solid #287b51; outline-offset: 3px; }
+
+.app-shell .title-bar-account-toggle { position: relative; }
+.account-return-badge { position: absolute; top: -5px; right: -7px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 11px; font-weight: 700; line-height: 19px; text-align: center; }
+
+/* Consistent green feedback for interactive buttons. */
+:where(button, [role="button"], input[type="button"], input[type="submit"], a[class*="button"]) {
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+@media (hover: hover) {
+  :is(button, [role="button"], input[type="button"], input[type="submit"], a[class*="button"]):not(:disabled):not([aria-disabled="true"]):hover {
+    background-color: #15803d !important;
+    color: #fff !important;
+    border-color: #15803d !important;
+    box-shadow: 0 2px 8px #15803d25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(button, [role="button"], input[type="button"], input[type="submit"], a[class*="button"]) { transition: none; }
+}
+
+/* Dashboard: return and monthly charts above the transfer/return record cards. */
+.dashboard-page .dashboard-breakdowns { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+.dashboard-page .dashboard-other > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dashboard-page .dashboard-breakdowns > .dashboard-monthly { display: flex; flex-direction: column; min-width: 0; }
+@media (min-width: 1024px) and (min-height: 540px) {
+  .dashboard-main .dashboard-page { grid-template-rows: auto minmax(0, 1fr); }
+  .dashboard-main .dashboard-page:has(> .text-rose-700) { grid-template-rows: auto auto minmax(0, 1fr); }
+  .dashboard-main .dashboard-results { grid-template-rows: minmax(0, 1fr) auto; }
+  .dashboard-main .dashboard-page .dashboard-other > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 639px) {
+  .dashboard-page .dashboard-breakdowns { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* New stock appears in a separate rounded green box, like the form controls. */
+.property-stock-table { border-collapse: separate; border-spacing: 0 6px; }
+.property-stock-table tbody .property-stock-row-new > td { background: #ecfdf5; border-top: 1px solid #6ee7b7; border-bottom: 1px solid #6ee7b7; }
+.property-stock-table tbody .property-stock-row-new > td:first-child { border-left: 1px solid #6ee7b7; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+.property-stock-table tbody .property-stock-row-new > td:last-child { border-right: 1px solid #6ee7b7; border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+@media (max-width: 640px) {
+  .property-stock-table.table-responsive-cards tbody .property-stock-row-new { background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 10px; overflow: hidden; }
+  .property-stock-table.table-responsive-cards tbody .property-stock-row-new > td { border: 0; border-radius: 0; }
+}
+
+/* Approved RIS actions align with the item heading instead of a separate bottom row. */
+.saved-record.ris-approved-record { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+.saved-record.ris-approved-record > :is(.recent-form-marker, .reviewed-form-marker) { position: absolute; }
+.saved-record.ris-approved-record > .ris-record-actions { width: auto; margin-top: 0; align-self: start; }
+@media (max-width: 640px) {
+  .saved-record.ris-approved-record { grid-template-columns: minmax(0, 1fr); }
+  .saved-record.ris-approved-record > .ris-record-actions { justify-content: flex-start; }
+}
+
+/* Align fixed text underlines with the bottom edge of adjacent form controls. */
+@media screen {
+  .form-document { --form-field-height: 42px; }
+  .form-document :is(input:not([type='radio']):not([type='checkbox']), select):not(table *) {
+    height: var(--form-field-height);
+    min-height: var(--form-field-height);
+    line-height: 20px;
+  }
+  .form-document :is(.entity-name-value, .signatory-value) {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    min-height: var(--form-field-height);
+    margin: 0;
+    padding: 8px 0;
+    line-height: 20px;
+  }
+  .form-document .signatory-value.text-center { justify-content: center; }
+}
+@media screen and (max-width: 640px) {
+  .form-document { --form-field-height: 36px; }
+  .form-document :is(.entity-name-value, .signatory-value) { padding-block: 5px; }
+}

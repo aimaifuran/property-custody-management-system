@@ -13,7 +13,7 @@ export default function MyReturnsPage() {
     if (!background) { setLoading(true); setError(''); }
     try {
       const data = await loadAccountItems(axios, '/ris/my-returns');
-      setItems(previousRows => mergeAccountItems({ ...data, previousRows }));
+      setItems(previousRows => mergeAccountItems({ ...data, previousRows }).filter(item => Number(item.quantityReturned) > 0).map(item => ({ ...item, returns: item.returns.filter(entry => entry.status === 'RETURNED') })));
     } catch (err) {
       if (!background) setError(err.response?.data?.message || 'Unable to load your return status. Please try again.');
     } finally { if (!background) setLoading(false); }
@@ -33,7 +33,7 @@ export default function MyReturnsPage() {
     </section>
     {error && <div role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">{error}</div>}
     {!error && <section className="minimal-surface p-6">
-      {items.length === 0 ? <p className="text-slate-500">No items have been issued to your account yet.</p> : <TableScroll className="overflow-x-auto"><table className="user-returns-table w-full text-left text-sm">
+      {items.length === 0 ? <p className="text-slate-500">No confirmed returns have been recorded for your account yet.</p> : <TableScroll className="overflow-x-auto"><table className="user-returns-table w-full text-left text-sm">
         <thead className="hidden lg:table-header-group"><tr className="border-b text-slate-500">{['Item', 'RIS No.', 'Issued', 'Returned', 'Remaining', 'Return result', 'Return slip details'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
         <tbody>{items.map(item => <tr key={item.rowKey} className="mb-4 block rounded-xl border border-slate-200 p-3 last:mb-0 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:p-0">
           <td data-label="Item" className="p-3 font-medium">{item.description || item.stockNumber}</td><td data-label="RIS No." className="p-3">{item.risNumber || '—'}</td><td data-label="Issued" className="p-3">{item.quantityIssued ?? '—'}</td><td data-label="Returned" className="p-3">{item.quantityReturned}</td><td data-label="Remaining" className="p-3">{item.quantityRemaining}</td>

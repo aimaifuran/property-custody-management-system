@@ -1,12 +1,14 @@
 const mongoose = require('mongoose');
 
 const itemSchema = new mongoose.Schema({
+  name: { type: String, trim: true },
   stockNumber: { type: String, required: true, unique: true, trim: true },
   unit: { type: String, required: true },
   description: { type: String, required: true },
   category: { type: String, default: 'General' },
   itemType: { type: String, enum: ['SUPPLY', 'ASSET'], default: 'ASSET' },
   cost: { type: Number, required: true, default: 0 },
+  reorderLevel: { type: Number, min: 0, default: null },
   quantityOnHand: { type: Number, required: true, default: 0 },
   status: {
     type: String,

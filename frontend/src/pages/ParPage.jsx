@@ -1,3 +1,9 @@
+import FormRecordTabs from '../components/FormRecordTabs';
+import UserAccountSelect from '../components/UserAccountSelect';
+import SignatoryValue from '../components/SignatoryValue';
+import useSourceDocument from '../utils/useSourceDocument';
+import { withCurrentDates, todayManila } from '../utils/formDates';
+import IarSourceSelect from '../components/IarSourceSelect';
 import { hasRowData } from '../utils/formRows';
 import { lineAmount, sumAmounts } from '../utils/formAmounts';
 import OfficeSelect from '../components/OfficeSelect';
@@ -35,7 +41,7 @@ const emptyItem = () => ({
     unit: '',
     description: '',
     propertyNumber: '',
-    dateAcquired: '',
+    dateAcquired: todayManila(),
     unitCost: '',
     amount: 0
 });
@@ -82,7 +88,8 @@ export default function ParPage() {
 
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
-    const [form, setForm] = useState(null);
+    const [editorOpen, setEditorOpen] = useState(!isUser);
+    const [form, setForm] = useState(() => isUser ? null : withCurrentDates(toForm({ items: [emptyItem()] })));
     const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('PAR', 'parNumber', setForm);
     const [saving, setSaving] = useState(false);
     const selectedRecord = records.find(record => record._id === editingId);
@@ -111,6 +118,7 @@ export default function ParPage() {
 
     useEffect(() => {
         load();
+        if (!isUser) refreshNumberPreview();
         const timer = window.setInterval(() => { if (!document.hidden) axios.get('/par').then(({ data }) => setRecords(data.data || [])).catch(() => {}); }, 15000);
         return () => window.clearInterval(timer);
     }, []);
@@ -118,21 +126,25 @@ export default function ParPage() {
     const visibleRecords = filteredReports.slice((page - 1) * perPage, page * perPage);
 
     const startEdit = (record) => {
+        setEditorOpen(true);
         cancelNumberPreview();
         setEditingId(record._id);
         const nextForm = toForm(record);
-        if (!record.user) nextForm.receivedBy = getStickySignatory('receivedBy', nextForm.receivedBy);
         if (!record.user) nextForm.issuedBy = getStickySignatory('issuedBy', nextForm.issuedBy);
         setForm(nextForm);
     };
 
     const createNew = () => {
+        setEditorOpen(true);
         setEditingId(null);
-        setForm(toForm({ items: [] }));
+        const nextForm = withCurrentDates(toForm({ items: [emptyItem()] }));
+        nextForm.issuedBy = getStickySignatory('issuedBy', nextForm.issuedBy);
+        setForm(nextForm);
         refreshNumberPreview();
     };
 
     const cancelEdit = () => {
+        setEditorOpen(false);
         cancelNumberPreview();
         setEditingId(null);
         setForm(null);
@@ -142,7 +154,6 @@ export default function ParPage() {
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
         const signatory = { ...prev[section], [key]: value };
-        saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
 
@@ -202,13 +213,14 @@ export default function ParPage() {
         <div className="rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
+                {section === 'receivedBy' && !editingId && <UserAccountSelect person={form[section]} onChange={person => setForm(previous => ({ ...previous, [section]: { ...previous[section], ...person, position: person.designation || person.office || '' } }))} />}
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <input required value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <SignatoryValue  value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="par" role={section} field="name" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Position</span>
-                    <input required value={form[section].position} onChange={(e) => updateSignatory(section, 'position', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <SignatoryValue  value={form[section].position} onChange={(e) => updateSignatory(section, 'position', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="par" role={section} field="position" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
@@ -323,12 +335,15 @@ export default function ParPage() {
       await exportOfficialFormPdf('PAR', data, print);
     };
 
+    useSourceDocument(records, setRecords, startEdit, '/par');
+
     if (pageLoading) return <PageSkeleton />;
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
         <div className="space-y-6">
-            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}>{!isUser && <NewFormButton onNew={createNew} editorRef={editorRef} />}</SavedReportsHeader>
+            {!isUser && <FormRecordTabs label="Property Acknowledgement Receipt" showForm={editorOpen} onForm={() => { if (form) setEditorOpen(true); else createNew(); }} onRecords={() => setEditorOpen(false)} />}
+            {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
@@ -347,11 +362,13 @@ export default function ParPage() {
                     </div>
                 ))}
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
-            </div>
+            </div>}
 
-            {form && (
+            {editorOpen && form && (
                 <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                     <FormEditorHeader title="Property Acknowledgement Receipt" description="Linked RIS issuances for items with a unit cost of ₱50,000 or more are recorded here under the requester account." onClose={cancelEdit} />
+            {!isUser && <div className="mb-4 flex justify-end"><NewFormButton onNew={createNew} editorRef={editorRef} /></div>}
+                {!editingId && !isUser && <IarSourceSelect type="par" setForm={setForm} />}
                     <fieldset disabled={readOnly} className="min-w-0">
                     <div className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
@@ -426,7 +443,7 @@ export default function ParPage() {
                     </fieldset>
                     <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : readOnly ? 'Awaiting custodian acceptance' : ''}</p>
                     <div className="flex justify-end">
-                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept PAR Receipt' : readOnly ? 'Issued Form' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept PAR Receipt' : readOnly ? 'Issued Form' : 'Save'}</button>
                     </div>
                 </ValidatedForm>
             )}

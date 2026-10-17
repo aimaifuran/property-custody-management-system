@@ -27,7 +27,7 @@ async function synchronize(selectedMonth) {
     const [year, monthNumber] = month.split('-').map(Number);
     const endDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
     await PpeList.updateOne({ month, automatic: true }, {
-      $set: { rows, recapitulation: recapitulate(rows), referenceLayout: false },
+      $set: { rows, recapitulation: recapitulate(rows), referenceLayout: false, deleted: false },
       $setOnInsert: { month, automatic: true, serialNumber: `${year}-${String(monthNumber).padStart(3, '0')}`, lgu: settings?.lguName || 'CARIGARA, LEYTE', fund: '', periodStart: `${month}-01`, periodEnd: `${month}-${endDay}`, reportDate: `${month}-${endDay}`, custodian: settings?.signatories?.issuedBy?.name || '', accountingStaff: '', postedDate: '' },
     }, { upsert: true });
   }

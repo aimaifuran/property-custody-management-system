@@ -1,0 +1,160 @@
+[
+  {
+    "key": "iar",
+    "title": "Inspection and Acceptance Report",
+    "roles": [
+      {
+        "key": "inspectedBy",
+        "label": "Inspection Officer / Committee",
+        "kind": "text"
+      },
+      {
+        "key": "custodian",
+        "label": "Supply / Property Custodian",
+        "kind": "text"
+      }
+    ]
+  },
+  {
+    "key": "ris",
+    "title": "Requisition and Issue Slip",
+    "roles": [
+      {
+        "key": "requestedBy",
+        "label": "Requested By",
+        "kind": "person",
+        "account": true
+      },
+      {
+        "key": "approvedBy",
+        "label": "Approved By",
+        "kind": "person",
+        "account": false
+      },
+      {
+        "key": "issuedBy",
+        "label": "Issued By",
+        "kind": "person",
+        "account": false
+      },
+      {
+        "key": "receivedBy",
+        "label": "Received By",
+        "kind": "person",
+        "account": true
+      }
+    ]
+  },
+  {
+    "key": "ics",
+    "title": "Inventory Custodian Slip",
+    "roles": [
+      {
+        "key": "receivedFrom",
+        "label": "Received From",
+        "kind": "person",
+        "account": false
+      },
+      {
+        "key": "receivedBy",
+        "label": "Received By",
+        "kind": "person",
+        "account": true
+      }
+    ]
+  },
+  {
+    "key": "par",
+    "title": "Property Acknowledgement Receipt",
+    "roles": [
+      {
+        "key": "issuedBy",
+        "label": "Issued By",
+        "kind": "person",
+        "account": false
+      },
+      {
+        "key": "receivedBy",
+        "label": "Received By",
+        "kind": "person",
+        "account": true
+      }
+    ]
+  },
+  {
+    "key": "ptr",
+    "title": "Property Transfer Report",
+    "roles": [
+      {
+        "key": "approvedBy",
+        "label": "Approved By",
+        "kind": "person",
+        "account": false
+      },
+      {
+        "key": "issuedBy",
+        "label": "Issued By",
+        "kind": "person",
+        "account": false
+      },
+      {
+        "key": "receivedBy",
+        "label": "Received By",
+        "kind": "person",
+        "account": true
+      }
+    ]
+  },
+  {
+    "key": "prs",
+    "title": "Property Return Slip",
+    "roles": [
+      {
+        "key": "returnedBy",
+        "label": "Returned By",
+        "kind": "person",
+        "account": true
+      },
+      {
+        "key": "returnedTo",
+        "label": "Returned To",
+        "kind": "person",
+        "account": false
+      }
+    ]
+  },
+  {
+    "key": "monthly",
+    "title": "Monthly Items Report",
+    "roles": [
+      {
+        "key": "custodian",
+        "label": "Supply / Property Custodian",
+        "kind": "text"
+      },
+      {
+        "key": "accountingStaff",
+        "label": "Designated Accounting Staff",
+        "kind": "text"
+      }
+    ]
+  },
+  {
+    "key": "ppe",
+    "title": "List of Property, Plant and Equipment",
+    "roles": [
+      {
+        "key": "preparedBy",
+        "label": "Prepared By",
+        "kind": "text",
+        "designationKey": "preparedDesignation"
+      },
+      {
+        "key": "reviewedBy",
+        "label": "Reviewed By",
+        "kind": "text",
+        "designationKey": "reviewedDesignation"
+      }
+    ]
+  }
+]

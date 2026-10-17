@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 
 const requisitionIssueSlipSchema = new mongoose.Schema({
+  manualIssueKey: { type: String, unique: true, sparse: true },
+  sourceInventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },
   iar: { type: mongoose.Schema.Types.ObjectId, ref: 'InspectionAcceptanceReport', index: true },
   risNumber: { type: String, unique: true, sparse: true, trim: true },
   entityName: { type: String },
@@ -51,6 +53,12 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
   signatureHash: { type: String },
   returnRevision: { type: Number, default: 0 },
   items: [{
+    inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },
+    property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
+    serialNumber: { type: String, trim: true },
+    itemName: { type: String, trim: true },
+    fundCluster: { type: String, trim: true },
+    responsibilityCenterCode: { type: String, trim: true },
     stockNumber: { type: String, default: null },
     unit: String,
     description: String,

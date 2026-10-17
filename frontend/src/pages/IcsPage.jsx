@@ -1,3 +1,9 @@
+import FormRecordTabs from '../components/FormRecordTabs';
+import UserAccountSelect from '../components/UserAccountSelect';
+import SignatoryValue from '../components/SignatoryValue';
+import useSourceDocument from '../utils/useSourceDocument';
+import { withCurrentDates } from '../utils/formDates';
+import IarSourceSelect from '../components/IarSourceSelect';
 import { hasRowData } from '../utils/formRows';
 import { lineAmount, sumAmounts } from '../utils/formAmounts';
 import OfficeSelect from '../components/OfficeSelect';
@@ -82,7 +88,8 @@ export default function IcsPage() {
 
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
-    const [form, setForm] = useState(null);
+    const [editorOpen, setEditorOpen] = useState(!isUser);
+    const [form, setForm] = useState(() => isUser ? null : withCurrentDates(toForm({ items: [emptyItem()] })));
     const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('ICS', 'icsNumber', setForm);
     const [saving, setSaving] = useState(false);
     const selectedRecord = records.find(record => record._id === editingId);
@@ -112,6 +119,7 @@ export default function IcsPage() {
 
     useEffect(() => {
         load();
+        if (!isUser) refreshNumberPreview();
         const timer = window.setInterval(() => { if (!document.hidden) axios.get('/ics').then(({ data }) => setRecords(data.data || [])).catch(() => {}); }, 15000);
         return () => window.clearInterval(timer);
     }, []);
@@ -119,21 +127,25 @@ export default function IcsPage() {
     const visibleRecords = filteredReports.slice((page - 1) * perPage, page * perPage);
 
     const startEdit = (record) => {
+        setEditorOpen(true);
         cancelNumberPreview();
         setEditingId(record._id);
         const nextForm = toForm(record);
         if (!record.user) nextForm.receivedFrom = getStickySignatory('receivedFrom', nextForm.receivedFrom);
-        if (!record.user) nextForm.receivedBy = getStickySignatory('receivedBy', nextForm.receivedBy);
         setForm(nextForm);
     };
 
     const createNew = () => {
+        setEditorOpen(true);
         setEditingId(null);
-        setForm(toForm({ items: [] }));
+        const nextForm = withCurrentDates(toForm({ items: [emptyItem()] }));
+        nextForm.receivedFrom = getStickySignatory('receivedFrom', nextForm.receivedFrom);
+        setForm(nextForm);
         refreshNumberPreview();
     };
 
     const cancelEdit = () => {
+        setEditorOpen(false);
         cancelNumberPreview();
         setEditingId(null);
         setForm(null);
@@ -143,7 +155,6 @@ export default function IcsPage() {
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
         const signatory = { ...prev[section], [key]: value };
-        saveStickySignatory(section, signatory, key);
         return { ...prev, [section]: signatory };
     });
 
@@ -200,12 +211,13 @@ export default function IcsPage() {
         <div className="ics-signatory-panel p-4">
             <h3 className="mb-5 font-semibold text-slate-700">{label}</h3>
             <div className="mx-auto grid max-w-sm gap-4">
+                {section === 'receivedBy' && !editingId && <UserAccountSelect person={form[section]} onChange={person => setForm(previous => ({ ...previous, [section]: { ...previous[section], ...person, position: person.designation || person.office || '' } }))} />}
                 <label className="flex flex-col text-center">
-                    <input required aria-label={`${label} name`} value={form[section].name} onChange={event => updateSignatory(section, 'name', event.target.value)} className="w-full text-center" />
+                    <SignatoryValue  aria-label={`${label} name`} value={form[section].name} onChange={event => updateSignatory(section, 'name', event.target.value)} className="w-full text-center" formType="ics" role={section} field="name" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                     <span className="mt-1 text-sm text-slate-600">Signature over Printed Name</span>
                 </label>
                 <label className="flex flex-col text-center">
-                    <input required aria-label={`${label} position or office`} value={form[section].position} onChange={event => updateSignatory(section, 'position', event.target.value)} className="w-full text-center" />
+                    <SignatoryValue  aria-label={`${label} position or office`} value={form[section].position} onChange={event => updateSignatory(section, 'position', event.target.value)} className="w-full text-center" formType="ics" role={section} field="position" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
                     <span className="mt-1 text-sm text-slate-600">Position/Office</span>
                 </label>
                 <label className="flex flex-col text-center">
@@ -322,12 +334,15 @@ export default function IcsPage() {
       await exportOfficialFormPdf('ICS', data, print);
     };
 
+    useSourceDocument(records, setRecords, startEdit, '/ics');
+
     if (pageLoading) return <PageSkeleton />;
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
         <div className="space-y-6">
-            <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}>{!isUser && <NewFormButton onNew={createNew} editorRef={editorRef} />}</SavedReportsHeader>
+            {!isUser && <FormRecordTabs label="Inventory Custodian Slip" showForm={editorOpen} onForm={() => { if (form) setEditorOpen(true); else createNew(); }} onRecords={() => setEditorOpen(false)} />}
+            {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian Slip records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
@@ -346,11 +361,13 @@ export default function IcsPage() {
                     </div>
                 ))}
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
-            </div>
+            </div>}
 
-            {form && (
+            {editorOpen && form && (
                 <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ics-editor scroll-mt-6 p-6">
                     <FormEditorHeader title="Inventory Custodian Slip" description="Linked RIS issuances for items with a unit cost below ₱50,000 are recorded here under the requester account." onClose={cancelEdit} />
+            {!isUser && <div className="mb-4 flex justify-end"><NewFormButton onNew={createNew} editorRef={editorRef} /></div>}
+                {!editingId && !isUser && <IarSourceSelect type="ics" setForm={setForm} />}
                     <p className="mb-3 text-sm text-slate-600">{!isUser && linkedIssuance ? 'Edit form details below. Issued quantities, costs, item numbers and the ICS number are tied to the stock records.' : ''}</p>
                     <fieldset disabled={readOnly} className="min-w-0">
                     <div className="grid gap-3 md:grid-cols-3">
@@ -426,7 +443,7 @@ export default function IcsPage() {
                     </fieldset>
                     <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : linkedIssuance ? 'Awaiting custodian acceptance' : ''}</p>
                     <div className="flex justify-end">
-                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{saving ? 'Saving...' : isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : 'Save'}</button>
                     </div>
                 </ValidatedForm>
             )}

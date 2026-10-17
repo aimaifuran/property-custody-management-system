@@ -151,6 +151,8 @@
 }
 .user-records-dialog { width: min(1400px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 28px; border: 1px solid #d5e3d9; border-radius: 22px; overflow-y: auto; color: #29493c; }
 .user-records-dialog::backdrop { background: rgba(17, 38, 29, .5); }
+.user-records-dialog .user-editor-footer { position: static; }
+.user-records-dialog .user-editor-footer button { flex: 0 0 auto; width: auto; }
 .user-records-notice { display: flex; align-items: center; gap: 8px; background: #edf4ec; border-radius: 10px; padding: 12px; margin: 20px 0; font-size: 14px; }
 .user-records-dialog section { margin: 24px 0; }
 .user-records-dialog h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
@@ -263,3 +265,49 @@
 .app-shell .my-profile-page .profile-account-settings input { display: block; box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 6px; padding: 10px 12px; border: 1px solid #9bbba6; border-radius: 8px; background: #f8fbf7; color: #29493c; }
 .app-shell .my-profile-page .profile-account-settings input:focus { border-color: #326b50; outline: 2px solid #74a37a; outline-offset: 2px; background: #fff; }
 .profile-account-settings-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+
+/* Four account cards per page, adapting to the available screen width. */
+.user-management-page:not(.my-profile-page) .user-account-grid { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 768px) { .user-management-page:not(.my-profile-page) .user-account-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .user-management-page:not(.my-profile-page) .user-account-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* Compact directory cards with contact details across the full card width. */
+.user-management-page:not(.my-profile-page) .user-account-grid { align-items: start; }
+.user-management-page:not(.my-profile-page) .user-account-record { grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: auto; align-content: start; align-items: start; gap: 8px 12px; padding: 18px 16px 14px; min-height: 0; }
+.user-management-page:not(.my-profile-page) .user-card-details { display: contents; padding: 0; }
+.user-management-page:not(.my-profile-page) .user-card-avatar { grid-column: 1; grid-row: 1 / span 2; width: 44px; height: 44px; }
+.app-shell .user-management-page:not(.my-profile-page) .user-card-details h2 { grid-column: 2; padding-right: 20px; margin: 0; line-height: 1.35; }
+.user-management-page:not(.my-profile-page) .user-card-username { grid-column: 2; margin: 0; line-height: 1.4; }
+.user-management-page:not(.my-profile-page) .user-card-details > :is(.user-card-office, .user-card-position, .user-card-email, .user-card-labels) { grid-column: 1 / -1; margin: 0; min-width: 0; line-height: 1.45; }
+.user-management-page:not(.my-profile-page) .user-card-details > .user-card-office { margin-top: 4px; }
+.user-management-page:not(.my-profile-page) .user-card-office, .user-management-page:not(.my-profile-page) .user-card-email { display: flex; align-items: flex-start; gap: 8px; }
+.user-management-page:not(.my-profile-page) .user-card-office svg, .user-management-page:not(.my-profile-page) .user-card-email svg { flex-shrink: 0; margin-top: 3px; }
+.user-management-page:not(.my-profile-page) .user-card-email span { min-width: 0; overflow-wrap: anywhere; }
+.user-management-page:not(.my-profile-page) .user-card-footer { margin: 2px 0 0; padding-top: 10px; gap: 8px; flex-wrap: wrap; }
+
+.user-management-page:not(.my-profile-page) .user-account-record { grid-template-columns: minmax(0, 1fr); padding: 18px 38px 18px 16px; }
+.user-management-page:not(.my-profile-page) .user-card-details > .user-card-office { margin-top: 0; }
+
+.user-management-page:not(.my-profile-page) .user-account-record { grid-template-columns: 48px minmax(0, 1fr); }
+.user-management-page:not(.my-profile-page) .user-card-avatar { grid-column: 1; grid-row: 1 / span 2; width: 48px; height: 48px; }
+.user-management-page:not(.my-profile-page) .user-card-details > :is(.user-card-email, .user-card-office) { grid-column: 2; }
+
+.user-management-page:not(.my-profile-page) .user-card-avatar { grid-row: 1 / span 3; }
+
+/* Keep the photo and name together; place contact details below them. */
+.user-management-page:not(.my-profile-page) .user-card-avatar { grid-row: 1; }
+.user-management-page:not(.my-profile-page) .user-card-details > :is(.user-card-email, .user-card-office) { grid-column: 1 / -1; }
+
+/* The profile uses its own two-column layout, separate from directory cards. */
+.my-profile-page .admin-profile-card { display: grid; grid-template-columns: 160px minmax(0, 1fr); grid-template-rows: auto auto; align-items: start; gap: 24px; padding: 28px; min-height: 0; }
+.my-profile-page .profile-picture-control { grid-column: 1; grid-row: 1; width: 160px; }
+.my-profile-page .user-card-details { display: block; grid-column: 2; grid-row: 1; min-width: 0; }
+.my-profile-page .user-card-details > * { grid-column: auto; }
+.app-shell .my-profile-page .profile-picture-trigger, .my-profile-page .profile-picture-avatar { width: 160px !important; height: 160px !important; aspect-ratio: 1; border-radius: 50%; }
+.my-profile-page .profile-picture-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.my-profile-page .user-card-footer { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 640px) {
+  .my-profile-page .admin-profile-card { grid-template-columns: minmax(0, 1fr); padding: 20px; gap: 18px; }
+  .my-profile-page .profile-picture-control, .my-profile-page .user-card-details { grid-column: 1; grid-row: auto; }
+  .my-profile-page .my-profile-facts { grid-template-columns: minmax(0, 1fr); }
+}

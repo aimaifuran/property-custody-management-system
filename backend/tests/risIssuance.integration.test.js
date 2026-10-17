@@ -62,7 +62,7 @@ test('RIS issuance generates linked forms by unit cost for the requester and rol
   const attempts = await Promise.allSettled([issueRis(failing._id, admin), issueRis(failing._id, admin)]);
   assert.equal(attempts.filter(attempt => attempt.status === 'fulfilled').length, 1);
   assert.equal(await ICS.countDocuments({ ris: failing._id }), 1);
-  const unavailable = await RIS.create({ risNumber: 'UNAVAILABLE', status: 'PENDING_REVIEW', office: 'Treasury', requestedBy: { user: user._id, name: 'requester Test' }, items: rows.map(row => ({ ...row, quantityIssued: null })) });
+  const unavailable = await RIS.create({ risNumber: 'UNAVAILABLE', status: 'PENDING_REVIEW', office: 'Treasury', requestedBy: { user: user._id, name: 'requester Test' }, items: rows.map(row => ({ ...row, quantityIssued: row.quantityRequested })) });
   await assert.rejects(issueRis(unavailable._id, admin, {}, { approve: true }), /Insufficient stock/);
   assert.equal((await RIS.findById(unavailable._id)).status, 'PENDING_REVIEW');
   assert.equal(await ICS.countDocuments({ ris: unavailable._id }), 0);

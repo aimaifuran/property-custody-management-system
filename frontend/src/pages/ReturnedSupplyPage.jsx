@@ -1,3 +1,4 @@
+import { withCurrentDates } from '../utils/formDates';
 import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
@@ -90,7 +91,7 @@ export default function ReturnedSupplyPage() {
         setForm(toForm(record));
     };
 
-    const createNew = () => { setEditingId(null); setForm(toForm({})); };
+    const createNew = () => { setEditingId(null); setForm(withCurrentDates(toForm({}))); };
 
     const cancelEdit = () => {
         setEditingId(null);
@@ -263,7 +264,7 @@ export default function ReturnedSupplyPage() {
 
                     <div className="flex justify-end">
 
-                      <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">{saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save New Form'}</button>
+                      <button type="submit" disabled={saving} aria-busy={saving} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white">Save</button>
 
                     </div>
                 </ValidatedForm>

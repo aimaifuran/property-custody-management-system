@@ -41,7 +41,7 @@ const saveSupply = async (req, res) => {
         await validateLinks([payload], null, session);
         const prsNumber = await reserveDocumentNumber(PRS, 'prsNumber', new Date(), session);
         const [report] = await PRS.create([{ prsNumber, lguName: payload.lguName, purpose: payload.purpose || 'Returned To Stock', note: payload.note, status: 'RETURNED', returnedBy: payload.returnedBy, returnedTo: { ...payload.returnedTo, date: payload.returnedTo?.date || new Date() }, items: [payload] }], { session });
-        await postPropertyReturn(report, session);
+        await postPropertyReturn(report, session, req.user);
         return ReturnedSupply.findOne({ prs: report._id }).session(session);
       });
       return successResponse(res, 'Returned supply received and recorded with a linked PRS', record, 201);

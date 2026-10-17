@@ -17,6 +17,7 @@ const settingSchema = new mongoose.Schema({
     reviewedBy: { type: String, default: 'ATTY. LEO L. PRUEL', maxlength: 200 },
     reviewedDesignation: { type: String, default: 'Head Property Unit', maxlength: 200 },
   },
+  formSignatories: { type: mongoose.Schema.Types.Mixed, default: {} },
   rememberedSignatories: { type: Map, of: new mongoose.Schema({ name: String, designation: String, position: String }, { _id: false }), default: {} },
   signatories: {
     requestedBy: { name: { type: String, default: '' }, designation: { type: String, default: '' }, fixed: { type: Boolean, default: false } },

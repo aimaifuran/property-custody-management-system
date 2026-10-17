@@ -1,4 +1,3 @@
-const Setting = require('../models/Setting');
 const { successResponse, errorResponse } = require('./response');
 const { reserveDocumentNumber } = require('./documentNumber');
 
@@ -15,8 +14,7 @@ const createFormRecord = (Model, fields, label, itemsField = 'items') => async (
   })) return errorResponse(res, 'Each item must have a quantity greater than zero', [], 400);
   try {
     if (fields.includes('entityName')) {
-      const settings = await Setting.findOne().sort({ createdAt: 1 }).lean();
-      if (settings?.entityName) payload.entityName = settings.entityName;
+      payload.entityName = require('../config/entityName');
     }
     const numberField = ['icsNumber', 'parNumber', 'ptrNumber', 'prsNumber', 'risNumber', 'iarNumber'].find(field => fields.includes(field));
     if (numberField && (req.body.autoNumber === true || !String(payload[numberField] || '').trim())) payload[numberField] = await reserveDocumentNumber(Model, numberField);

@@ -25,6 +25,7 @@ router.put('/:id', authenticate, validateAdminForm('ics'), authorize(['canManage
   const fields = ['entityName', 'office', 'fundCluster', 'icsNumber', 'items', 'remarks', 'receivedFrom', 'receivedBy'];
   const payload = Object.fromEntries(fields.filter(field => req.body[field] !== undefined).map(field => [field, req.body[field]]));
   if (existing.user || existing.offlineRecipient) {
+    if ((req.body.user !== undefined && String(req.body.user?._id || req.body.user || '') !== String(existing.user || '')) || (req.body.offlineRecipient !== undefined && String(req.body.offlineRecipient?._id || req.body.offlineRecipient || '') !== String(existing.offlineRecipient || ''))) return errorResponse(res, 'The recipient of a linked accountability form cannot be changed', [], 409);
     const identity = rows => rows.map(item => [Number(item.quantity), Number(item.unitCost), item.inventoryItemNo]);
     if ((payload.icsNumber !== undefined && payload.icsNumber !== existing.icsNumber) ||
         JSON.stringify(identity(payload.items || [])) !== JSON.stringify(identity(existing.items))) {
@@ -32,7 +33,7 @@ router.put('/:id', authenticate, validateAdminForm('ics'), authorize(['canManage
     }
     // Keep row identities and accountability links while allowing document corrections.
     payload.items = payload.items.map((item, index) => ({
-      ...existing.items[index].toObject(), unit: item.unit, description: item.description,
+      ...existing.items[index].toObject(), unit: item.unit, description: existing.items[index].serialNumber && !String(item.description || '').includes(`S/N: ${existing.items[index].serialNumber}`) ? `${item.description || ''} (S/N: ${existing.items[index].serialNumber})` : item.description,
       estimatedUsefulLife: item.estimatedUsefulLife,
     }));
   }

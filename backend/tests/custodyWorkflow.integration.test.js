@@ -22,6 +22,7 @@ const Notification = require('../src/models/Notification');
 test('stock receipt, mixed issuance, custodian acceptance, approved transfer and inspected returns', { timeout: 90000 }, async t => {
   const database = await MongoMemoryReplSet.create({ replSet: { count: 1 }, binary: { systemBinary: path.resolve(__dirname, '../node_modules/.cache/mongodb-memory-server/mongod-x64-win32-8.2.6.exe') } });
   await mongoose.connect(database.getUri());
+  await require('../src/models/Setting').create({ entityName: 'Carigara' });
   await Promise.all([IAR.init(), RIS.init(), ICS.init(), PAR.init(), PTR.init(), PRS.init(), Item.init()]);
   const server = require('../src/app').listen(0);
   t.after(async () => { await new Promise(resolve => server.close(resolve)); await mongoose.disconnect(); await database.stop(); });
@@ -31,6 +32,18 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
     const response = await fetch(`http://127.0.0.1:${server.address().port}/api${url}`, { method, headers: { Authorization: `Bearer ${jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'dev-secret')}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, body: await response.json() };
   };
+  // Per-form settings are writable only by admins and control generated forms.
+  const formSettings = await request(admin, '/settings/form-signatories');
+  assert.equal(formSettings.status, 200);
+  const configuredSignatories = formSettings.body.data.signatories;
+  configuredSignatories.ris.approvedBy = { name: 'Configured Approver', designation: 'Approving Officer' };
+  configuredSignatories.ris.issuedBy = { name: 'Configured Issuer', designation: 'Supply Officer' };
+  configuredSignatories.ics.receivedFrom = { name: 'ICS Issuer', designation: 'Property Custodian' };
+  configuredSignatories.par.issuedBy = { name: 'PAR Issuer', designation: 'Supply Head' };
+  assert.equal((await request(sender, '/settings/form-signatories', configuredSignatories, 'PATCH')).status, 403);
+  assert.equal((await request(admin, '/settings/form-signatories', {}, 'PATCH')).status, 400);
+  assert.equal((await request(admin, '/settings/form-signatories', configuredSignatories, 'PATCH')).status, 200);
+  assert.equal((await request(sender, '/settings/form-signatories')).body.data.signatories.ris.approvedBy.name, 'Configured Approver');
   const received = { iarNumber: '001', entityName: 'Carigara', fundCluster: 'General Fund', supplierName: 'Supplier', poNumber: 'PO-001', poDate: '2026-10-01', responsibilityCenterCode: '004', iarDate: '2026-10-08', invoiceNumber: 'INV-001', invoiceDate: '2026-10-08', inspectionDate: '2026-10-08', inspectedBy: 'Inspector', acceptanceDate: '2026-10-08', custodian: 'Supply Officer', items: [
     { stockNumber: 'PAPER', description: 'Bond paper', unit: 'ream', quantity: 10, unitCost: 250, itemType: 'SUPPLY' },
     { stockNumber: 'CHAIR', description: 'Office chair', unit: 'piece', quantity: 2, unitCost: 1500, itemType: 'ASSET' },
@@ -39,8 +52,11 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal((await request(sender, '/iar', received)).status, 403);
   const receipt = await request(admin, '/iar', received);
   assert.equal(receipt.status, 201, JSON.stringify(receipt.body));
+  assert.equal(receipt.body.data.entityName, 'LGU Carigara');
+  assert.equal((await request(sender, '/settings/entity-name')).body.data.entityName, 'LGU Carigara');
+  assert.equal((await request(admin, '/settings/entity-name', { entityName: 'Different Entity' }, 'PATCH')).status, 405);
   assert.equal((await Item.findOne({ stockNumber: 'PAPER' })).quantityOnHand, 10);
-  assert.equal(await Card.countDocuments({ iar: receipt.body.data._id }), 1);
+  assert.equal(await Card.countDocuments({ iar: receipt.body.data._id }), 3);
   assert.equal((await request(admin, `/iar/${receipt.body.data._id}`, { ...received, items: received.items.map(item => ({ ...item, quantity: 100 })) }, 'PUT')).status, 409);
   const before = await Inventory.countDocuments();
   const badReceipt = await request(admin, '/iar', { ...received, iarNumber: '002', items: [received.items[0], { ...received.items[1], stockNumber: 'PAPER', itemType: 'ASSET' }] });
@@ -49,17 +65,21 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal(await Inventory.countDocuments(), before);
   assert.equal((await Item.findOne({ stockNumber: 'PAPER' })).quantityOnHand, 10);
 
-  const submission = await request(sender, '/ris/my-requests', { purpose: 'Office operations', items: received.items.map(item => ({ stockNumber: item.stockNumber, quantityRequested: item.stockNumber === 'PAPER' ? 5 : item.quantity })) });
+  const chairItem = await Item.findOne({ stockNumber: 'CHAIR' });
+  const chairUnits = await Inventory.find({ item: chairItem._id }).sort({ createdAt: 1, _id: 1 });
+  const requestedItems = received.items.flatMap(item => item.stockNumber === 'CHAIR' ? chairUnits.map(unit => ({ stockNumber: 'CHAIR', inventory: String(unit._id), quantityRequested: 1 })) : [{ stockNumber: item.stockNumber, quantityRequested: item.stockNumber === 'PAPER' ? 5 : item.quantity }]);
+  const submission = await request(sender, '/ris/my-requests', { purpose: 'Office operations', items: requestedItems });
   assert.equal(submission.status, 201);
   const risId = submission.body.data._id;
   assert.equal((await request(sender, `/ris/${risId}/approve`, {})).status, 403);
+  await RIS.updateOne({ _id: risId }, [{ $set: { items: { $map: { input: '$items', as: 'row', in: { $mergeObjects: ['$$row', { quantityIssued: '$$row.quantityRequested' }] } } } } }], { updatePipeline: true });
   assert.equal((await request(admin, `/ris/${risId}/approve`, {})).status, 200);
   assert.equal((await Item.findOne({ stockNumber: 'PAPER' })).quantityOnHand, 5);
   const ris = await RIS.findById(risId);
-  assert.deepEqual(ris.items.map(row => row.formType), ['SUPPLY', 'ICS', 'PAR']);
+  assert.deepEqual(ris.items.map(row => row.formType), ['SUPPLY', 'ICS', 'ICS', 'PAR']);
   assert.equal(ris.items[0].accountability, undefined);
-  assert.equal(await Accountability.countDocuments({ ris: risId }), 2);
-  assert.equal((await ICS.findOne({ ris: risId })).items.length, 1);
+  assert.equal(await Accountability.countDocuments({ ris: risId }), 3);
+  assert.equal((await ICS.findOne({ ris: risId })).items.length, 2);
   assert.equal((await PAR.findOne({ ris: risId })).items.length, 1);
   assert.equal((await request(outsider, '/custody/assets')).body.data.length, 0);
   for (const path of ['/ics', '/par']) {
@@ -68,8 +88,13 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   }
   const assets = (await request(sender, '/custody/assets')).body.data;
   const chair = assets.find(asset => asset.formType === 'ICS'); const laptop = assets.find(asset => asset.formType === 'PAR');
+  const otherChair = assets.find(asset => asset.formType === 'ICS' && String(asset._id) !== String(chair._id));
   assert.equal((await request(outsider, `/custody/forms/ICS/${chair.issuanceForm}`)).status, 404);
   const lockedIcs = (await ICS.findById(chair.issuanceForm)).toObject();
+  assert.equal(lockedIcs.receivedFrom.name, 'ICS Issuer');
+  assert.equal((await PAR.findById(laptop.issuanceForm)).issuedBy.name, 'PAR Issuer');
+  assert.equal((await RIS.findById(risId)).approvedBy.name, 'Configured Approver');
+  assert.equal((await RIS.findById(risId)).issuedBy.name, 'Configured Issuer');
   lockedIcs.fundCluster = 'General Fund';
   lockedIcs.items = lockedIcs.items.map(row => ({ ...row, estimatedUsefulLife: '5 years' }));
   assert.equal((await request(admin, `/ics/${chair.issuanceForm}`, { ...lockedIcs, user: receiver._id }, 'PUT')).status, 409);
@@ -104,10 +129,10 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal(String(reassigned.user), String(receiver._id));
   assert.notEqual(String(reassigned.issuanceForm), laptop.issuanceForm);
   assert.equal(reassigned.transferHistory.length, 1);
-  assert.equal((await request(sender, '/custody/assets')).body.data.length, 1);
+  assert.equal((await request(sender, '/custody/assets')).body.data.length, 2);
   assert.equal((await request(receiver, '/custody/assets')).body.data.length, 1);
   assert.equal((await request(sender, '/ris/my-returns')).body.data.some(row => row.stockNumber === 'LAPTOP'), false);
-  assert.equal((await request(sender, '/ris/my-returns', { risId, itemId: String(ris.items[2]._id), quantity: 1 })).status, 400);
+  assert.equal((await request(sender, '/ris/my-returns', { risId, itemId: String(ris.items[3]._id), quantity: 1 })).status, 400);
   assert.equal((await request(sender, '/custody/returns', { accountability: laptop._id, quantity: 1 })).status, 404);
 
   // Rejection retains custody and releases the movement lock.
@@ -119,6 +144,10 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   // A serviceable partial return restores only the received quantity.
   const partial = await request(sender, '/custody/returns', { accountability: chair._id, quantity: 1, note: 'One spare chair' });
   assert.equal(partial.status, 201);
+  assert.equal(partial.body.data.status, 'PENDING');
+  assert.ok(await Notification.findOne({ user: admin._id, title: 'Property return awaiting receipt' }));
+  assert.equal(await ReturnedSupply.countDocuments({ prs: partial.body.data._id }), 0);
+  assert.equal((await Accountability.findById(chair._id)).returnedQuantity, 0);
   assert.equal((await request(sender, '/prs')).body.data.length, 1);
   assert.equal((await request(outsider, '/prs')).body.data.length, 0);
   assert.equal((await Item.findOne({ stockNumber: 'CHAIR' })).quantityOnHand, 0);
@@ -127,21 +156,21 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal((await request(admin, `/prs/${partial.body.data._id}/confirm`, { condition: 'Serviceable' })).status, 200);
   assert.equal((await Item.findOne({ stockNumber: 'CHAIR' })).quantityOnHand, 1);
   const remainingChair = await Accountability.findById(chair._id);
-  assert.equal(remainingChair.active, true); assert.equal(remainingChair.returnedQuantity, 1);
+  assert.equal(remainingChair.active, false); assert.equal(remainingChair.returnedQuantity, 1);
   assert.equal((await request(admin, `/prs/${partial.body.data._id}/confirm`, {})).status, 404);
   assert.equal(await ReturnedSupply.countDocuments({ prs: partial.body.data._id }), 1);
 
   // Failure after stock writes rolls the whole receipt back.
-  const final = await request(sender, '/custody/returns', { accountability: chair._id, quantity: 1 });
+  const final = await request(sender, '/custody/returns', { accountability: otherChair._id, quantity: 1 });
   const original = Ledger.create; Ledger.create = async () => { throw new Error('Simulated posting failure'); };
   try { assert.equal((await request(admin, `/prs/${final.body.data._id}/confirm`, {})).status, 400); }
   finally { Ledger.create = original; }
   assert.equal((await PRS.findById(final.body.data._id)).status, 'PENDING');
   assert.equal((await Item.findOne({ stockNumber: 'CHAIR' })).quantityOnHand, 1);
-  assert.equal((await Accountability.findById(chair._id)).returnedQuantity, 1);
+  assert.equal((await Accountability.findById(otherChair._id)).returnedQuantity, 0);
   assert.equal((await request(admin, `/prs/${final.body.data._id}/confirm`, {})).status, 200);
   assert.equal((await Item.findOne({ stockNumber: 'CHAIR' })).quantityOnHand, 2);
-  assert.equal((await Accountability.findById(chair._id)).active, false);
+  assert.equal((await Accountability.findById(otherChair._id)).active, false);
 
   // The new custodian can return transferred property; unserviceable stock cannot be reissued.
   const broken = await request(receiver, '/custody/returns', { accountability: laptop._id, quantity: 1, note: 'Broken screen' });
@@ -162,6 +191,7 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
 
   // Serviceable returned property can be reissued; concurrent returns reserve it once.
   const reissue = await request(sender, '/ris/my-requests', { purpose: 'Reuse returned chair', items: [{ stockNumber: 'CHAIR', quantityRequested: 1 }] });
+  await RIS.updateOne({ _id: reissue.body.data._id }, [{ $set: { items: { $map: { input: '$items', as: 'row', in: { $mergeObjects: ['$$row', { quantityIssued: '$$row.quantityRequested' }] } } } } }], { updatePipeline: true });
   assert.equal((await request(admin, `/ris/${reissue.body.data._id}/approve`, {})).status, 200);
   const reissuedAsset = (await request(sender, '/custody/assets')).body.data[0];
   assert.equal((await Item.findOne({ stockNumber: 'CHAIR' })).quantityOnHand, 1);
@@ -188,6 +218,7 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal((await request(sender, `/custody/stock/${paper._id}/classify`, { itemType: 'ASSET' })).status, 403);
   assert.equal((await request(admin, `/custody/stock/${paper._id}/classify`, { itemType: 'SUPPLY' })).status, 200);
   const suppliesOnly = await request(sender, '/ris/my-requests', { purpose: 'Paper only', items: [{ stockNumber: 'PAPER', quantityRequested: 1 }] });
+  await RIS.updateOne({ _id: suppliesOnly.body.data._id }, [{ $set: { items: { $map: { input: '$items', as: 'row', in: { $mergeObjects: ['$$row', { quantityIssued: '$$row.quantityRequested' }] } } } } }], { updatePipeline: true });
   assert.equal((await request(admin, `/ris/${suppliesOnly.body.data._id}/approve`, {})).status, 200);
   assert.equal(await ICS.countDocuments({ ris: suppliesOnly.body.data._id }), 0);
   assert.equal(await PAR.countDocuments({ ris: suppliesOnly.body.data._id }), 0);
