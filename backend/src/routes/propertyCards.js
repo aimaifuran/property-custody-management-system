@@ -20,7 +20,7 @@ router.get('/stock-ledger', authenticate, authorize(['canViewRIS', 'canManageInv
   let initialItemId;
   if (req.query.card && mongoose.isValidObjectId(req.query.card)) {
     const card = await PropertyCard.findById(req.query.card).lean();
-    if (card) { const inventory = await require('../models/Inventory').findOne({ _id: { $in: (card.items || []).map(row => row.inventory).filter(Boolean) } }).lean(); initialItemId = inventory?.item; }
+    if (card && (card.items || []).some(row => Number(row.itdQuantity) > 0)) { const inventory = await require('../models/Inventory').findOne({ _id: { $in: (card.items || []).map(row => row.inventory).filter(Boolean) } }).lean(); initialItemId = inventory?.item; }
   }
   const items = await Item.find(filter).sort({ stockNumber: 1 }).lean();
   const state = item => Number(item.quantityOnHand) <= 0 ? 'Out of Stock' : item.reorderLevel != null && item.quantityOnHand <= item.reorderLevel ? 'Low Stock' : 'In Stock';
@@ -48,12 +48,17 @@ router.get('/stock-ledger', authenticate, authorize(['canViewRIS', 'canManageInv
   }
   const { sortStockItems, isNewStockItem } = require('../utils/stockLedgerOrder');
   const sorted = sortStockItems(matching.map(item => ({ ...item, ...received.get(String(item._id)), stockStatus: state(item), lastMovement: latest.get(String(item._id)) || null })), req.query.sort === 'name' ? 'name' : 'received');
-  const visible = sorted.slice((page - 1) * limit, page * limit).map(item => ({ ...item, isNew: isNewStockItem(item) }));
+  const visibleItems = sorted.slice((page - 1) * limit, page * limit);
+  const cards = await PropertyCard.find({ deleted: false, stockItem: { $in: visibleItems.map(item => item._id) } }).select('stockItem items.itdQuantity entries.itdQuantity').lean();
+  const issuedCardItems = new Set(cards.filter(card => [...(card.items || []), ...(card.entries || [])].some(row => Number(row.itdQuantity) > 0)).map(card => String(card.stockItem)));
+  const visible = visibleItems.map(item => ({ ...item, isNew: isNewStockItem(item), hasPropertyCard: issuedCardItems.has(String(item._id)) }));
   const categories = await Item.distinct('category', { deleted: false });
   return successResponse(res, 'Item Property Cards retrieved', { initialItemId, items: visible, summary, categories, pagination: { page, limit, total: matching.length, totalPages: Math.max(1, Math.ceil(matching.length / limit)) } });
 });
 router.get('/stock-ledger/:itemId', authenticate, authorize(['canViewRIS', 'canManageInventory', 'canViewDashboard']), async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.itemId)) return errorResponse(res, 'Invalid item', [], 400);
+  const issuedCard = await PropertyCard.exists({ deleted: false, stockItem: req.params.itemId, $or: [{ 'items.itdQuantity': { $gt: 0 } }, { 'entries.itdQuantity': { $gt: 0 } }] });
+  if (!issuedCard) return errorResponse(res, 'This item has no Property Card until it is issued through RIS.', [], 404);
   const result = await require('../utils/itemPropertyLedger')(req.params.itemId);
   if (!result) return errorResponse(res, 'Item not found', [], 404);
   return successResponse(res, 'Item Property Card retrieved', result);
@@ -94,7 +99,7 @@ router.patch('/:id/missing-field', authenticate, authorize('canManageInventory')
 });
 
 // Property Card history is written only by receipt, issuance and return workflows.
-router.post('/', authenticate, authorize('canManageInventory'), (req, res) => errorResponse(res, 'Property Cards are generated automatically from IAR receipts and issuance records', [], 405));
+router.post('/', authenticate, authorize('canManageInventory'), (req, res) => errorResponse(res, 'Property Cards are generated automatically when IAR stock is issued to a user', [], 405));
 router.put('/:id', authenticate, authorize(['canManageInventory', 'canManageRIS']), (req, res) => errorResponse(res, 'Property Card history is read-only', [], 405));
 
 module.exports = router;

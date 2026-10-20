@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { collectFormErrors } from '../utils/formValidation';
 
-export default function ValidatedForm({ children, onSubmit, onChangeCapture, ref, validationSelector, as: Form = 'form', ...props }) {
+export default function ValidatedForm({ children, onSubmit, onChangeCapture, onValidationError, ref, validationSelector, as: Form = 'form', ...props }) {
   const attempted = useRef(false);
 
   const validate = form => {
@@ -22,6 +22,7 @@ export default function ValidatedForm({ children, onSubmit, onChangeCapture, ref
       event.preventDefault();
       event.stopPropagation();
       invalid[0].field.focus();
+      onValidationError?.(invalid);
       return;
     }
     onSubmit?.(event);

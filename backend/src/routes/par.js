@@ -13,7 +13,7 @@ const PAR_SEARCH_FIELDS = [
 ];
 
 router.get('/', authenticate, authorize(['canViewRIS', 'canManageRIS', 'canManageInventory']), async (req, res) => {
-  const records = await listRecords(PropertyAcknowledgementReceipt, req, { baseFilter: { deleted: false, ...(req.user.role === 'admin' ? {} : { user: req.user._id }) }, searchFields: PAR_SEARCH_FIELDS, populate: 'iar' });
+  const records = await listRecords(PropertyAcknowledgementReceipt, req, { baseFilter: { deleted: false, ...(req.user.role === 'admin' ? {} : { user: req.user._id }) }, searchFields: PAR_SEARCH_FIELDS, populate: ['iar', { path: 'items.inventory', populate: { path: 'item', select: 'name category' } }] });
   return successResponse(res, 'Property Acknowledgement Receipts retrieved', records);
 });
 

@@ -18,7 +18,6 @@ const captions = {
   icsNumber: 'ICS No.', parNumber: 'PAR No.', totalAmount: 'Total Amount', remarks: 'Remarks', purpose: 'Purpose', note: 'Note',
 };
 const monetary = new Set(['amount', 'unitCost', 'totalCost', 'unitValue', 'totalValue', 'totalAmount']);
-const centered = /quantity|^date|^unit$/i;
 export const TEMPLATE_CELL_PADDING = 5;
 export const TEMPLATE_ROW_LINE_HEIGHT = 12;
 const minimumRowHeight = 22;
@@ -211,9 +210,11 @@ export function drawTemplateTableFrame(page, fonts, rows, layout, options = {}) 
     for (const column of layout.columns) tableCell(page, { x: column.x, y, width: column.width, height: row._height });
   }
   const remaining = y - layout.bodyBottom;
-  const blankCount = layout.template === 'pc' ? Math.max(1, 18 - rows.length) : Math.max(1, Math.floor(remaining / Math.max(minimumRowHeight, layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2)));
+  const blankCount = layout.template === 'pc' ? Math.max(1, 2 - rows.length) : Math.max(1, Math.floor(remaining / Math.max(minimumRowHeight, layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2)));
   if (remaining > .01) for (let index = 0; index < blankCount; index++) {
-    const height = remaining / blankCount;
+    const height = layout.template === 'pc'
+      ? Math.max(minimumRowHeight, layout.rowLineHeight + TEMPLATE_CELL_PADDING * 2)
+      : remaining / blankCount;
     y -= height;
     for (const column of layout.columns) tableCell(page, { x: column.x, y, width: column.width, height });
   }
@@ -229,13 +230,13 @@ export function drawTemplateTableFrame(page, fonts, rows, layout, options = {}) 
         tableCell(page, { x: column.x, y, width, height: layout.footerHeight });
       });
       const first = layout.columns[0];
-      tableLines(page, fonts.bold, [footer.label], { x: first.x, y, width: first.width, height: layout.footerHeight }, { ...options, section: 'table footer caption' }, 'left');
+      tableLines(page, fonts.bold, [footer.label], { x: first.x, y, width: first.width, height: layout.footerHeight }, { ...options, section: 'table footer caption' }, 'center');
       return;
     }
     const labelWidth = valueColumn ? valueColumn.x - layout.left : layout.right - layout.left;
     const labelCell = { x: layout.left, y, width: labelWidth, height: layout.footerHeight };
     tableCell(page, labelCell);
-    tableLines(page, fonts.regular, [footer.label], labelCell, { ...options, section: footer.key === 'remarks' ? 'remarks caption' : 'table footer caption' }, layout.template === 'ics' ? 'left' : footer.key === 'totalAmount' ? 'right' : 'center');
+    tableLines(page, fonts.regular, [footer.label], labelCell, { ...options, section: footer.key === 'remarks' ? 'remarks caption' : 'table footer caption' }, 'center');
     if (valueColumn) {
       const valueWidth = layout.columns.slice(footer.start, footer.start + footer.count).reduce((sum, column) => sum + column.width, 0);
       tableCell(page, { x: valueColumn.x, y, width: valueWidth, height: layout.footerHeight });
@@ -285,7 +286,7 @@ export function drawTemplateRows(page, font, rows, layout, options = {}) {
     for (const column of layout.columns) {
       const lines = row[column.key];
       if (!lines.length) continue;
-      tableLines(page, font, lines, { x: column.x, y, width: column.width, height: row._height }, { ...options, section: column.key }, monetary.has(column.key) ? 'right' : centered.test(column.key) ? 'center' : 'left');
+      tableLines(page, font, lines, { x: column.x, y, width: column.width, height: row._height }, { ...options, section: column.key }, 'center');
     }
   }
 }
@@ -422,7 +423,7 @@ export function drawTemplateHeaders(page, font, template, valueFor, options = {}
       while (printed && font.widthOfTextAtSize(`${printed}…`, (options.fontSize ?? FORM_PDF_FONT_SIZE)) > bounds.width) printed = printed.slice(0, -1);
       printed += '…';
     }
-    drawValue(page, font, printed, bounds, { ...options, cellBounds, section: key }, signature ? 'center' : monetary.has(key) ? 'right' : 'left');
+    drawValue(page, font, printed, bounds, { ...options, cellBounds, section: key }, cellBounds || signature ? 'center' : monetary.has(key) ? 'right' : 'left');
   }
   return overflow;
 }

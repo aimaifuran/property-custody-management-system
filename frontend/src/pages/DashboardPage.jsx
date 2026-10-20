@@ -23,7 +23,13 @@ const secondaryCards = [
   { key: 'prs', title: 'Property Return Slip', icon: RotateCcw, iconBg: 'bg-rose-50', iconColor: 'text-rose-700' },
 ];
 
-const RETURN_SLIP_COLORS = ['#2563eb', '#7c3aed', '#0891b2', '#db2777', '#16a34a', '#ea580c'];
+const RETURN_SLIP_COLORS = {
+  disposal: '#dc2626',
+  'returned to stock': '#ffff00',
+  repair: '#0f766e',
+  return: '#84cc16',
+};
+const getReturnSlipColor = (label) => RETURN_SLIP_COLORS[String(label || '').trim().toLowerCase()] || '#64748b';
 const REPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const renderReturnCount = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
@@ -123,7 +129,7 @@ export default function DashboardPage() {
       <div className="dashboard-results grid items-stretch gap-4 xl:grid-cols-3">
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-2">
-            <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="75%" labelLine={false} label={renderReturnCount}>{chartData.returnSlip.map((entry, index) => <Cell key={entry.label} fill={RETURN_SLIP_COLORS[index % RETURN_SLIP_COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
+            <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="75%" labelLine={false} label={renderReturnCount}>{chartData.returnSlip.map((entry) => <Cell key={entry.label} fill={getReturnSlipColor(entry.label)} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
             <div className="dashboard-monthly minimal-surface p-4">
               <h2 className="text-sm font-semibold">Monthly Reports</h2>
               <p className="text-xs text-slate-500">Issued reports this year</p>

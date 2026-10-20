@@ -3,6 +3,15 @@ const assert = require('node:assert/strict');
 const { validateAdminForm, getAdminFormErrors } = require('../src/middlewares/validateAdminForm');
 
 const person = { name: 'Admin Officer', designation: 'Custodian', position: 'Custodian', date: '2026-10-09' };
+test('IAR serial numbers are optional and each serialized row requires quantity one', () => {
+  for (const method of ['POST', 'PUT']) {
+    for (const [serialNumber, quantity, invalid] of [['SN-001', 2, true], [' SN-001 ', 1, false], ['', 10, false], ['   ', 10, false], [undefined, 10, false]]) {
+      const errors = getAdminFormErrors('iar', { items: [{ stockPropertyNumber: 'ST-1', description: 'Equipment', unit: 'unit', serialNumber, quantity }] }, method);
+      assert.equal(errors.some(error => error.path === 'items.0.quantity'), invalid);
+      assert.equal(errors.some(error => error.path === 'items.0.serialNumber'), false);
+    }
+  }
+});
 const completeIcs = () => ({
   entityName: 'Municipality', fundCluster: 'General Fund', office: 'Treasury',
   receivedFrom: { ...person }, receivedBy: { ...person },

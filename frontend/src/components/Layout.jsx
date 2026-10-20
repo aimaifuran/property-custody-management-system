@@ -1,10 +1,11 @@
 import usePendingReturns from '../utils/usePendingReturns';
+import AccountNotificationToaster from './AccountNotificationToaster';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info, Settings } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info, Settings, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { preloadFormFonts } from '../utils/formPdfFonts';
@@ -60,9 +61,13 @@ export default function Layout() {
   const pendingReturns = usePendingReturns(user?.role === 'admin');
   const [pendingResets, setPendingResets] = useState(0);
   const notifiedResets = useRef(new Set());
-  const [pendingRegistrations, setPendingRegistrations] = useState(0);
   const notifiedRegistrations = useRef(new Set());
-  const accountNoticeCount = pendingResets + pendingRegistrations + pendingReturns.length;
+  const [registrationNotice, setRegistrationNotice] = useState(null);
+  useEffect(() => {
+    if (!registrationNotice) return;
+    const timer = window.setTimeout(() => setRegistrationNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [registrationNotice]);
 
   useEffect(() => {
     const warmFonts = () => { preloadFormFonts(['regular', 'bold']).catch(() => {}); };
@@ -104,11 +109,11 @@ export default function Layout() {
         const { data } = await axios.get('/registration', { signal: controller.signal });
         if (controller.signal.aborted) return;
         const requests = Array.isArray(data.data) ? data.data : [];
-        setPendingRegistrations(requests.length);
+        if (!requests.length) setRegistrationNotice(null);
         requests.forEach(request => {
           if (!notifiedRegistrations.current.has(request._id)) {
             notifiedRegistrations.current.add(request._id);
-            toast(`New registration request from ${request.firstName} ${request.lastName}. Review in User Management.`, { id: `registration-${request._id}`, duration: 6000 });
+            setRegistrationNotice({ id: request._id, name: `${request.firstName} ${request.lastName}` });
           }
         });
       } catch { /* Retry on focus or the next refresh. */ }
@@ -120,7 +125,19 @@ export default function Layout() {
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('registration-updated', refresh); };
   }, [user?._id, user?.role]);
   const [issueOpen, setIssueOpen] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(() => reportItems.some(item => location.pathname === item.to));
+  const sidebarNavRef = useRef(null);
+  const reportsGroupRef = useRef(null);
+  const revealReportButtons = () => {
+    const sidebar = sidebarNavRef.current;
+    const group = reportsGroupRef.current;
+    if (!reportsOpen || !sidebar || !group) return;
+    const sidebarBounds = sidebar.getBoundingClientRect();
+    const groupBounds = group.getBoundingClientRect();
+    if (groupBounds.bottom > sidebarBounds.bottom || groupBounds.top < sidebarBounds.top) {
+      sidebar.scrollTo({ top: sidebar.scrollTop + groupBounds.top - sidebarBounds.top - 8, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+  };
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -150,6 +167,7 @@ export default function Layout() {
 
   return (
     <div className="app-shell flex h-screen overflow-hidden text-slate-900">
+      <AccountNotificationToaster />
       <AnimatePresence>
         {mobileSidebarOpen ? (
           <motion.button
@@ -176,7 +194,7 @@ export default function Layout() {
           </div>
         </div>
         <div className="sidebar-section-label">Workspace</div>
-        <div className="sidebar-nav min-h-0 flex-1 overflow-y-auto pr-1">
+        <div ref={sidebarNavRef} className="sidebar-nav min-h-0 flex-1 overflow-y-auto pr-1">
         <nav className="space-y-1">
           {navItems.filter((item) => canAccessNavItem(user, item)).map((item) => {
             if (item.to === '__issue__') {
@@ -231,14 +249,14 @@ export default function Layout() {
 
             if (item.to === '__reports__') {
               return (
-                <div key={item.to} className="sidebar-nav-group">
+                <div ref={reportsGroupRef} key={item.to} className="sidebar-nav-group">
                   <button type="button" aria-expanded={reportsOpen} aria-controls="sidebar-reports-menu" onClick={() => setReportsOpen((value) => !value)} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
                     <span className="flex items-center gap-3"><BarChart3 size={18} />Reports</span>
                     {reportsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </button>
                   <AnimatePresence initial={false}>
                     {reportsOpen ? (
-                      <motion.div id="sidebar-reports-menu" key="reports-submenu" initial={{ opacity: 0, height: 0, y: -6 }} animate={{ opacity: 1, height: 'auto', y: 0 }} exit={{ opacity: 0, height: 0, y: -6 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+                      <motion.div id="sidebar-reports-menu" key="reports-submenu" initial={{ opacity: 0, height: 0, y: -6 }} animate={{ opacity: 1, height: 'auto', y: 0 }} exit={{ opacity: 0, height: 0, y: -6 }} transition={{ duration: 0.22, ease: 'easeOut' }} onAnimationComplete={revealReportButtons} className="overflow-hidden">
                         <div className="mt-1 space-y-1 pl-3">
                           {reportItems.filter((childItem) => canAccessNavItem(user, childItem)).map((childItem) => {
                             const Icon = childItem.icon;
@@ -258,6 +276,7 @@ export default function Layout() {
                 <Icon size={18} />
                 {item.to === '/custody' ? user?.role === 'admin' ? 'Workflow Approvals (PTR / PRS)' : 'My ICS / PAR · PTR / PRS' : item.label}
                 {item.to === '/users' && pendingResets > 0 && <span aria-label={`${pendingResets} password reset requests awaiting approval`} className="ml-auto rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-700">{pendingResets}</span>}
+                {item.to === '/returns' && pendingReturns.length > 0 && <span aria-label={`${pendingReturns.length} return requests awaiting confirmation`} className="ml-auto rounded-full bg-red-600 px-2 py-0.5 font-semibold text-white">{pendingReturns.length}</span>}
               </NavLink>
             );
           })}
@@ -291,11 +310,15 @@ export default function Layout() {
                 <span className="title-bar-account-details"><strong>{[user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ') || user.username}</strong><span>{user.role === 'admin' ? 'Admin' : 'User'}</span></span>
                 <span className="title-bar-account-avatar">{user.profilePicture ? <img src={user.profilePicture} alt="" /> : <span aria-hidden="true">{`${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || user.username?.slice(0, 2).toUpperCase()}</span>}</span>
               </NavLink>}
-              <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" title={accountNoticeCount ? `${accountNoticeCount} requests awaiting confirmation` : 'Account menu'} aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" />{accountNoticeCount > 0 && <span className="account-return-badge" aria-label={`${accountNoticeCount} requests awaiting confirmation`}>{accountNoticeCount}</span>}</button>
+              <button ref={accountMenuTriggerRef} type="button" className="title-bar-account-toggle" aria-label="Account menu" title="Account menu" aria-haspopup="menu" aria-expanded={accountMenuOpen} aria-controls="header-account-menu" onClick={() => setAccountMenuOpen(open => !open)}><MoreVertical size={20} aria-hidden="true" /></button>
+              {user?.role === 'admin' && registrationNotice && !accountMenuOpen && <div className="registration-account-notice" role="status">
+                <NavLink to="/users" onClick={() => setRegistrationNotice(null)}><Users size={18} aria-hidden="true" /><span>New registration request from <strong>{registrationNotice.name}</strong>. Review in User Management.</span></NavLink>
+                <button type="button" aria-label="Dismiss registration notification" onClick={() => setRegistrationNotice(null)}><X size={16} aria-hidden="true" /></button>
+              </div>}
               {accountMenuOpen && <div id="header-account-menu" className="title-bar-account-menu" role="menu" aria-label="Account actions">
                   <NavLink to="/profile" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />My Profile</NavLink>
                 {user?.role === 'admin' && <>
-                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{accountNoticeCount > 0 && <span className="account-menu-notification" aria-label={`${accountNoticeCount} requests awaiting confirmation`}>{accountNoticeCount}</span>}</NavLink>
+                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management</NavLink>
                   <NavLink to="/settings" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Settings size={16} aria-hidden="true" />System Settings</NavLink>
                 </>}
                 <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); logout(); }}><LogOut size={16} aria-hidden="true" />Logout</button>

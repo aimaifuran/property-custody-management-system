@@ -34,8 +34,8 @@ export default function ProfilePage() {
             });
             await refreshUser();
             setEditing(false); setCredentials(emptyProfile);
-            toast.success('Profile updated');
-        } catch (error) { setAccountError(error.response?.data?.message || 'Unable to save account settings.'); }
+            toast.success('Profile updated', { toasterId: 'account-feedback' });
+        } catch (error) { const message = error.response?.data?.message || 'Unable to save account settings.'; setAccountError(message); toast.error(message, { toasterId: 'account-feedback' }); }
         finally { setSaving(false); }
     };
     const uploadPicture = async event => {
@@ -50,8 +50,8 @@ export default function ProfilePage() {
             const data = new FormData(); data.append('picture', file);
             await axios.post('/auth/profile-picture', data);
             await refreshUser();
-            toast.success('Profile picture updated');
-        } catch (error) { setPictureError(error.response?.data?.message || 'Unable to upload profile picture. Please try again.'); }
+            toast.success('Profile picture updated', { toasterId: 'account-feedback' });
+        } catch (error) { const message = error.response?.data?.message || 'Unable to upload profile picture. Please try again.'; setPictureError(message); toast.error(message, { toasterId: 'account-feedback' }); }
         finally { setUploading(false); }
     };
     return <div className="user-management-page my-profile-page">

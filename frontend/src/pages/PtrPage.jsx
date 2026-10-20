@@ -16,7 +16,6 @@ import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
-import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -416,7 +415,6 @@ export default function PtrPage() {
 
             {editorOpen && (<ValidatedForm as={motion.form} ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Transfer Report" description="Transfer an accountable asset to another custodian." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
-            <div className="mb-4 flex justify-end"><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></div>
                 {!editingId && !isUser && <IarSourceSelect type="ptr" setForm={setForm} />}
                 <fieldset disabled={workflow} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-3">

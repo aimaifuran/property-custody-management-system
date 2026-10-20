@@ -2,7 +2,7 @@ import ValidatedForm from '../components/ValidatedForm';
 import HourglassLoader from '../components/HourglassLoader';
 import FormLoader from '../components/FormLoader';
 import { useEffect, useRef, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, UserRound } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
 
@@ -147,6 +147,10 @@ export default function LoginPage() {
               </motion.div>}
             </AnimatePresence>
           </div>
+          <div className="login-welcome-copy">
+            <h2>Welcome Back!</h2>
+            <p>Please login your account to start<br />your session.</p>
+          </div>
         </div>
 
         <div className="login-card__form p-3 md:p-5">
@@ -155,7 +159,7 @@ export default function LoginPage() {
 
             <img src="/lgu-logo.png" alt="Municipality of Carigara official seal" className="mx-auto mb-2 aspect-square h-12 w-12 rounded-full object-cover shadow-2xl ring-2 ring-white/80 md:mb-3 md:h-16 md:w-16 md:ring-2" />
 
-            <div className="text-xl font-bold tracking-wide md:text-3xl">PAMS</div>
+            <div className="login-pams-title font-bold tracking-wide">PAMS</div>
 
             <p className="mt-1 text-xs text-white/75 md:mt-2 md:text-sm">Property Accountability Management System</p>
 
@@ -177,7 +181,10 @@ export default function LoginPage() {
 
               <span className="mb-1 block text-xs font-semibold text-white/85 md:mb-1 md:text-sm">Username or email</span>
 
-              <input required ref={identifierRef} id="login-identifier" name="login-identifier" autoComplete="off" data-lpignore="true" data-1p-ignore readOnly={!editableFields.identifier} onFocus={event => enableTyping(event, 'identifier', identifier)} value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" />
+              <div className="relative">
+                <input required ref={identifierRef} id="login-identifier" name="login-identifier" autoComplete="off" data-lpignore="true" data-1p-ignore readOnly={!editableFields.identifier} onFocus={event => enableTyping(event, 'identifier', identifier)} value={identifier} onChange={(e) => setIdentifier(e.target.value)} className="login-input w-full rounded-lg px-2.5 py-1.5 text-base text-white md:rounded-lg md:px-3 md:py-2" style={{ paddingRight: '2.75rem' }} />
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-center text-white/85" aria-hidden="true"><UserRound size={18} /></span>
+              </div>
 
             </label>
 

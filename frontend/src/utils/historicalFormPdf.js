@@ -70,7 +70,10 @@ export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}
   options = { ...options, ...(template === 'pc' ? { fontSize: 11 } : {}), certificationDates: [templateFieldValue('returnedToDate', data, []), templateFieldValue('returnedByDate', data, [])] };
   const layout = templateRowLayout(template, fonts.bold, options.fontSize);
   const itemOverflow = [];
-  const itemPages = paginateTemplateItems(items, layout, fonts.regular, (key, item) => templateFieldValue(`${key}1`, data, [item]), { onOverflow: entry => itemOverflow.push(entry) });
+  const paginateItems = (pageItems) => paginateTemplateItems(pageItems, layout, fonts.regular, (key, item) => templateFieldValue(`${key}1`, data, [item]), { onOverflow: entry => itemOverflow.push(entry) });
+  const itemPages = template === 'pc' && items.length > 1
+    ? items.flatMap(item => paginateItems([item]))
+    : paginateItems(items);
   let overflow = [];
   for (const [pageIndex, rows] of itemPages.entries()) {
     const page = output.addPage(template === 'pc' ? FORM_PDF_A4_LANDSCAPE : FORM_PDF_A4_PORTRAIT);

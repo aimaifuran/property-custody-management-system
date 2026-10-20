@@ -1,4 +1,3 @@
-import FormRecordTabs from '../components/FormRecordTabs';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
@@ -18,7 +17,6 @@ import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
-import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -29,12 +27,10 @@ import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { saveAs } from "file-saver";
-import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import { getStickySignatory } from '../utils/stickySignatories';
 import FundClusterField from '../components/FundClusterField';
 import Pagination from '../components/Pagination';
-import { FileText, Printer, RotateCcw } from 'lucide-react';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
-import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
 
 const emptyItem = () => ({
     quantity: '',
@@ -45,6 +41,11 @@ const emptyItem = () => ({
     inventoryItemNo: '',
     estimatedUsefulLife: ''
 });
+
+const reportItemNames = record => {
+    const names = (record.items || []).map(item => item.itemName || item.inventory?.item?.name || (item.inventory?.item?.category !== 'General' ? item.inventory?.item?.category : '')).filter(Boolean).map(name => String(name).trim()).filter(Boolean);
+    return [...new Map(names.map(name => [name.toLocaleLowerCase(), name])).values()].join(', ') || 'Item name unavailable';
+};
 
 const toFormItem = (item = {}) => ({
     quantity: item.quantity ?? '',
@@ -88,12 +89,12 @@ export default function IcsPage() {
 
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
-    const [editorOpen, setEditorOpen] = useState(!isUser);
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [viewOnly, setViewOnly] = useState(false);
     const [form, setForm] = useState(() => isUser ? null : withCurrentDates(toForm({ items: [emptyItem()] })));
-    const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('ICS', 'icsNumber', setForm);
     const [saving, setSaving] = useState(false);
     const selectedRecord = records.find(record => record._id === editingId);
-    const readOnly = isUser;
+    const readOnly = isUser || viewOnly;
     const linkedIssuance = !!(selectedRecord?.user || selectedRecord?.offlineRecipient);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
@@ -119,34 +120,24 @@ export default function IcsPage() {
 
     useEffect(() => {
         load();
-        if (!isUser) refreshNumberPreview();
         const timer = window.setInterval(() => { if (!document.hidden) axios.get('/ics').then(({ data }) => setRecords(data.data || [])).catch(() => {}); }, 15000);
         return () => window.clearInterval(timer);
     }, []);
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleRecords = filteredReports.slice((page - 1) * perPage, page * perPage);
 
-    const startEdit = (record) => {
+    const startEdit = (record, readOnlyView = false) => {
         setEditorOpen(true);
-        cancelNumberPreview();
+        setViewOnly(readOnlyView);
         setEditingId(record._id);
         const nextForm = toForm(record);
         if (!record.user) nextForm.receivedFrom = getStickySignatory('receivedFrom', nextForm.receivedFrom);
         setForm(nextForm);
     };
 
-    const createNew = () => {
-        setEditorOpen(true);
-        setEditingId(null);
-        const nextForm = withCurrentDates(toForm({ items: [emptyItem()] }));
-        nextForm.receivedFrom = getStickySignatory('receivedFrom', nextForm.receivedFrom);
-        setForm(nextForm);
-        refreshNumberPreview();
-    };
-
     const cancelEdit = () => {
         setEditorOpen(false);
-        cancelNumberPreview();
+        setViewOnly(false);
         setEditingId(null);
         setForm(null);
     };
@@ -340,20 +331,20 @@ export default function IcsPage() {
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
         <div className="space-y-6">
-            {!isUser && <FormRecordTabs label="Inventory Custodian Slip" showForm={editorOpen} onForm={() => { if (form) setEditorOpen(true); else createNew(); }} onRecords={() => setEditorOpen(false)} />}
             {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian Slip records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
                         <div>
+                            <div className="mb-1 font-semibold text-slate-900">{reportItemNames(record)}</div>
                             <b>{record.icsNumber || 'Unassigned ICS No.'}</b>
                             <div className="text-sm text-slate-500">
                                 {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <RecordActionButton action="edit" title={isUser ? "Open form" : "Update record"} onClick={() => startEdit(record)} />
+                            <RecordActionButton action="view" title="View Form" onClick={() => startEdit(record, true)} />
                             {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(record)} />
                             <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(record, true)} />
@@ -366,7 +357,6 @@ export default function IcsPage() {
             {editorOpen && form && (
                 <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ics-editor scroll-mt-6 p-6">
                     <FormEditorHeader title="Inventory Custodian Slip" description="Linked RIS issuances for items with a unit cost below ₱50,000 are recorded here under the requester account." onClose={cancelEdit} />
-            {!isUser && <div className="mb-4 flex justify-end"><NewFormButton onNew={createNew} editorRef={editorRef} /></div>}
                 {!editingId && !isUser && <IarSourceSelect type="ics" setForm={setForm} />}
                     <p className="mb-3 text-sm text-slate-600">{!isUser && linkedIssuance ? 'Edit form details below. Issued quantities, costs, item numbers and the ICS number are tied to the stock records.' : ''}</p>
                     <fieldset disabled={readOnly} className="min-w-0">

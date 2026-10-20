@@ -31,7 +31,7 @@ const rules = {
     items: ['propertyNumber', 'description', 'date', 'receiptQuantity', 'amount'], positive: ['receiptQuantity'], nonnegative: ['amount'],
   },
   ris: {
-    fields: ['entityName', 'fundCluster', 'responsibilityCenterCode', 'office', 'date', ...signatory('requestedBy'), ...signatory('approvedBy'), ...signatory('issuedBy'), ...signatory('receivedBy')],
+    fields: ['entityName', 'fundCluster', 'responsibilityCenterCode', 'date', ...signatory('requestedBy'), ...signatory('approvedBy'), ...signatory('issuedBy'), ...signatory('receivedBy')],
     items: ['stockNumber', 'unit', 'description', 'quantityRequested', 'quantityIssued'], positive: ['quantityRequested'], nonnegative: ['quantityIssued'],
   },
   suppliers: { fields: ['name', 'address', 'contactNumber'] },
@@ -42,7 +42,7 @@ const rules = {
   'monthly-item-reports': { fields: ['lgu', 'fund', 'serialNumber', 'reportDate', 'custodian', 'accountingStaff', 'postedDate'] },
   'ppe-station-reports': {
     fields: ['governmentUnit', 'accountGroup', 'date', 'preparedBy', 'preparedDesignation', 'reviewedBy', 'reviewedDesignation'],
-    array: 'rows', items: ['article', 'description', 'propertyNumber', 'accountablePerson', 'unitCost', 'totalCost'], nonnegative: ['unitCost', 'totalCost'],
+    array: 'rows', items: ['article', 'description', 'propertyNumber', 'accountablePerson'], nonnegative: ['unitCost', 'totalCost'],
   },
 };
 
@@ -88,6 +88,9 @@ function getAdminFormErrors(type, body = {}, method = 'POST') {
         else if (/date$/i.test(key) && Number.isNaN(Date.parse(entry[key]))) add(`${prefix}${key}`, 'Enter a valid date.');
       }
       if (entry) {
+        if (type === 'iar' && !missing(entry.serialNumber) && Number(entry.quantity) !== 1) {
+          add(`${prefix}quantity`, 'Quantity must be 1 when a serial number is provided. Enter each serialized item on a separate row.');
+        }
         checkNumbers(entry, rule.positive, prefix, true);
         checkNumbers(entry, rule.nonnegative, prefix, false);
         if (type === 'iar' || type === 'par') checkNumbers(entry, ['unitCost'], prefix, false);

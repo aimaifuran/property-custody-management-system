@@ -14,10 +14,21 @@ export function itemLedgerSelection(details, { from = '', to = '', type = '', of
 }
 
 export function buildItemPropertyCardExport(details, filters = {}) {
-  const { rows, beginning, ending } = itemLedgerSelection(details, filters);
-  return { ...details.exportHeader, month: [filters.from, filters.to].filter(Boolean).join(' to '), items: filters.activityOnly && !rows.length ? [] : [
-    { date: filters.from || details.transactions[0]?.date, receiptQuantity: null, itdQuantity: null, balanceQuantity: beginning, remarks: 'Beginning balance', amount: null },
-    ...rows.map(row => ({ date: row.date, referenceParNo: row.reference, receiptQuantity: row.received || null, itdQuantity: row.issued || null, itdOfficeOfficer: row.office || row.person, balanceQuantity: row.balance, amount: row.amount, remarks: `${row.type}: ${row.remarks}` })),
-    { balanceQuantity: ending, remarks: 'Ending balance', amount: null },
-  ] };
+  const { rows, initialStock } = itemLedgerSelection(details, filters);
+  const issueRows = rows.filter(row => row.type === 'Issue' && Number(row.issued) > 0);
+  if (filters.activityOnly && !issueRows.length) return { ...details.exportHeader, month: [filters.from, filters.to].filter(Boolean).join(' to '), items: [] };
+  return {
+    ...details.exportHeader,
+    month: [filters.from, filters.to].filter(Boolean).join(' to '),
+    items: issueRows.map(row => ({
+      date: row.date,
+      referenceParNo: row.reference || '',
+      receiptQuantity: initialStock,
+      itdQuantity: Number(row.issued || 0),
+      itdOfficeOfficer: row.person || row.office || '',
+      balanceQuantity: 0,
+      remarks: row.remarks || '',
+      amount: Number(row.amount || 0),
+    })),
+  };
 }

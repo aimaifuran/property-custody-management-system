@@ -5,6 +5,7 @@ import useSourceDocument from '../utils/useSourceDocument';
 import { withCurrentDates } from '../utils/formDates';
 import { useNavigate } from 'react-router-dom';
 import { hasRowData } from '../utils/formRows';
+import { nextStockPropertyNumber, singleStockPropertyNumber } from '../utils/nextStockPropertyNumber';
 import { lineAmount, sumAmounts } from '../utils/formAmounts';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
@@ -17,7 +18,6 @@ import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader from '../components/SavedReportsHeader';
-import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
@@ -51,6 +51,10 @@ const emptyItem = () => ({
     unitCost: '',
     totalCost: 0
 });
+
+const capitalizeInitialLetter = value => typeof value === 'string'
+    ? value.replace(/^(\s*)([a-z])/i, (_, prefix, letter) => `${prefix}${letter.toLocaleUpperCase()}`)
+    : value;
 const initial = {
     entityName: '',
     fundCluster: '',
@@ -71,7 +75,8 @@ const initial = {
     items: []
 };
 
-const newForm = () => withCurrentDates({ ...initial, submissionKey: crypto.randomUUID(), inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [emptyItem()] });
+const firstItem = () => ({ ...emptyItem(), stockPropertyNumber: '001', stockNumber: '001' });
+const newForm = () => withCurrentDates({ ...initial, submissionKey: crypto.randomUUID(), inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [firstItem()] });
 
 const readDraft = key => {
     try {
@@ -117,6 +122,7 @@ const toForm = (record) => ({
         serialNumbers: item.serialNumbers || [],
         propertyNumber: item.propertyNumber || '',
         stockPropertyNumber: item.stockPropertyNumber || item.stockNumber || '',
+        stockNumber: item.stockNumber || item.stockPropertyNumber || '',
         propertyPlantAndEquipment: item.propertyPlantAndEquipment || '',
         description: item.description || item.item || '',
         unit: item.unit || '',
@@ -159,12 +165,17 @@ export default function IarPage() {
     };
     const updateItem = (index, key, value) => {
       setSaveError('');
+      if (['propertyPlantAndEquipment', 'description', 'unit'].includes(key)) value = capitalizeInitialLetter(value);
       setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? {
             ...item,
             [key]: value,
             ...(key === 'stockPropertyNumber' ? { stockNumber: value } : {})
         } : item);
+        if (['quantity', 'serialNumber'].includes(key)) {
+          const stockPropertyNumber = singleStockPropertyNumber(items[index]);
+          items[index] = { ...items[index], stockPropertyNumber, stockNumber: stockPropertyNumber };
+        }
         if (key === 'quantity' || key === 'unitCost') items[index].totalCost = lineAmount(items[index].quantity, items[index].unitCost);
         return {
             ...prev,
@@ -228,10 +239,20 @@ export default function IarPage() {
         setForm(newForm());
     };
 
+    const showSaveValidationError = (message, selector) => {
+        setSaveError(message);
+        toast.error(message, { id: 'iar-save-validation' });
+        if (selector) requestAnimationFrame(() => {
+            const target = editorRef.current?.querySelector(selector);
+            target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target?.focus({ preventScroll: true });
+        });
+    };
+
     const save = async (event) => {
         event.preventDefault();
         if (saving) return;
-        if (!form.iarNumber.trim()) { setSaveError('Enter the IAR number before saving.'); return; }
+        if (!form.iarNumber.trim()) { showSaveValidationError('Enter the IAR number before saving.', '[aria-label="IAR No."]'); return; }
         const payload = {
             ...form,
             iarNumber: form.iarNumber.trim(),
@@ -246,7 +267,9 @@ export default function IarPage() {
                 };
             })
         };
-        if (!payload.items.length) { setSaveError('Enter at least one received item before saving the IAR.'); return; }
+        if (!payload.items.length) { showSaveValidationError('Enter at least one received item before saving the IAR.', '[aria-label="Property, Plant and Equipment"]'); return; }
+        const invalidSerialIndex = form.items.findIndex(item => hasRowData(item, emptyItem()) && String(item.serialNumber || '').trim() && Number(item.quantity) !== 1);
+        if (invalidSerialIndex >= 0) { showSaveValidationError(`Item ${invalidSerialIndex + 1}: Only 1 Qty. per Serial Number`, '[aria-label="Quantity"][aria-invalid="true"]'); return; }
         setSaveError('');
         setSaving(true);
         try {
@@ -258,7 +281,7 @@ export default function IarPage() {
             } else {
                 const { data } = await axios.post('/iar', payload);
                 savedRecord = data.data;
-                toast.success('IAR saved. Opening Property Card history.');
+                toast.success('IAR saved. Opening RIS drafts.');
             }
             if (savedRecord?._id) {
                 setIar(previous => [savedRecord, ...previous.filter(record => record._id !== savedRecord._id)]);
@@ -266,11 +289,9 @@ export default function IarPage() {
             }
             const refreshedItems = await axios.get('/items').catch(() => null);
             if (refreshedItems) setStockItems(refreshedItems.data.data || []);
-            const linkedCard = savedRecord?.propertyCards?.[0];
-            const linkedCardId = linkedCard?._id || linkedCard;
-            if (!editingId && linkedCardId) {
+            if (!editingId) {
                 try { sessionStorage.removeItem(draftKey); } catch { /* Navigation can continue without storage. */ }
-                navigate(`/inventory?card=${encodeURIComponent(linkedCardId)}`);
+                navigate('/ris?view=requests&focus=iar-drafts');
                 return;
             }
             setSearch(''); setPage(1);
@@ -443,9 +464,8 @@ export default function IarPage() {
           <ClientPagination showPageSize={false} page={page} pageCount={totalPages} perPage={perPage} onPageChange={setPage} onPerPageChange={updatePerPage} />
         </div>}
         <div className="space-y-6">
-          {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => setSaveError(`${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`)} className="form-document form-frame scroll-mt-6 p-6">
-            <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock and creates a Property Card and RIS draft. ICS/PAR are generated during issuance.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
-            <div className="mb-4 flex justify-end"><NewFormButton onNew={() => { cancelEdit(); setEditorOpen(true); }} editorRef={editorRef} /></div>
+          {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => { const message = `${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`; setSaveError(message); toast.error(message, { id: 'iar-save-validation' }); }} className="form-document form-frame scroll-mt-6 p-6">
+            <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock. Property Card history is created when an item is issued to a user.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
               <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
@@ -477,30 +497,40 @@ export default function IarPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {form.items.map((item, index) =>
-                    <tr key={index}>
+                  {form.items.map((item, index) => {
+                    const serialQuantityConflict = Boolean(String(item.serialNumber || '').trim()) && Number(item.quantity) !== 1;
+                    return <tr key={index}>
                       {['stockPropertyNumber', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
                           {key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={item[key] ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
-                            <input required={key !== 'serialNumber' && hasRowData(item, emptyItem())} aria-label={key === 'serialNumber' ? 'Serial Number' : key} value={item[key] ?? ''} onChange={event => updateItem(index, key, event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
-                          {key === 'serialNumber' && item.serialNumbers?.length > 0 && <p className="mt-1 break-words text-xs text-slate-500">Assigned: {item.serialNumbers[0]}{item.serialNumbers.length > 1 ? ` to ${item.serialNumbers.at(-1)} (${item.serialNumbers.length} units)` : ''}</p>}
+                            <input required={key !== 'serialNumber' && hasRowData(item, emptyItem())} aria-invalid={key === 'serialNumber' && serialQuantityConflict ? 'true' : undefined} aria-label={key === 'serialNumber' ? 'Serial Number' : key} value={item[key] ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className={`w-full rounded-xl border px-2 py-2 ${key === 'serialNumber' && serialQuantityConflict ? 'border-rose-500 bg-rose-50 ring-1 ring-rose-300' : 'border-slate-200'}`} />}
+                          {key === 'serialNumber' && Number(item.quantity) <= 1 && item.serialNumbers?.length > 0 && <p className="mt-1 break-words text-xs text-slate-500">Assigned: {item.serialNumbers[0]}</p>}
                         </td>
                       )}
                       <td className="p-2">
-                        <input required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                        <div className="relative">
+                        {serialQuantityConflict && <div id={`iar-quantity-error-${index}`} role="alert" className="absolute bottom-full left-1/2 z-30 mb-2 w-max -translate-x-1/2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow-lg">Only 1 Qty. per Serial Number</div>}
+                        <input required={hasRowData(item, emptyItem())} aria-invalid={serialQuantityConflict ? 'true' : undefined} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className={`w-full rounded-xl border px-2 py-2 ${serialQuantityConflict ? 'border-rose-500 bg-rose-50 ring-1 ring-rose-300' : 'border-slate-200'}`} />
+                        </div>
                       </td>
                       {form.acceptanceStatus === 'Partial' && <td className="p-2"><input type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>}
                       <td className="p-2"><input aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>
                       <td className="p-2"><input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" /></td>
-                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} /></td>
-                    </tr>
-                  )}
+                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [firstItem()] }; })} /></td>
+                    </tr>;
+                  })}
                 </tbody>
               </table>
             </TableScroll>
-            <p className="mt-2 text-sm text-slate-600"> Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
+            <p className="mt-2 text-sm text-slate-600">Serial number is optional. When provided, quantity must be 1; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
             <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
-            <div className="mt-3 flex justify-end"><AddRowButton onClick={() => update('items', [...form.items, emptyItem()])} /></div>
+            <div className="mt-3 flex justify-end"><AddRowButton onClick={() => {
+              setSaveError('');
+              setForm(previous => {
+                const stockPropertyNumber = nextStockPropertyNumber(previous.items);
+                return { ...previous, items: [...previous.items, { ...emptyItem(), stockPropertyNumber, stockNumber: stockPropertyNumber }] };
+              });
+            }} /></div>
             <div className="mt-6 grid gap-3 border-t pt-4 md:grid-cols-3">
               <h2 className="md:col-span-3 text-lg font-semibold">INSPECTION</h2>
               {field('Date Inspected', 'inspectionDate', 'date')}

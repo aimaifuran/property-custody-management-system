@@ -8,6 +8,7 @@ const propertyReturnSlipSchema = new mongoose.Schema({
   pendingKey: { type: String, unique: true, sparse: true },
   rejectionReason: String,
   stockPosted: { type: Boolean, default: false },
+  returnedAt: Date,
   // Holds the chosen purpose; when the "Other" option is picked on the form,
   // this stores the free-text value the user specified instead.
   purpose: { type: String, trim: true },

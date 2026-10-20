@@ -1,11 +1,7 @@
-import FormRecordTabs from '../components/FormRecordTabs';
 import SignatoryValue from '../components/SignatoryValue';
-import { withCurrentDates, todayManila } from '../utils/formDates';
-import NewFormButton from '../components/NewFormButton';
+import { withCurrentDates } from '../utils/formDates';
 import ValidatedForm from '../components/ValidatedForm';
-import NewFormBadge from '../components/NewFormBadge';
 import FormEditorHeader from '../components/FormEditorHeader';
-import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
 
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
@@ -16,11 +12,8 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Eye, RefreshCw, Save, X } from 'lucide-react';
 import RecordActionButton from '../components/RecordActionButton';
-import Pagination from '../components/Pagination';
 import { useAuth } from '../contexts/AuthContext';
 import { buildPpePdf, PPE_COLUMNS, PPE_TITLE, ppeTotal, ppeDate, ppePeriod } from '../utils/ppeListPdf';
-import { sortSavedReports } from '../utils/savedReportOrder';
-import useSavedReportPage from '../utils/useSavedReportPage';
 
 const currentMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).slice(0, 7);
 const emptyReport = { serialNumber: '', lgu: '', fund: '', periodStart: '', periodEnd: '', reportDate: '', custodian: '', accountingStaff: '', postedDate: '', rows: [], recapitulation: [] };
@@ -31,22 +24,13 @@ export default function MonthlyItemsReportPage() {
   const { user } = useAuth();
   const canEdit = user?.role === 'admin';
   const [month, setMonth] = useState(currentMonth);
-  const [isNewForm, setIsNewForm] = useState(true);
-  const [editorOpen, setEditorOpen] = useState(true);
   const [form, setForm] = useState(() => withCurrentDates(emptyReport));
-  const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
-  const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(5);
-  const [search, setSearch] = useState('');
-  const [recentlySavedId, setRecentlySavedId] = useState(null);
-  const filteredReports = sortSavedReports(filterReports(records, search));
-  useSavedReportPage(filteredReports, recentlySavedId, perPage, setPage);
   const dirty = useRef(false);
   const editor = useRef(null);
   useEffect(() => {
@@ -58,11 +42,18 @@ export default function MonthlyItemsReportPage() {
       try {
         const { data } = await axios.get('/monthly-item-reports', { params: { month }, signal: controller.signal });
         if (controller.signal.aborted) return;
-        const metadata = Object.fromEntries(Object.entries(data.data.report || {}).filter(([key]) => !['_id', 'automatic', 'createdAt', 'updatedAt'].includes(key)));
-        const next = { ...emptyReport, ...metadata, month, rows: [], recapitulation: [] };
+        const next = { ...emptyReport, ...data.data.report, month };
         for (const role of ['custodian', 'accountingStaff']) if (!next[role]) next[role] = getStickySignatory(role).name ?? '';
-        setForm(previous => dirty.current && previous.month === month ? { ...previous } : next);
-        setRecords(data.data.records); setError(''); setLoading(false);
+        setForm(previous => {
+          if (!dirty.current || previous.month !== month) return next;
+          const key = row => JSON.stringify([row.source, row.sourceId, row.sourceRow]);
+          const accounting = new Map(previous.rows.filter(row => row.accountingManual).map(row => [key(row), row]));
+          return { ...next, ...Object.fromEntries(metadataFields.map(field => [field, previous[field]])), rows: next.rows.map(row => {
+            const saved = accounting.get(key(row));
+            return saved ? { ...row, unitCost: saved.unitCost, totalCost: saved.totalCost, accountingManual: true } : row;
+          }) };
+        });
+        setError(''); setLoading(false);
       } catch (err) {
         if (!controller.signal.aborted) { setError(err.response?.data?.message || 'Unable to load recorded items.'); setLoading(false); }
       } finally { busy = false; }
@@ -74,29 +65,14 @@ export default function MonthlyItemsReportPage() {
     return () => { controller.abort(); clearInterval(interval); window.removeEventListener('focus', load); document.removeEventListener('visibilitychange', load); };
   }, [month, refresh]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-  const selectMonth = value => { setEditorOpen(true); setIsNewForm(true); dirty.current = false; setLoading(true); if (value === month) setRefresh(previous => previous + 1); else setMonth(value); setPage(1); };
-  const newForm = () => {
-    setEditorOpen(true); setIsNewForm(true); dirty.current = true;
-    setForm(previous => ({ ...emptyReport, month, lgu: previous.lgu, periodStart: previous.periodStart, periodEnd: previous.periodEnd, reportDate: todayManila(), postedDate: todayManila(), custodian: getStickySignatory('custodian').name || '', accountingStaff: getStickySignatory('accountingStaff').name || '' }));
-  };
-  const openRecord = record => {
-    setEditorOpen(true); setIsNewForm(false); dirty.current = true;
-    setMonth(record.month); setForm(record);
-    requestAnimationFrame(() => editor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-  };
+  const selectMonth = value => { dirty.current = false; setLoading(true); if (value === month) setRefresh(previous => previous + 1); else setMonth(value); };
   const update = (key, value) => { if (['custodian', 'accountingStaff'].includes(key)) saveStickySignatory(key, { name: value }, 'name'); dirty.current = true; setForm(previous => ({ ...previous, [key]: value })); };
   const save = async event => {
-    event.preventDefault(); setSaving(true); setRecentlySavedId(null);
+    event.preventDefault(); setSaving(true);
     try {
       const payload = { ...Object.fromEntries(metadataFields.map(key => [key, form[key]])), accountingRows: form.rows.map(row => ({ source: row.source, sourceId: row.sourceId, sourceRow: row.sourceRow, unitCost: row.accountingManual ? row.unitCost : null, totalCost: row.accountingManual ? row.totalCost : null })) };
-      const { data } = isNewForm
-        ? await axios.post('/monthly-item-reports', { ...payload, month })
-        : await axios.put(`/monthly-item-reports/${form._id}`, payload);
-      setRecords(previous => [data.data, ...previous.filter(record => record._id !== data.data._id)]);
-      setRecentlySavedId(data.data._id);
-      setSearch('');
-      setIsNewForm(false);
-      setForm(data.data); dirty.current = true; setEditorOpen(false); toast.success('Report details saved'); setRefresh(value => value + 1);
+      const { data } = await axios.put(`/monthly-item-reports/${form._id}`, payload);
+      setForm(data.data); dirty.current = false; toast.success('Report details saved'); setRefresh(value => value + 1);
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to save report details.'); }
     finally { setSaving(false); }
   };
@@ -124,23 +100,19 @@ export default function MonthlyItemsReportPage() {
     } catch (err) { printWindow?.close(); toast.error(err.message || 'Unable to generate report.'); }
     finally { setExporting(false); }
   };
-  const field = (key, label, type = 'text', required = true) => ['custodian', 'accountingStaff'].includes(key) ? <label className="block text-sm"><span className="mb-1 block font-semibold">{label}</span><SignatoryValue formType="monthly" role={key} value={form[key]} managed={isNewForm} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} aria-label={label} /></label> : <label className="block text-sm"><span className="mb-1 block font-semibold">{label}</span><input type={type} required={required} readOnly={!canEdit} value={form[key] || ''} maxLength={key === 'serialNumber' ? 100 : type === 'text' ? 200 : undefined} onChange={event => update(key, event.target.value)} className="w-full border px-2 py-1" /></label>;
-  const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
+  const field = (key, label, type = 'text', required = true) => ['custodian', 'accountingStaff'].includes(key) ? <label className="block text-sm"><span className="mb-1 block font-semibold">{label}</span><SignatoryValue formType="monthly" role={key} value={form[key]} managed={true} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} aria-label={label} /></label> : <label className="block text-sm"><span className="mb-1 block font-semibold">{label}</span><input type={type} required={required} readOnly={!canEdit} value={form[key] || ''} maxLength={key === 'serialNumber' ? 100 : type === 'text' ? 200 : undefined} onChange={event => update(key, event.target.value)} className="w-full border px-2 py-1" /></label>;
   if (loading) return <PageSkeleton />;
  return <div className="space-y-6">
-    <FormRecordTabs label="Monthly Reports" recordsLabel="Saved Reports" showForm={editorOpen} onForm={() => setEditorOpen(true)} onRecords={() => setEditorOpen(false)} />
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    {!editorOpen && (<section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-4 space-y-3">{records.length === 0 && !loading && !error && <p className="text-sm text-slate-500">Reports appear automatically when items are recorded.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><NewFormBadge record={record} /><div><div className="font-semibold">{record.month} {record.automatic ? '(Automatic)' : '(Saved form)'}</div><div className="text-xs text-slate-600">{record.lgu} | {ppeDate(record.reportDate)} | {record.rows.length} items</div></div><div className="flex gap-2"><button type="button" onClick={() => openRecord(record)} className="rounded-lg border px-3 py-1 text-xs">View</button><RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>)}
-    {loading ? <Skeleton className="h-4 w-20" /> : !error && editorOpen && <ValidatedForm ref={editor} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ppe-list-form">
-      <FormEditorHeader title="Monthly Items Report" description={`${PPE_TITLE} · ${ppePeriod(form)}`} onClose={() => setEditorOpen(false)} />
+    {loading ? <Skeleton className="h-4 w-20" /> : !error && <ValidatedForm ref={editor} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ppe-list-form">
+      <FormEditorHeader title="Monthly Items Report" description={`${PPE_TITLE} · ${ppePeriod(form)}`} />
       <div className="monthly-report-month-controls"><label className="text-sm font-semibold"><span>Month</span><input type="month" min="2000-01" max="2100-12" value={month} onChange={event => { if (event.target.value) selectMonth(event.target.value); }} className="mt-1 block rounded-lg border bg-white px-3 py-2" /></label><button type="button" disabled={loading} onClick={() => setRefresh(value => value + 1)} className="rounded-lg border bg-white p-2" aria-label="Refresh recorded items"><RefreshCw size={18} /></button></div>
-            {canEdit && <div className="mb-4 flex justify-end"><NewFormButton onNew={newForm} editorRef={editor} /></div>}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{field('lgu', 'LGU', 'text', true)}{field('fund', 'Fund')}{field('serialNumber', 'Serial No.', 'text', true)}{field('reportDate', 'Date', 'date', true)}</div>
-      <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{PPE_COLUMNS.map(([key, , width]) => <col key={key} style={{ width: `${width}%` }} />)}</colgroup><thead><tr><th colSpan={6}>To be filled up by the Supply and/or Property Division/Unit</th><th colSpan={2}>To be filled up by the Accounting Division/Unit</th></tr><tr>{PPE_COLUMNS.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead><tbody>{form.rows.length === 0 ? <tr><td colSpan={8} className="py-6">Open a saved report to view its recorded items.</td></tr> : form.rows.map((row, index) => <tr key={`${row.source}-${row.sourceId}-${row.sourceRow ?? index}`}>{PPE_COLUMNS.map(([key]) => <td key={key} className="break-words" title={key === 'item' ? `${row.source}: ${row.sourceNumber || 'Recorded item'}` : undefined}>{['unitCost', 'amount'].includes(key) ? <input type="number" min="0" step="any" aria-label={`${key === 'amount' ? 'Amount' : 'Unit Cost'}, row ${index + 1}`} readOnly={!canEdit} value={row.accountingManual ? row[key === 'amount' ? 'totalCost' : key] ?? '' : ''} onChange={event => { dirty.current = true; const field = key === 'amount' ? 'totalCost' : key; setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, unitCost: entry.accountingManual ? entry.unitCost : null, totalCost: entry.accountingManual ? entry.totalCost : null, [field]: event.target.value, accountingManual: true } : entry) })); }} /> : row[key]}</td>)}</tr>)}</tbody><tfoot><tr><td colSpan={5} /><th>TOTAL</th><td /><td>{form.rows.length ? ppeTotal(form.rows) : ''}</td></tr></tfoot></table></TableScroll>
+      <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{PPE_COLUMNS.map(([key, , width]) => <col key={key} style={{ width: `${width}%` }} />)}</colgroup><thead><tr><th colSpan={6}>To be filled up by the Supply and/or Property Division/Unit</th><th colSpan={2}>To be filled up by the Accounting Division/Unit</th></tr><tr>{PPE_COLUMNS.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead><tbody>{form.rows.length === 0 ? <tr><td colSpan={8} className="py-6">No recorded items for the selected month.</td></tr> : form.rows.map((row, index) => <tr key={`${row.source}-${row.sourceId}-${row.sourceRow ?? index}`}>{PPE_COLUMNS.map(([key]) => <td key={key} className="break-words" title={key === 'item' ? `${row.source}: ${row.sourceNumber || 'Recorded item'}` : undefined}>{['unitCost', 'amount'].includes(key) ? <input type="number" min="0" step="any" aria-label={`${key === 'amount' ? 'Amount' : 'Unit Cost'}, row ${index + 1}`} readOnly={!canEdit} value={row.accountingManual ? row[key === 'amount' ? 'totalCost' : key] ?? '' : ''} onChange={event => { dirty.current = true; const field = key === 'amount' ? 'totalCost' : key; setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, unitCost: entry.accountingManual ? entry.unitCost : null, totalCost: entry.accountingManual ? entry.totalCost : null, [field]: event.target.value, accountingManual: true } : entry) })); }} /> : row[key]}</td>)}</tr>)}</tbody><tfoot><tr><td colSpan={5} /><th>TOTAL</th><td /><td>{form.rows.length ? ppeTotal(form.rows) : ''}</td></tr></tfoot></table></TableScroll>
       <section className="mt-5"><h3 className="mb-2 text-sm font-semibold">Recapitulation</h3><TableScroll className="overflow-x-auto"><table className="ppe-input-table w-full min-w-[800px] table-fixed border-collapse text-xs"><thead><tr>{recapColumns.map(([key, label]) => <th key={key} style={{ width: key === 'item' ? '36%' : undefined }}>{label}</th>)}</tr></thead><tbody>{form.recapitulation.map((row, index) => <tr key={index}>{recapColumns.map(([key]) => <td key={key} className="break-words">{['unitCost', 'totalCost'].includes(key) ? '' : row[key]}</td>)}</tr>)}</tbody></table></TableScroll></section>
       <div className="mt-5 grid gap-4 md:grid-cols-[3fr_1fr]"><section className="border border-slate-400 p-3"><p className="mb-3 text-sm">I hereby certify to the correctness of the above information.</p>{field('custodian', 'Supply and/or Property Custodian')}<p className="mt-2 text-center text-xs">Signature over Printed Name of Supply<br />and/or Property Custodian</p></section><section className="border border-slate-400 p-3"><p className="mb-3 text-sm">Posted by:</p>{field('accountingStaff', 'Designated Accounting Staff')}{field('postedDate', 'Date', 'date')}</section></div>
-      <div className="mt-5 flex flex-wrap items-center justify-end gap-3"><button type="button" disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'preview')} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">{exporting ? <Skeleton className="h-4 w-24" /> : <><Eye size={16} /> Print Preview</>}</button><RecordActionButton action="pdf" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'print')} />{canEdit && <button disabled={saving || !records.some(record => record.month === month && record.rows.length > 0)} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-white"><Save size={16} />Save</button>}</div>
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-3"><button type="button" disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'preview')} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">{exporting ? <Skeleton className="h-4 w-24" /> : <><Eye size={16} /> Print Preview</>}</button><RecordActionButton action="pdf" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'print')} />{canEdit && <button disabled={saving || !form._id || !form.rows.length} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-white"><Save size={16} />Save Details</button>}</div>
     </ValidatedForm>}
 
     {preview && <div className="fixed inset-0 z-[60] flex flex-col bg-slate-900/70 p-3" role="dialog" aria-modal="true" aria-label="Monthly Items Report print preview"><div className="flex items-center justify-between rounded-t-lg bg-white p-3"><span className="font-semibold">Print Preview - A4 portrait</span><button type="button" aria-label="Close print preview" onClick={() => setPreview('')}><X size={20} /></button></div><iframe src={preview} title="Monthly Items Report PDF preview" className="min-h-0 flex-1 bg-white" /></div>}

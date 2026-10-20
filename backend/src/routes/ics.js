@@ -13,7 +13,7 @@ const ICS_SEARCH_FIELDS = [
 ];
 
 router.get('/', authenticate, authorize(['canViewRIS', 'canManageRIS', 'canManageInventory']), async (req, res) => {
-  const records = await listRecords(InventoryCustodianSlip, req, { baseFilter: { deleted: false, ...(req.user.role === 'admin' ? {} : { user: req.user._id }) }, searchFields: ICS_SEARCH_FIELDS, populate: 'iar' });
+  const records = await listRecords(InventoryCustodianSlip, req, { baseFilter: { deleted: false, ...(req.user.role === 'admin' ? {} : { user: req.user._id }) }, searchFields: ICS_SEARCH_FIELDS, populate: ['iar', { path: 'items.inventory', populate: { path: 'item', select: 'name category' } }] });
   return successResponse(res, 'Inventory Custodian Slips retrieved', records);
 });
 

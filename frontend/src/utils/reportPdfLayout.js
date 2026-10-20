@@ -48,9 +48,8 @@ export function drawReportLines(page, lines, x, top, width, font, { align = 'lef
 
 export function reportColumns(definitions, left, width) {
   let x = left;
-  return definitions.map(([key, label, percent, align]) => {
-    align ||= ['quantity', 'unitCost', 'totalCost', 'amount'].includes(key) ? 'right'
-      : ['item', 'description', 'office', 'custodian', 'accountablePerson', 'remarks', 'entityName'].includes(key) ? 'left' : 'center';
+  return definitions.map(([, label, percent]) => {
+    const align = 'center';
     const column = { label, x, width: width * percent / 100, align };
     x += column.width;
     return column;

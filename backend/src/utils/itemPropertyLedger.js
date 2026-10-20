@@ -52,12 +52,15 @@ module.exports = async function itemPropertyLedger(itemId) {
     const type = row.type === 'outgoing' ? 'Issue' : source?.type === 'PRS' || /returned/i.test(row.description || '') ? 'Return' : 'Receipt';
     const person = row.postedBy;
     const request = source?.type === 'RIS' ? requests.find(doc => String(doc._id) === source.id) : null;
+    const requestRemarks = request ? [...new Set(request.items
+      .filter(entry => entry.inventory ? String(entry.inventory) === String(row.inventory) : entry.stockNumber === item.stockNumber)
+      .map(entry => String(entry.remarks || '').trim()).filter(Boolean))].join('; ') : '';
     return { id: String(row._id), date: row.transactionDate || row.createdAt, postedAt: row.createdAt, type, source, reference: row.reference,
       received: row.type === 'incoming' ? Number(row.quantity) : 0, issued: row.type === 'outgoing' ? Number(row.quantity) : 0,
       amount: lineAmount(row.quantity, inventory?.unitCost), unitCost: inventory?.unitCost,
-      office: row.office || request?.office || '', person: request?.requestedBy?.name || '',
+      office: row.office || request?.office || '', person: request?.receivedBy?.name?.trim() || request?.requestedBy?.name || '',
       postedBy: person ? [person.firstName, person.lastName].filter(Boolean).join(' ') || person.username : '',
-      remarks: row.description || '', status: 'POSTED', inventory: String(row.inventory), serialNumber: inventory?.serialNumber || '',
+      remarks: request ? requestRemarks : row.description || '', status: 'POSTED', inventory: String(row.inventory), serialNumber: inventory?.serialNumber || '',
       accountabilityDocuments: request ? links.filter(link => ['ICS', 'PAR'].includes(link.type) && [...ics, ...pars].some(doc => String(doc._id) === link.id && String(doc.ris) === String(request._id))) : [],
     };
   });

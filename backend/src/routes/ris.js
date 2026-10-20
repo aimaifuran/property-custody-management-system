@@ -78,9 +78,12 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canRevie
   if (req.user.role !== 'admin') Object.assign(query, ownRisFilter(req.user));
   const ris = await listRecords(RequisitionIssueSlip, req, { baseFilter: query, searchFields: RIS_SEARCH_FIELDS });
   const records = Array.isArray(ris) ? ris : ris.items;
+  const accountIds = records.flatMap(record => [record.requestedBy?.user, record.receivedBy?.user]).filter(Boolean);
+  const accounts = await User.find({ _id: { $in: accountIds } }).select('username firstName middleName lastName').lean();
+  const accountLabels = new Map(accounts.map(account => [String(account._id), [account.username, account.firstName, account.middleName, account.lastName].filter(Boolean).join(' ')]));
   const stocks = await Item.find({ stockNumber: { $in: records.flatMap(record => record.items.map(row => row.stockNumber).filter(Boolean)) } }).select('stockNumber name category').lean();
   const names = new Map(stocks.map(stock => [stock.stockNumber, stock.name || (stock.category !== 'General' ? stock.category : '')]));
-  const reports = records.map(record => ({ ...record.toObject(), itemNames: [...new Map(record.items.map(row => row.itemName || names.get(row.stockNumber) || row.description || '').filter(Boolean).map(name => [name.toLowerCase(), name])).values()] }));
+  const reports = records.map(record => ({ ...record.toObject(), recipientAccounts: [record.requestedBy?.user, record.receivedBy?.user].map(id => accountLabels.get(String(id))).filter(Boolean), itemNames: [...new Map(record.items.map(row => row.itemName || names.get(row.stockNumber) || row.description || '').filter(Boolean).map(name => [name.toLowerCase(), name])).values()] }));
   return successResponse(res, 'RIS retrieved', Array.isArray(ris) ? reports : { ...ris, items: reports });
 });
 
@@ -134,8 +137,9 @@ router.get('/returnable-items', authenticate, authorize('canManageInventory'), a
       const quantityRemaining = Math.max(0, Number(item.quantityIssued || 0) - (returned.get(`${record._id}:${item._id}`) || 0));
       if (!quantityRemaining) continue;
       const stock = await Item.findOne({ deleted: false, stockNumber: item.stockNumber }).lean();
-      const inventory = stock ? await Inventory.findOne({ deleted: false, item: stock._id }).sort({ createdAt: -1 }).lean() : null;
-      items.push({ ...item, quantityRemaining, unitCost: item.unitCost ?? inventory?.unitCost ?? stock?.cost ?? 0, propertyNumber: inventory?.propertyNumber || item.stockNumber || '' });
+      const inventory = stock ? await Inventory.findOne({ deleted: false, item: stock._id, ...(item.inventory ? { _id: item.inventory } : {}) }).populate('inspectionAcceptanceReport', 'poNumber').sort({ createdAt: -1 }).lean() : null;
+      const receipt = inventory?.inspectionAcceptanceReport || (record.iar ? await require('../models/InspectionAcceptanceReport').findById(record.iar).select('poNumber').lean() : null);
+      items.push({ ...item, serialNumber: inventory?.serialNumber || item.serialNumber || '', poNumber: receipt?.poNumber || '', itemName: stock?.name || item.itemName || (stock?.category !== 'General' ? stock?.category : '') || item.description || '', quantityRemaining, unitCost: item.unitCost ?? inventory?.unitCost ?? stock?.cost ?? 0, propertyNumber: inventory?.propertyNumber || item.stockNumber || '' });
     }
     if (items.length) output.push({ ...record, items });
   }
@@ -215,7 +219,6 @@ const inheritItemFund = async (req, res, next) => {
 router.post('/', authenticate, inheritItemFund, validateAdminForm('ris'), authorize(['canCreateRIS', 'canManageRIS']), [
   body('entityName').notEmpty().withMessage('Entity name is required'),
   body('fundCluster').notEmpty().withMessage('Fund cluster is required'),
-  body('office').notEmpty().withMessage('Office is required'),
   body('responsibilityCenterCode').notEmpty().withMessage('Responsibility center code is required'),
   body('requestedBy').notEmpty().withMessage('Requested by is required'),
   body('receivedBy').notEmpty().withMessage('Received by is required'),
@@ -229,7 +232,7 @@ router.post('/', authenticate, inheritItemFund, validateAdminForm('ris'), author
   delete payload.lastEditedAt;
   payload.entityName = require('../config/entityName');
   try {
-    if (payload.items) payload.items = manualStockItems(payload.items);
+    if (payload.items) { payload.items = manualStockItems(payload.items); await require('../utils/validateRequestedStock')(payload.items); }
     payload.requestedBy = await resolvePersonUser(payload.requestedBy);
     payload.receivedBy = await resolvePersonUser(payload.receivedBy);
     if (payload.requestedBy?.name && !payload.requestedBy.user && !payload.requestedBy.offlineRecipient) return errorResponse(res, 'Select a user account or save an offline recipient under Requested by.', [], 400);
@@ -261,7 +264,7 @@ router.put('/:id', authenticate, inheritItemFund, validateAdminForm('ris'), auth
   for (const key of ['inventoryCustodianSlip', 'propertyAcknowledgementReceipt', 'issuedAt', 'signatureHash', 'manualIssueKey', 'sourceInventory']) delete updates[key];
   if (['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(updates.status)) return errorResponse(res, 'Use the issuance action to issue a RIS', [], 400);
   try {
-    if (updates.items) updates.items = manualStockItems(updates.items);
+    if (updates.items) { updates.items = manualStockItems(updates.items); await require('../utils/validateRequestedStock')(updates.items); }
     if (updates.requestedBy) updates.requestedBy = await resolvePersonUser(updates.requestedBy);
     if (updates.receivedBy) updates.receivedBy = await resolvePersonUser(updates.receivedBy);
     if (updates.requestedBy?.name && !updates.requestedBy.user && !updates.requestedBy.offlineRecipient) return errorResponse(res, 'Select a user account or save an offline recipient under Requested by.', [], 400);

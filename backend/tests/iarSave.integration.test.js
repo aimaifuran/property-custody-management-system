@@ -59,6 +59,30 @@ test('IAR editor payload saves stock atomically and reports field and number con
     return { status: response.status, body: await response.json() };
   };
 
+  await t.test('IAR row numbers may repeat for different items and deleted stock numbers', async () => {
+    const first = completedForm('1901', '001');
+    first.items[0].propertyPlantAndEquipment = 'Pencil';
+    first.items[0].description = 'Mongol pencil';
+    const a = await request(first);
+    assert.equal(a.status, 201, JSON.stringify(a.body));
+    const second = completedForm('1902', '001');
+    second.items[0].propertyPlantAndEquipment = 'Eraser';
+    second.items[0].description = 'White eraser';
+    const b = await request(second);
+    assert.equal(b.status, 201, JSON.stringify(b.body));
+    assert.equal(a.body.data.items[0].stockPropertyNumber, '001');
+    assert.equal(b.body.data.items[0].stockPropertyNumber, '001');
+    const ia = await Inventory.findById(a.body.data.items[0].inventory);
+    const ib = await Inventory.findById(b.body.data.items[0].inventory);
+    assert.notEqual(String(ia.item), String(ib.item));
+    assert.equal((await Item.findById(ia.item)).description, 'Mongol pencil');
+    assert.equal((await Item.findById(ib.item)).description, 'White eraser');
+    await Item.create({ stockNumber: '002', description: 'Deleted stock', unit: 'ream', itemType: 'SUPPLY', deleted: true });
+    const c = await request(completedForm('1903', '002'));
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    assert.equal(c.body.data.items[0].stockPropertyNumber, '002');
+  });
+
   let saved;
   await t.test('complete acceptance allows blank optional partial quantity and preserves an entered IAR number', async () => {
     const response = await request(completedForm('1001', 'IAR-SAVE-PAPER'));
@@ -111,16 +135,16 @@ test('IAR editor payload saves stock atomically and reports field and number con
     assert.deepEqual(amounts.sort((a, b) => a - b), [750, 60000]);
   });
 
-  await t.test('incompatible classifications require another stock code; explicit zero cost is preserved', async () => {
+  await t.test('different classifications may share a printed stock number without changing existing stock', async () => {
     await Item.create({ stockNumber: 'IAR-SAVE-EXPLICIT', description: 'Existing stock', unit: 'piece', itemType: 'SUPPLY', cost: 400 });
     const payload = completedForm('1004', 'IAR-SAVE-EXPLICIT');
     Object.assign(payload.items[0], { itemType: 'ASSET', unitCost: 0, unit: 'piece' });
-    assert.equal((await request(payload)).status, 400);
-    payload.items[0].itemType = 'SUPPLY';
     const response = await request(payload);
     assert.equal(response.status, 201, JSON.stringify(response.body));
     assert.equal(response.body.data.items[0].unitCost, 0);
     assert.equal((await Item.findOne({ stockNumber: 'IAR-SAVE-EXPLICIT' })).itemType, 'SUPPLY');
+    assert.equal(response.body.data.items[0].stockPropertyNumber, 'IAR-SAVE-EXPLICIT');
+    assert.equal((await Inventory.findOne({ inspectionAcceptanceReport: response.body.data._id }).populate('item')).item.itemType, 'ASSET');
   });
 
   await t.test('genuinely new stock retains asset and zero cost defaults when the hidden fields are omitted', async () => {

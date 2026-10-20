@@ -15,6 +15,42 @@ const { reserveDocumentNumber } = require('./documentNumber');
 const { notifyUsers } = require('./workflowNotifications');
 const { queueWorkflowEmail, deliverWorkflowEmails } = require('./workflowEmails');
 
+async function ensureIssuedPropertyCard(inventory, item, session) {
+  const report = inventory.inspectionAcceptanceReport;
+  const iarItem = report?.items?.find(entry =>
+    String(entry.inventory?._id || entry.inventory || '') === String(inventory._id)
+    || (entry.inventories || []).some(unit => String(unit?._id || unit) === String(inventory._id))
+  );
+  const card = await PropertyCard.findOne({ stockItem: item._id, deleted: false }).session(session);
+  if (card?.items?.some(row => String(row.inventory?._id || row.inventory || '') === String(inventory._id))) return;
+  const receipt = {
+    sourceType: 'IAR', sourceDocument: report?._id || inventory.inspectionAcceptanceReport,
+    sourceDate: report?.acceptanceDate || report?.iarDate || inventory.purchaseDate,
+    inventory: inventory._id, property: inventory.property, serialNumber: inventory.serialNumber,
+    propertyNumber: inventory.propertyNumber || item.stockNumber,
+    propertyPlantAndEquipment: iarItem?.propertyPlantAndEquipment || item.name || item.category,
+    description: iarItem?.description || iarItem?.item || item.description,
+    date: report?.acceptanceDate || report?.iarDate || inventory.purchaseDate,
+    receiptQuantity: Number(inventory.quantity || 0), itdQuantity: 0,
+    balanceQuantity: Number(inventory.quantity || 0), unitCost: Number(inventory.unitCost ?? item.cost),
+    amount: lineAmount(Number(inventory.quantity || 0), Number(inventory.unitCost ?? item.cost)),
+    remarks: report?.iarNumber ? `IAR ${report.iarNumber}` : 'IAR receipt',
+  };
+  if (card) {
+    card.items.push(receipt);
+    if (!card.iar && report?._id) card.iar = report._id;
+    await card.save({ session });
+    return;
+  }
+  await PropertyCard.create([{
+    stockItem: item._id, iar: report?._id, month: report?.iarDate ? new Date(report.iarDate).toISOString().slice(0, 7) : null,
+    poNumber: report?.poNumber, entityName: report?.entityName, fundCluster: report?.fundCluster,
+    propertyPlantAndEquipment: receipt.propertyPlantAndEquipment,
+    propertyNumber: receipt.propertyNumber, description: receipt.description,
+    serialNumber: inventory.serialNumber || null, items: [receipt],
+  }], { session });
+}
+
 // Approval authorizes issuance; stock and recipient accountability change together.
 module.exports = async function issueRis(id, admin, request = {}, { approve = false, manualIssue, completeQuantity, silent = false } = {}) {
   const topology = await mongoose.connection.db.admin().command({ hello: 1 });
@@ -28,6 +64,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
     if (approve && ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(ris.status)) return { ris, accountabilities: [] };
     const allowed = approve ? ['DRAFT', 'PENDING_REVIEW', 'PENDING_APPROVAL', 'REVIEWED', 'APPROVED'] : ['APPROVED', 'REVIEWED'];
     if (!allowed.includes(ris.status)) throw new Error('RIS must be approved before issuance');
+    if (!completeQuantity) await require('./validateRequestedStock')(ris.items, session);
     if (approve && (!ris.items.length || ris.items.some(row => !String(row.description || '').trim() || !Number.isInteger(Number(row.quantityRequested)) || Number(row.quantityRequested) <= 0))) throw new Error('Enter requested items with descriptions and positive whole quantities before approval');
     await require('./expandRisUnits')(ris, session);
     const sourceFunds = await require('./resolveRisItemFunds')(ris.items.map(row => row.toObject()), ris.fundCluster, session);
@@ -61,9 +98,9 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
       if (!item) throw new Error(`Stock number "${row.stockNumber || ''}" was not found in inventory`);
       // Keep cost, property identity and purchase date with the source receipt.
       // Standalone requests still use the latest recorded inventory metadata.
-      let inventory = await Inventory.findOne({ item: item._id, deleted: false, ...(row.inventory || ris.sourceInventory ? { _id: row.inventory || ris.sourceInventory } : ris.iar ? { inspectionAcceptanceReport: ris.iar } : {}) }).sort({ createdAt: -1, _id: -1 }).session(session);
+      let inventory = await Inventory.findOne({ item: item._id, deleted: false, ...(row.inventory || ris.sourceInventory ? { _id: row.inventory || ris.sourceInventory } : ris.iar ? { inspectionAcceptanceReport: ris.iar } : {}) }).sort({ createdAt: -1, _id: -1 }).populate('inspectionAcceptanceReport').session(session);
       // Added stock may come from another receipt. Existing source rows keep their original valuation.
-      if (!inventory && ris.iar && !ris.sourceInventory && !row.inventory) inventory = await Inventory.findOne({ item: item._id, deleted: false }).sort({ createdAt: -1, _id: -1 }).session(session);
+      if (!inventory && ris.iar && !ris.sourceInventory && !row.inventory) inventory = await Inventory.findOne({ item: item._id, deleted: false }).sort({ createdAt: -1, _id: -1 }).populate('inspectionAcceptanceReport').session(session);
       if (!inventory) throw new Error(`Inventory record not found for ${row.stockNumber}`);
       if (!row.inventory && !ris.sourceInventory && await Inventory.exists({ item: item._id, deleted: false, serialNumber: { $type: 'string', $nin: ['', null] } }).session(session)) throw new Error(`Select the exact asset unit for ${row.stockNumber} before issuance`);
       if (inventory.serialNumber || (inventory.property && inventory.quantity === 1)) {
@@ -96,6 +133,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
       await updated.save({ session });
       inventory.status = updated.status; await inventory.save({ session });
       await Ledger.create([{ sourceType: 'RIS', sourceDocument: ris._id, sourceLine: row._id, sourceKey: `RIS:${ris._id}:${row._id}`, postedBy: admin._id, office: ris.office, inventory: inventory._id, type: 'outgoing', quantity, reference: ris.risNumber, description: 'RIS supply issuance', runningBalance: updated.quantityOnHand }], { session });
+      await ensureIssuedPropertyCard(inventory, item, session);
       await PropertyCard.updateMany({ deleted: false, 'items.inventory': inventory._id }, { $push: { items: { sourceType: 'RIS', sourceDocument: ris._id, sourceDate: ris.date || issuedAt, sourceRemarks: row.remarks || ris.purpose, inventory: inventory._id, property: inventory.property, serialNumber: inventory.serialNumber, propertyNumber: row.stockNumber, description: row.description || item.description, date: issuedAt, receiptQuantity: 0, itdQuantity: quantity, itdOfficeOfficer: requester.name, balanceQuantity: updated.quantityOnHand, unitCost, amount: lineAmount(quantity, unitCost), remarks: `RIS ${ris.risNumber}` } } }, { session });
       Object.assign(row, { quantityIssued: quantity, unitCost, totalCost: lineAmount(quantity, unitCost), formType: 'SUPPLY', documentNumber: undefined, issuanceForm: undefined, accountability: undefined });
     }
@@ -145,6 +183,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
           sourceType: 'RIS', sourceDocument: ris._id, sourceLine: row._id, sourceKey: `RIS:${ris._id}:${row._id}`, postedBy: admin._id, office: ris.office, inventory: inventory._id, type: 'outgoing', quantity, reference: ris.risNumber,
           description: `RIS issuance - ${type} ${documentNumber}`, runningBalance: updated.quantityOnHand,
         }], { session });
+        await ensureIssuedPropertyCard(inventory, item, session);
         await PropertyCard.updateMany({ deleted: false, 'items.inventory': inventory._id }, {
           $push: { items: { sourceType: 'RIS', sourceDocument: ris._id, sourceDate: ris.date || issuedAt, sourceRemarks: row.remarks || ris.purpose, inventory: inventory._id, property: inventory.property, serialNumber: inventory.serialNumber, propertyNumber: inventory.propertyNumber || row.stockNumber,
             description: row.description || item.description, date: issuedAt, referenceParNo: documentNumber,

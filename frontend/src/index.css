@@ -238,6 +238,7 @@ body {
 .login-card__illustration {
   flex: 1 1 50%;
   display: flex;
+  flex-direction: column;
   min-height: 240px;
   align-items: center;
   justify-content: center;
@@ -245,6 +246,38 @@ body {
   background: linear-gradient(165deg, rgba(15, 52, 35, 0.72), rgba(23, 61, 45, 0.55) 45%, rgba(54, 109, 10, 0.35));
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
+.login-welcome-copy { margin-top: 20px; text-align: center; color: #fff; }
+.login-page .login-welcome-copy h2 { margin: 0 0 8px; font-size: 25px !important; font-weight: 700; line-height: 1.2; }
+.login-page .login-pams-title { font-size: 25px !important; font-weight: 700; line-height: 1.2; }
+.login-page h1.register-pams-title { font-size: 15px !important; }
+.app-shell main button.view-property-card-button {
+  background: transparent !important;
+  border: 1px solid #15803d !important;
+  border-radius: 10px !important;
+  color: #166534 !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+}
+.app-shell main button.view-property-card-button:hover {
+  background: transparent !important;
+  border-color: #14532d !important;
+  color: #14532d !important;
+  text-decoration: none !important;
+}
+.app-shell main button.view-property-card-button:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 3px;
+}
+.app-shell main button.pagination-nav-button {
+  border: 1px solid #15803d !important;
+  color: #166534;
+}
+.app-shell main .property-stock-table thead,
+.app-shell main .property-stock-table thead th {
+  background: #154734 !important;
+  color: #fff !important;
+}
+.login-welcome-copy p { margin: 0; max-width: 300px; font-size: 14px; font-weight: 400; line-height: 1.5; color: rgba(255, 255, 255, .85); }
 
 @media (min-width: 768px) {
   .login-card__illustration {
@@ -630,7 +663,7 @@ button:hover:not(:disabled) {
   backdrop-filter: blur(14px);
 }
 
-.app-shell > div,
+.app-shell > div:not([data-rht-toaster]),
 .app-shell main {
   background: linear-gradient(135deg, rgba(238, 246, 233, 0.92), rgba(207, 222, 178, 0.72));
 }
@@ -1212,6 +1245,20 @@ button.record-action:disabled { opacity: .5; cursor: not-allowed; }
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.app-shell main .saved-record button.prs-review-request {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: #fff !important;
+}
+.app-shell main .saved-record button.prs-review-request:hover {
+  background: linear-gradient(90deg, #65a30d, #15803d) !important;
+  border-color: #166534 !important;
+  color: #fff !important;
+}
+.app-shell main .saved-record button.prs-review-request:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 3px;
+}
 .app-shell main .saved-record button:not(.record-action),
 .app-shell main button.record-action {
   width: auto !important;
@@ -1382,6 +1429,10 @@ body { font-size: var(--app-text-size); }
 .auth-page > div { min-width: 0; max-width: 100%; padding: clamp(12px, 4vw, 32px); }
 .auth-page :where(form, label, input, select, textarea, button) { min-width: 0; max-width: 100%; }
 .auth-page :where(input, select, textarea) { box-sizing: border-box; }
+.office-select option {
+  color: #172e24 !important;
+  background-color: #fff !important;
+}
 
 /* Keep dashboard account totals compact and aligned with the return cards. */
 .dashboard-page .dashboard-breakdowns { align-items: stretch; height: auto; }
@@ -1545,6 +1596,10 @@ body { font-size: var(--app-text-size); }
 @media screen {
   .form-document.ppe-station-form .ppe-input-table :is(th, th span, input, textarea) {
     font-size: 12px !important;
+  }
+  .form-document.ppe-station-form .ppe-input-table :is(th, td, input, textarea) {
+    text-align: center;
+    vertical-align: middle;
   }
 }
 @media screen and (max-width: 640px) {
@@ -1925,6 +1980,10 @@ body { font-size: var(--app-text-size); }
 .title-bar-account:focus-visible { outline: 2px solid #d7e8c9; outline-offset: 4px; border-radius: 8px; }
 @media (max-width: 640px) { .title-bar-account { margin-left: 8px; } .title-bar-account-details { display: none; } .title-bar-account-avatar { width: 36px; height: 36px; } }
 .title-bar-account-group { position: relative; display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
+.registration-account-notice { position: absolute; top: calc(100% + 10px); right: 0; z-index: 60; display: flex; align-items: flex-start; gap: 8px; width: min(340px, calc(100vw - 24px)); padding: 14px; border: 1px solid #b6d8c5; border-radius: 12px; background: #fff; color: #264b3b; box-shadow: 0 8px 26px #173f3233; }
+.registration-account-notice a { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; color: inherit; text-decoration: none; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.registration-account-notice a > svg { flex-shrink: 0; margin-top: 3px; color: #15803d; }
+.app-shell .registration-account-notice > button { flex-shrink: 0; min-width: 24px; padding: 4px !important; border: 0; background: transparent; color: #335947; }
 .app-shell .title-bar-account-toggle { display: flex; align-items: center; justify-content: center; padding: 7px !important; border: 0; background: transparent; color: #fff; border-radius: 8px; }
 .app-shell .title-bar-account-toggle:hover, .app-shell .title-bar-account-toggle[aria-expanded='true'] { background: #ffffff20; }
 .title-bar-account-menu { position: absolute; top: calc(100% + 10px); right: 0; width: 150px; padding: 6px; border: 1px solid #dce6db; border-radius: 10px; background: #fff; box-shadow: 0 8px 26px #173f3233; z-index: 60; }
@@ -2044,14 +2103,26 @@ body { font-size: var(--app-text-size); }
   vertical-align: middle;
   line-height: 1.5;
 }
+.property-card-ledger .pc-history-table thead {
+  background: linear-gradient(90deg, rgba(176, 194, 94, 0.94), rgba(54, 109, 10, 0.96));
+}
 .property-card-ledger .pc-history-table th {
-  background: #f1f6f2;
-  color: #52755f;
+  background: transparent;
+  color: #ffffff;
   font-weight: 600;
 }
 .property-card-ledger .pc-history-table tbody tr:last-child td { border-bottom: 0; }
 .property-card-ledger .pc-history-table tbody tr:hover { background: #edf7ef; }
 .property-card-ledger .pc-history-table :is(.pc-history-date, .pc-history-amount) { white-space: nowrap; }
+.property-card-ledger .pc-history-table :is(th, td):last-child { width: 1%; white-space: nowrap; }
+.property-card-ledger .pc-history-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: max-content;
+}
+.property-card-ledger .pc-history-actions button.record-action { flex-shrink: 0; white-space: nowrap; }
 .property-card-ledger .pc-history-balance {
   display: inline-flex;
   align-items: center;
@@ -2115,13 +2186,47 @@ body { font-size: var(--app-text-size); }
 }
 
 /* New stock appears in a separate rounded green box, like the form controls. */
-.property-stock-table { border-collapse: separate; border-spacing: 0 6px; }
+.property-stock-table { table-layout: fixed; border-collapse: separate; border-spacing: 0 3px; }
+.app-shell main { scrollbar-gutter: stable; }
+.app-shell main .property-stock-table thead th { height: 48px; }
+.app-shell main .property-stock-table tbody tr { height: 44px; }
+.app-shell main .property-stock-table td { overflow-wrap: anywhere; }
+.app-shell main .property-stock-table tbody td {
+  padding: 5px 12px !important;
+  height: auto;
+  vertical-align: middle;
+}
+.app-shell main .property-stock-table :is(th, td) {
+  text-align: left;
+  vertical-align: middle !important;
+}
+.app-shell main .property-stock-table button.view-property-card-button {
+  min-height: 28px !important;
+  padding: 5px 12px !important;
+  line-height: 1.25;
+}
 .property-stock-table tbody .property-stock-row-new > td { background: #ecfdf5; border-top: 1px solid #6ee7b7; border-bottom: 1px solid #6ee7b7; }
-.property-stock-table tbody .property-stock-row-new > td:first-child { border-left: 1px solid #6ee7b7; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
-.property-stock-table tbody .property-stock-row-new > td:last-child { border-right: 1px solid #6ee7b7; border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+.property-stock-table tbody .property-stock-row-new > td:first-child { border-left: 1px solid #6ee7b7; }
+.property-stock-table tbody .property-stock-row-new > td:last-child { border-right: 1px solid #6ee7b7; }
+.app-shell main .property-stock-table :is(tr, th, td) { border-radius: 0 !important; }
+.app-shell main :is(.saved-record, table, thead, tbody, tr, th, td, .ris-table-grid[data-responsive-row]) {
+  border-radius: 0 !important;
+}
 @media (max-width: 640px) {
-  .property-stock-table.table-responsive-cards tbody .property-stock-row-new { background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 10px; overflow: hidden; }
+  .property-stock-table.table-responsive-cards tbody .property-stock-row-new { background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 0; overflow: hidden; }
   .property-stock-table.table-responsive-cards tbody .property-stock-row-new > td { border: 0; border-radius: 0; }
+}
+
+.app-shell main .property-stock-table tbody tr:nth-child(odd),
+.app-shell main .property-stock-table tbody tr:nth-child(odd) > td {
+  background: #cbd0d6 !important;
+  color: #172e24 !important;
+  border-color: #d1d5db;
+}
+.app-shell main .property-stock-table tbody tr:nth-child(even),
+.app-shell main .property-stock-table tbody tr:nth-child(even) > td {
+  background: #fff !important;
+  border-color: #d1d5db;
 }
 
 /* Approved RIS actions align with the item heading instead of a separate bottom row. */

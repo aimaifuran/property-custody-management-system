@@ -11,6 +11,14 @@ const signatoryFields = ['preparedBy', 'preparedDesignation', 'reviewedBy', 'rev
 const defaults = { preparedBy: 'RALPH M. SAVERET JR.', preparedDesignation: 'Property Personnel', reviewedBy: 'ATTY. LEO L. PRUEL', reviewedDesignation: 'Head Property Unit' };
 const fields = ['accountGroup', 'governmentUnit', 'date', 'rows', ...signatoryFields];
 router.use(authenticate, adminOnly);
+router.get('/item-groups', async (req, res) => {
+  const [inventories, accounts, issuedGroups] = await Promise.all([
+    require('../models/Inventory').find({ deleted: false }).populate('item').populate('property', 'condition').sort({ createdAt: 1, _id: 1 }).lean(),
+    require('../models/PropertyAccountability').find({ deleted: false, active: true }).populate('user', 'firstName middleName lastName username').populate('offlineRecipient', 'name').lean(),
+    require('../utils/issuedItems')(),
+  ]);
+  return successResponse(res, 'PPE item groups retrieved', require('../utils/stationPpeGroups')(inventories, accounts, issuedGroups));
+});
 router.get('/', async (req, res) => {
   const [records, settings] = await Promise.all([Report.find().sort(SAVED_REPORT_SORT).lean(), Setting.findOne().sort({ createdAt: 1 }).lean()]);
   return successResponse(res, 'PPE station reports retrieved', { records, defaults: { ...defaults, ...settings?.ppeReportSignatories } });
@@ -27,6 +35,7 @@ router.patch('/signatories', async (req, res) => {
 const save = async (req, res) => {
   if (req.params.id && !mongoose.isValidObjectId(req.params.id)) return errorResponse(res, 'Invalid report ID', [], 400);
   const payload = Object.fromEntries(fields.filter(key => Object.hasOwn(req.body, key)).map(key => [key, req.body[key]]));
+  if (Array.isArray(payload.rows)) payload.rows = payload.rows.map(row => ({ ...row, unitCost: null, totalCost: null }));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.date || '') || Number.isNaN(Date.parse(payload.date)) || new Date(payload.date).toISOString().slice(0, 10) !== payload.date) return errorResponse(res, 'Enter a valid report date', [], 400);
   try {
     const report = req.params.id ? await Report.findByIdAndUpdate(req.params.id, { $set: { ...payload, lastEditedAt: new Date() } }, { new: true, runValidators: true }) : await Report.create({ ...payload, createdBy: req.user._id });

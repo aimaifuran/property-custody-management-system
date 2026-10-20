@@ -114,7 +114,7 @@ export async function buildRisPdf(data, { onDraw } = {}) {
   const drawRow = (values, top, height, wrapped = false) => {
     values.forEach((value, index) => {
       box(edges[index], top, COLUMNS[index], height);
-      draw(value, edges[index], top, COLUMNS[index], height, { align: [2, 7].includes(index) ? 'left' : 'center', section: `item:${index}`, ...(wrapped ? { lines: value } : {}) });
+      draw(value, edges[index], top, COLUMNS[index], height, { align: 'center', section: `item:${index}`, ...(wrapped ? { lines: value } : {}) });
     });
   };
   const footer = top => {

@@ -6,7 +6,6 @@ const InspectionAcceptanceReport = require('../models/InspectionAcceptanceReport
 const Inventory = require('../models/Inventory');
 const Item = require('../models/Item');
 const LedgerTransaction = require('../models/LedgerTransaction');
-const PropertyCard = require('../models/PropertyCard');
 const Accountability = require('../models/PropertyAccountability');
 
 
@@ -70,12 +69,12 @@ router.put('/:id', authenticate, validateAdminForm('iar'), authorize('canManageI
   }
   delete payload.autoNumber;
   if (existing.status === 'LOGGED_TO_STOCKS' && payload.items) {
-    const stockFields = rows => rows.map(row => [row.stockNumber || row.stockPropertyNumber, Number(row.quantity), Number(row.unitCost || 0), row.itemType || 'ASSET', row.serialNumber || '', row.acceptedQuantity ?? row.quantity]);
+    const stockFields = rows => rows.map(row => [row.stockPropertyNumber || row.stockNumber, Number(row.quantity), Number(row.unitCost || 0), row.itemType || 'ASSET', row.serialNumber || '', row.acceptedQuantity ?? row.quantity]);
     if (JSON.stringify(stockFields(existing.items)) !== JSON.stringify(stockFields(payload.items.map((entry, index) => ({ ...entry, acceptedQuantity: entry.acceptedQuantity ?? existing.items[index]?.acceptedQuantity ?? entry.quantity }))))) return errorResponse(res, 'Received stock numbers, quantities, costs and item types are locked. Record additional receipts with a new IAR.', [], 409);
   }
   for (const field of ['status', 'propertyCards', 'requisition', 'inventoryCustodianSlip', 'propertyAcknowledgementReceipt']) delete payload[field];
   if (payload.items) {
-    payload.items = payload.items.map((entry, index) => ({ ...receivedItem(entry), serialNumbers: existing.items[index]?.serialNumbers, acceptedQuantity: existing.items[index]?.acceptedQuantity ?? existing.items[index]?.quantity, inventory: existing.items[index]?.inventory, inventories: existing.items[index]?.inventories, property: existing.items[index]?.property }));
+    payload.items = payload.items.map((entry, index) => ({ ...receivedItem(existing.status === 'LOGGED_TO_STOCKS' ? { ...entry, stockNumber: existing.items[index]?.stockNumber } : entry), serialNumbers: existing.items[index]?.serialNumbers, acceptedQuantity: existing.items[index]?.acceptedQuantity ?? existing.items[index]?.quantity, inventory: existing.items[index]?.inventory, inventories: existing.items[index]?.inventories, property: existing.items[index]?.property }));
   }
   let report;
   try {
@@ -166,24 +165,31 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
       const stockMap = new Map(stocks.map(stock => [stock.stockNumber, stock]));
       payload.items = receivedEntries.map(entry => receivedItem(entry, stockMap.get(String(entry.stockNumber || entry.stockPropertyNumber || '').trim())));
       if (payload.items.reduce((sum, entry) => sum + (entry.itemType === 'ASSET' || entry.serialNumber ? (entry.acceptedQuantity ?? entry.quantity) : 1), 0) > 500) throw new Error('Use at most 500 asset units per IAR');
-      const types = new Map();
       for (const entry of payload.items) {
         if (!Number.isFinite(entry.unitCost) || entry.unitCost < 0) throw new Error(`Set a valid unit cost for ${entry.stockNumber}`);
         if (!['SUPPLY', 'ASSET'].includes(entry.itemType)) throw new Error(`Select Supply or Asset for ${entry.stockNumber}`);
-        if (types.has(entry.stockNumber) && types.get(entry.stockNumber) !== entry.itemType) throw new Error('Use a separate stock number for supplies and assets');
-        types.set(entry.stockNumber, entry.itemType);
       }
       if (automaticNumber) payload.iarNumber = await reserveDocumentNumber(InspectionAcceptanceReport, 'iarNumber', new Date(), session);
       else await recordManualIarNumber(payload.iarNumber, session);
       const [report] = await InspectionAcceptanceReport.create([payload], { session });
-      const propertyCardItems = [];
       for (const entry of report.items) {
         const acceptedQuantity = entry.acceptedQuantity ?? entry.quantity;
         if (!acceptedQuantity) continue;
         let item = await Item.findOne({ stockNumber: entry.stockNumber, deleted: false }).session(session);
+        const normalize = value => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        // The printed IAR row number can repeat. Keep catalog identities separate
+        // when that number was used for a different item or a deleted catalog row.
+        const sameItem = candidate => candidate && normalize(candidate.description) === normalize(entry.description || entry.item)
+          && normalize(candidate.unit) === normalize(entry.unit)
+          && (candidate.itemType || 'ASSET') === entry.itemType
+          && (!entry.propertyPlantAndEquipment || candidate.category === 'General' || normalize(candidate.name || candidate.category) === normalize(entry.propertyPlantAndEquipment));
+        if (item && !sameItem(item)) item = null;
         if (!item && entry.stockNumber) {
-          [item] = await Item.create([{ stockNumber: entry.stockNumber, name: entry.propertyPlantAndEquipment || undefined, unit: entry.unit || 'unit', description: entry.description || entry.item || 'Unnamed item', cost: entry.unitCost || 0, itemType: entry.itemType, category: entry.propertyPlantAndEquipment || 'General' }], { session });
+          const occupied = await Item.exists({ stockNumber: entry.stockNumber }).session(session);
+          const catalogNumber = occupied ? `${entry.stockNumber}~${entry._id}` : entry.stockNumber;
+          [item] = await Item.create([{ stockNumber: catalogNumber, displayStockNumber: entry.stockPropertyNumber || entry.stockNumber, name: entry.propertyPlantAndEquipment || undefined, unit: entry.unit || 'unit', description: entry.description || entry.item || 'Unnamed item', cost: entry.unitCost || 0, itemType: entry.itemType, category: entry.propertyPlantAndEquipment || 'General' }], { session });
         }
+        entry.stockNumber = item.stockNumber;
         if (item && (item.itemType || 'ASSET') !== entry.itemType) throw new Error('Use a separate stock number for a different stock classification');
         if (item && item.unit.trim().toLowerCase() !== String(entry.unit || '').trim().toLowerCase()) throw new Error('Use a separate stock number for a different unit of measure');
         if (entry.propertyPlantAndEquipment && item.category !== 'General' && item.category.trim().toLowerCase() !== entry.propertyPlantAndEquipment.trim().toLowerCase()) throw new Error('Use a separate stock number for a different property category');
@@ -248,56 +254,15 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
             runningBalance: newBalance,
           }], { session });
         }
-        propertyCardItems.push({
-          inventory: inventory?._id,
-          _stockItem: item?._id,
-          _stockNumber: entry.stockNumber,
-          _unit: entry.unit,
-          propertyPlantAndEquipment: entry.propertyPlantAndEquipment,
-          property: inventory?.property,
-          propertyNumber: inventory?.propertyNumber || entry.stockPropertyNumber || entry.stockNumber || null,
-          description: entry.description || entry.item || null,
-          serialNumber: unitSerial || null,
-          date: report.acceptanceDate || null,
-          referenceParNo: null,
-          receiptQuantity,
-          itdQuantity: null,
-          itdOfficeOfficer: null,
-          balanceQuantity: receiptQuantity,
-          amount: lineAmount(receiptQuantity, entry.unitCost),
-          unitCost: entry.unitCost,
-          remarks: null,
-        });
         }
       }
-      const cardGroups = new Map();
-      for (const row of propertyCardItems) {
-        const key = String(row._stockItem);
-        if (!cardGroups.has(key)) cardGroups.set(key, []);
-        cardGroups.get(key).push(row);
-      }
-      const propertyCards = [];
-      for (const [itemId, rows] of cardGroups) {
-        const cleanRows = rows.map(({ _stockItem, _stockNumber, _unit, ...row }) => ({ ...row, sourceType: 'IAR', sourceDocument: report._id, sourceDate: report.acceptanceDate }));
-        const card = await PropertyCard.findOneAndUpdate({ stockItem: itemId }, {
-          $setOnInsert: { stockItem: itemId, iar: report._id, month: report.iarDate ? new Date(report.iarDate).toISOString().slice(0, 7) : null,
-            poNumber: report.poNumber, entityName: report.entityName, fundCluster: report.fundCluster,
-            propertyPlantAndEquipment: [...new Set(rows.map(row => row.propertyPlantAndEquipment).filter(Boolean))].join('; '),
-            description: [...new Set(rows.map(row => row.description).filter(Boolean))].join('; '),
-            propertyNumber: rows[0]?.propertyNumber, serialNumber: rows.map(row => row.serialNumber).filter(Boolean).join('; ') || null },
-          $push: { items: { $each: cleanRows } },
-        }, { upsert: true, returnDocument: 'after', runValidators: true, session });
-        propertyCards.push(card);
-      }
-      report.propertyCards = propertyCards.map(card => card._id);
-
       report.status = 'LOGGED_TO_STOCKS';
       await report.save({ session });
 
       await ActivityLog.create([{
         user: req.user._id,
         action: 'IAR created',
-        details: `IAR ${report.iarNumber} created; Property Card stock updated`,
+        details: `IAR ${report.iarNumber} created; received stock recorded`,
         ipAddress: req.ip,
         browser: req.get('user-agent'),
       }], { session });

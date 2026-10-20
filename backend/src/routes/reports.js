@@ -231,7 +231,7 @@ router.get(['/', '/summary'], authenticate, authorize('canViewDashboard'), async
     canViewUsers ? User.aggregate([{ $match: { deleted: false } }, { $group: { _id: '$role', count: { $sum: 1 } } }]) : [],
   ]);
 
-  const recentActivity = await ActivityLog.find({})
+  const recentActivity = await ActivityLog.find({ action: { $not: /^\s*(?:log\s*in|log\s*out)\s*$/i } })
     .populate('user', 'firstName lastName username')
     .sort({ createdAt: -1 })
     .limit(10);

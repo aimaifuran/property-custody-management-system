@@ -17,7 +17,7 @@ export async function buildStationPpePdf(record, { onDraw } = {}) {
   const { regular, bold } = await embedFormFonts(pdf);
   const [width, height] = FORM_PDF_A4_LANDSCAPE;
   const margin = FORM_PDF_MARGIN, tableWidth = width - 2 * margin;
-  const columns = reportColumns(STATION_PPE_COLUMNS, margin, tableWidth);
+  const columns = reportColumns(STATION_PPE_COLUMNS.map(([key, label, width]) => [key, label, width, 'center']), margin, tableWidth);
   const layout = { page: null, y: 0, bottom: margin, rowCapacity: 0, onDraw };
   const paragraph = (value, x, top, w, font = regular, align = 'center') => drawReportLines(layout.page, wrapReportText(value, w - 8, font), x, top, w, font, { align });
   const nextPage = (withTable = true) => {
@@ -33,7 +33,7 @@ export async function buildStationPpePdf(record, { onDraw } = {}) {
   };
   nextPage();
   for (const row of record.rows || []) {
-    const values = STATION_PPE_COLUMNS.map(([key]) => ['unitCost', 'totalCost'].includes(key) ? stationMoney(row[key]) : row[key]);
+    const values = STATION_PPE_COLUMNS.map(([key]) => ['unitCost', 'totalCost'].includes(key) ? '' : row[key]);
     drawReportGridRow(layout, columns, values, regular, nextPage, 30);
   }
   const blocks = [

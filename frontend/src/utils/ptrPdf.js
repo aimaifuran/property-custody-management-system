@@ -144,7 +144,7 @@ export async function buildPtrPdf(data = {}, { onDraw } = {}) {
   };
   const row = (values, top, height, wrapped = false) => values.forEach((value, index) => {
     box(edges[index], top, COLUMNS[index], height);
-    draw(value, edges[index], top, COLUMNS[index], height, { align: index === 3 ? 'right' : 'left', section: `item:${index}`, ...(wrapped ? { lines: value } : {}) });
+    draw(value, edges[index], top, COLUMNS[index], height, { align: 'center', section: `item:${index}`, ...(wrapped ? { lines: value } : {}) });
   });
   const footer = top => {
     for (const [label, value, height] of [['Remarks:', data.remarks, remarksHeight], ['Reason for Transfer:', data.reasonForTransfer, reasonHeight]]) {

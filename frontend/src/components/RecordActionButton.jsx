@@ -1,8 +1,9 @@
 import Skeleton from './Skeleton';
-import { FileDown, Pencil, Printer } from 'lucide-react';
+import { Eye, FileDown, Pencil, Printer } from 'lucide-react';
 
 const actions = {
   edit: { label: 'Edit', icon: Pencil },
+  view: { label: 'View Form', icon: Eye },
   pdf: { label: 'PDF', icon: FileDown },
   print: { label: 'Print', icon: Printer },
 };

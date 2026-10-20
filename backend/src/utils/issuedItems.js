@@ -15,7 +15,7 @@ module.exports = async function issuedItems() {
     Accountability.find({ deleted: false, ris: { $in: ids } }).lean(),
     PRS.find({ deleted: false, $or: [{ status: 'RETURNED' }, { status: { $exists: false } }], 'items.ris': { $in: ids } }).lean(),
     Returned.find({ deleted: false, prs: null, ris: { $in: ids } }).lean(),
-    Item.find({ deleted: false }).select('name description stockNumber category unit itemType').lean(),
+    Item.find({ deleted: false }).select('name description stockNumber displayStockNumber category unit itemType').lean(),
     Inventory.find({ deleted: false, _id: { $in: requests.flatMap(ris => ris.items.map(row => row.inventory).filter(Boolean)) } }).select('serialNumber propertyNumber').lean(),
   ]);
   const owners = [...requests.map(row => row.requestedBy || row.receivedBy || {}), ...accounts];
@@ -51,7 +51,7 @@ module.exports = async function issuedItems() {
     let holder = group.holders.find(row => row.id === ownerKey);
     if (!holder) { holder = { id: ownerKey, userId: owner.user, offlineRecipientId: owner.offlineRecipient, name, username: user?.username || '', office: account?.office || person?.office || user?.office || ris.office || '', quantity: 0, units: [] }; group.holders.push(holder); }
     holder.quantity += quantity;
-    holder.units.push({ id: String(line._id), fundCluster: ris.fundCluster || '', serialNumber: inventory?.serialNumber || line.serialNumber || '', propertyNumber: inventory?.propertyNumber || account?.propertyNumber || '', quantity, issuedAt: account?.issueDate || ris.issuedAt, documentNumber: account?.documentNumber || line.documentNumber || ris.risNumber, formType: account?.formType || line.formType, risId: String(ris._id), risNumber: ris.risNumber });
+    holder.units.push({ id: String(line._id), inventoryId: String(line.inventory || ''), description: line.description || stock?.description || '', stockNumber: stock?.displayStockNumber || line.stockNumber || '', fundCluster: ris.fundCluster || '', serialNumber: inventory?.serialNumber || line.serialNumber || '', propertyNumber: inventory?.propertyNumber || account?.propertyNumber || '', quantity, issuedAt: account?.issueDate || ris.issuedAt, documentNumber: account?.documentNumber || line.documentNumber || ris.risNumber, formType: account?.formType || line.formType, risId: String(ris._id), risNumber: ris.risNumber });
     group.quantity += quantity;
     groups.set(key, group);
   }

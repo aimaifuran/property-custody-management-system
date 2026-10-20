@@ -1,4 +1,5 @@
 import FormRecordTabs from '../components/FormRecordTabs';
+import SearchInput from '../components/SearchInput';
 import SignatoryValue from '../components/SignatoryValue';
 import { hasRowData } from '../utils/formRows';
 import AddRowButton from '../components/AddRowButton';
@@ -7,7 +8,6 @@ import ValidatedForm from '../components/ValidatedForm';
 import NewFormBadge from '../components/NewFormBadge';
 import FormEditorHeader from '../components/FormEditorHeader';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
-import NewFormButton from '../components/NewFormButton';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -35,6 +35,9 @@ export default function PpeStationReportPage() {
   const [form, setForm] = useState(() => blankForm({}));
   const defaults = useRef({});
   const [records, setRecords] = useState([]);
+  const [itemGroups, setItemGroups] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(true);
+  const [groupsError, setGroupsError] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editorOpen, setEditorOpen] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -59,6 +62,19 @@ export default function PpeStationReportPage() {
     return () => controller.abort();
   }, []);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => {
+    const controller = new AbortController();
+    axios.get('/ppe-station-reports/item-groups', { signal: controller.signal })
+      .then(({ data }) => { setItemGroups(data.data || []); setGroupsLoading(false); })
+      .catch(err => { if (!controller.signal.aborted) { setGroupsError(err.response?.data?.message || 'Unable to load PPE item groups.'); setGroupsLoading(false); } });
+    return () => controller.abort();
+  }, []);
+  const selectAccountGroup = value => {
+    const query = value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+    const exact = itemGroups.find(group => group.key === query);
+    const matches = query ? exact ? [exact] : itemGroups.filter(group => group.key.includes(query)) : [];
+    setForm(previous => ({ ...previous, accountGroup: value, rows: matches.flatMap(group => group.rows.map(row => ({ ...row }))) }));
+  };
   const update = (key, value) => {
     if (signatoryFields.includes(key)) dirtySignatories.current[key] = value;
     setForm(previous => ({ ...previous, [key]: value }));
@@ -73,16 +89,15 @@ export default function PpeStationReportPage() {
     rememberQueue.current = task;
     return task;
   };
-  const reset = () => { setEditorOpen(true); setEditingId(null); setForm(blankForm({ ...defaults.current, ...dirtySignatories.current })); };
   const edit = record => {
-    setEditorOpen(true); setEditingId(record._id); setForm({ ...record, rows: record.rows.map(row => ({ ...row, unitCost: row.unitCost ?? '', totalCost: row.totalCost ?? '' })) });
+    setEditorOpen(true); setEditingId(record._id); setForm({ ...record, rows: record.rows.map(row => ({ ...row, unitCost: '', totalCost: '' })) });
     editor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const save = async event => {
     event.preventDefault(); setSaving(true); setRecentlySavedId(null);
     try {
       await remember();
-      const payload = { ...form, rows: form.rows.filter(row => hasRowData(row, blankRow())).map(row => ({ ...row, unitCost: row.unitCost === '' ? null : Number(row.unitCost), totalCost: row.totalCost === '' ? null : Number(row.totalCost) })) };
+      const payload = { ...form, rows: form.rows.filter(row => hasRowData(row, blankRow())).map(row => ({ ...row, unitCost: null, totalCost: null })) };
       const { data } = editingId ? await axios.put(`/ppe-station-reports/${editingId}`, payload) : await axios.post('/ppe-station-reports', payload);
       setRecords(previous => [data.data, ...previous.filter(record => record._id !== data.data._id)]);
       setRecentlySavedId(data.data._id);
@@ -122,10 +137,11 @@ export default function PpeStationReportPage() {
     {!editorOpen && (<section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-4 space-y-3">{!loading && records.length === 0 && <p className="text-sm text-slate-500">No PPE lists saved yet.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><NewFormBadge record={record} /><div><div className="font-semibold">{record.accountGroup}</div><div className="text-xs text-slate-600">{stationDate(record.date)} | {record.rows.length} PPE rows</div></div><div className="flex gap-2">{canEdit && <RecordActionButton action="edit" onClick={() => edit(record)} />}<RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>)}
     {loading ? <Skeleton className="h-4 w-20" /> : canEdit && editorOpen && !error && <ValidatedForm ref={editor} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ppe-station-form">
       <FormEditorHeader title="List of PPEs Found at Station" description="Record office equipment and the person accountable for each item." onClose={() => setEditorOpen(false)} />
-            {canEdit && <div className="mb-4 flex justify-end"><NewFormButton onNew={reset} editorRef={editor} /></div>}
       <p className="text-center text-sm">Republic of the Philippines</p><div className="my-2">{field('governmentUnit', 'Local Government Unit', 'text', true)}</div>
-      <div className="grid gap-3 sm:grid-cols-2">{field('accountGroup', 'PPE Account Group', 'text', true)}{field('date', 'Date', 'date', true)}</div>
-      <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{STATION_PPE_COLUMNS.map(([key]) => <col key={key} style={{ width: `${inputColumnWidths[key] * 0.95}%` }} />)}<col style={{ width: '5%' }} /></colgroup><thead><tr>{STATION_PPE_COLUMNS.map(([key, label]) => <th key={key}>{label} {key !== 'remarks' && <span className="required-marker text-red-600" aria-hidden="true">*</span>}</th>)}<th><span className="sr-only">Row actions</span></th></tr></thead><tbody>{form.rows.map((row, index) => <tr key={index}>{STATION_PPE_COLUMNS.map(([key, label]) => <td key={key}>{['unitCost', 'totalCost'].includes(key) ? <input required={hasRowData(row, blankRow())} aria-label={`${label}, row ${index + 1}`} type="number" min={0} step="0.01" value={row[key]} onChange={event => setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry) }))} /> : <textarea aria-label={`${label}, row ${index + 1}`} required={hasRowData(row, blankRow()) && (key !== 'remarks')} maxLength={{ article: 100, description: 1500, propertyNumber: 300, accountablePerson: 200, remarks: 300 }[key]} value={row[key] || ''} rows={2} onChange={event => setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry) }))} />}</td>)}<td><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, rows: previous.rows.filter((_, rowIndex) => rowIndex !== index) }))} /></td></tr>)}</tbody></table></TableScroll>
+      <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm"><span className="mb-1 block font-semibold">PPE Account Group <span className="text-red-600" aria-hidden="true">*</span></span><SearchInput aria-label="PPE Account Group" required disabled={groupsLoading || !!groupsError} maxLength={200} value={form.accountGroup} options={itemGroups.map(group => ({ value: group.key, label: group.name }))} onChange={selectAccountGroup} placeholder={groupsLoading ? 'Loading item groups…' : 'Search an item, e.g. Printer'} className="w-full border px-2 py-1" /></label>{field('date', 'Date', 'date', true)}</div>
+      {groupsError && <p role="alert" className="mt-2 text-sm text-rose-700">{groupsError}</p>}
+      {form.accountGroup.trim() && <p role="status" className="mt-2 text-sm text-slate-600">{form.rows.length ? `${form.rows.length} records in this PPE group.` : 'No matching equipment records found.'}</p>}
+      <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{STATION_PPE_COLUMNS.map(([key]) => <col key={key} style={{ width: `${inputColumnWidths[key] * 0.95}%` }} />)}<col style={{ width: '5%' }} /></colgroup><thead><tr>{STATION_PPE_COLUMNS.map(([key, label]) => <th key={key}>{label} {!['remarks', 'unitCost', 'totalCost'].includes(key) && <span className="required-marker text-red-600" aria-hidden="true">*</span>}</th>)}<th><span className="sr-only">Row actions</span></th></tr></thead><tbody>{form.rows.map((row, index) => <tr key={index}>{STATION_PPE_COLUMNS.map(([key, label]) => <td key={key}>{['unitCost', 'totalCost'].includes(key) ? null : <textarea aria-label={`${label}, row ${index + 1}`} required={hasRowData(row, blankRow()) && (key !== 'remarks')} maxLength={{ article: 100, description: 1500, propertyNumber: 300, accountablePerson: 200, remarks: 300 }[key]} value={row[key] || ''} rows={2} onChange={event => setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry) }))} />}</td>)}<td><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, rows: previous.rows.filter((_, rowIndex) => rowIndex !== index) }))} /></td></tr>)}</tbody></table></TableScroll>
       <div className="mt-3 flex justify-end"><AddRowButton disabled={form.rows.length >= 500} onClick={() => setForm(previous => ({ ...previous, rows: [...previous.rows, blankRow()] }))} /></div>
       <div className="mt-5 grid gap-5 border border-slate-400 p-4 md:grid-cols-[3fr_2fr]"><section><p className="mb-3 font-semibold">Prepared by:</p>{field('preparedBy', 'Name')}{field('preparedDesignation', 'Designation')}<p className="mt-3 text-xs">Date: {stationDate(form.date)}</p></section><section><p className="mb-3 font-semibold">Reviewed by:</p>{field('reviewedBy', 'Name')}{field('reviewedDesignation', 'Designation')}</section></div>
       <p className="mt-2 text-xs text-slate-500">Signatories are managed in System Settings.</p>

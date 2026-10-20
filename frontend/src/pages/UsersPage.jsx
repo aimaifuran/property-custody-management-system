@@ -1,4 +1,3 @@
-import usePendingReturns, { returnRequestUserId } from '../utils/usePendingReturns';
 import OfficeSelect from '../components/OfficeSelect';
 import RegistrationRequests from '../components/RegistrationRequests';
 import UserRecordsDialog from '../components/UserRecordsDialog';
@@ -9,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Building2, Eye, Mail, MoreVertical, Pencil, Plus, ShieldCheck, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import AccountNotificationToaster from '../components/AccountNotificationToaster';
 import { useAuth } from '../contexts/AuthContext';
 import './UsersPage.css';
 
@@ -34,10 +34,7 @@ export default function UsersPage() {
   const [form, setForm] = useState(emptyUser);
   const [editorOpen, setEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
   const [openMenu, setOpenMenu] = useState(null);
-  const pendingReturns = usePendingReturns(currentUser?.role === 'admin');
-  const pendingReturnCount = id => pendingReturns.filter(request => returnRequestUserId(request) === String(id)).length;
   const [recordsUser, setRecordsUser] = useState(null);
   const recordsTriggerRef = useRef(null);
   const dialogRef = useRef(null);
@@ -111,29 +108,29 @@ export default function UsersPage() {
   const save = async (e) => {
     e.preventDefault();
     if (saving || currentUser?.role !== 'admin') return;
-    setSaving(true); setSaveError('');
+    setSaving(true); 
     try {
       const role = editingUser ? editingUser.role : form.role;
       const payload = { ...form, role, permissions: role === 'admin' ? [] : ['canViewRIS'] };
       if (!payload.password) delete payload.password;
       const { data } = editingUser ? await axios.put(`/users/${editingUser._id}`, payload) : await axios.post('/users', payload);
       await load();
-      toast.success(editingUser ? 'Account details updated' : role === 'admin' ? 'Administrator account created' : 'User created');
+      toast.success(editingUser ? 'Account details updated' : role === 'admin' ? 'Administrator account created' : 'User created', { toasterId: 'account-feedback' });
       setEditingUser(null);
       setForm(emptyUser());
       setEditorOpen(false);
       setPage(1);
     } catch (error) {
       const message = error.response?.data?.message || 'Unable to save user';
-      setSaveError(message);
-      toast.error(message);
+      
+      toast.error(message, { toasterId: 'user-editor', id: 'user-save-error' });
     }
     finally { setSaving(false); }
   };
 
   const editUser = (user, event) => {
     editorTriggerRef.current = event.currentTarget.closest('.user-account-record')?.querySelector('.user-card-menu-toggle');
-    setOpenMenu(null); setSaveError('');
+    setOpenMenu(null); 
     setEditingUser(user);
     setForm({
       firstName: user.firstName || '',
@@ -151,14 +148,14 @@ export default function UsersPage() {
 
   const createUser = event => {
     editorTriggerRef.current = event.currentTarget;
-    setEditingUser(null); setForm(emptyUser()); setSaveError(''); setOpenMenu(null);
+    setEditingUser(null); setForm(emptyUser());  setOpenMenu(null);
     setEditorOpen(true);
   };
 
   const cancelEdit = () => {
     if (saving) return;
     setEditingUser(null);
-    setForm(emptyUser()); setSaveError(''); setEditorOpen(false);
+    setForm(emptyUser());  setEditorOpen(false);
   };
 
   const toggleLock = async (user) => {
@@ -197,9 +194,9 @@ export default function UsersPage() {
             <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{user.office || 'Office not assigned'}</span></p>
           </div>
           {currentUser?.role === 'admin' && <div className="user-card-actions" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(previous => previous === user._id ? null : previous); }}>
-            <button type="button" className="user-card-menu-toggle relative" aria-label={`Actions for ${user.username}${pendingReturnCount(user._id) ? `, ${pendingReturnCount(user._id)} return requests awaiting confirmation` : ''}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" />{pendingReturnCount(user._id) > 0 && <span className="account-return-badge" aria-hidden="true">{pendingReturnCount(user._id)}</span>}</button>
+            <button type="button" className="user-card-menu-toggle relative" aria-label={`Actions for ${user.username}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" /></button>
             {openMenu === user._id && <div ref={menuRef} id={`user-actions-${user._id}`} className="user-card-menu" role="group" aria-label={`Account actions for ${user.username}`}>
-              <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records{pendingReturnCount(user._id) > 0 && <span className="ml-auto rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white" aria-label={`${pendingReturnCount(user._id)} return requests awaiting confirmation`}>{pendingReturnCount(user._id)}</span>}</button>
+              <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records</button>
                     <button type="button" onClick={event => editUser(user, event)}><Pencil size={15} aria-hidden="true" /> Edit user</button>
               <div className="user-card-lock"><span>{user.status === 'inactive' ? 'Inactive account' : user.locked ? 'Unlock account' : 'Lock account'}</span><AccountLockButton locked={user.locked} username={user.username || user.email} busy={lockingUser === user._id} disabled={!!lockingUser || user.status === 'inactive'} onClick={() => toggleLock(user)} /></div>
             </div>}
@@ -211,12 +208,19 @@ export default function UsersPage() {
 
       {recordsUser && <UserRecordsDialog user={recordsUser} onClose={() => { setRecordsUser(null); window.requestAnimationFrame(() => recordsTriggerRef.current?.focus()); }} />}
       {editorOpen && <dialog ref={dialogRef} role="dialog" className="user-editor-dialog" aria-labelledby="user-editor-title" onCancel={event => { event.preventDefault(); cancelEdit(); }}>
-        <ValidatedForm onSubmit={save}>
+        <AccountNotificationToaster toasterId="user-editor" />
+        <ValidatedForm onSubmit={save} onValidationError={errors => {
+          const first = errors[0];
+          const message = first.field.type === 'email' && first.field.validity.typeMismatch
+            ? 'Email: enter a valid email address. Special characters such as ñ are not accepted by this email field. Use the exact address registered with your email provider.'
+            : `${first.label}: ${first.message}`;
+          
+          toast.error(message, { id: 'user-form-validation', toasterId: 'user-editor' });
+        }}>
         <div className="user-editor-heading">
           <div><h2 id="user-editor-title">{editingUser ? editingUser.role === 'admin' ? 'Edit Administrator Account' : 'Edit User Access' : 'Add User'}</h2><p>{editingUser ? 'Update email or set a new password. Leave password blank to keep it.' : 'Add a member of your office.'}</p></div>
           <button type="button" className="user-editor-close" onClick={cancelEdit} disabled={saving} aria-label="Close user form"><X size={18} aria-hidden="true" /></button>
         </div>
-        {saveError && <p className="user-editor-error" role="alert">{saveError}</p>}
         <fieldset disabled={saving}>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="block">

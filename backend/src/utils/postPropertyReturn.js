@@ -62,6 +62,7 @@ module.exports = async function postPropertyReturn(report, session, actor) {
   }
   if (report.items.length) await ReturnedSupply.create(report.items.map(entry => ({ prs: report._id, ris: entry.ris, risItem: entry.risItem, lguName: report.lguName, purpose: report.purpose, quantity: entry.quantity, unit: entry.unit, description: entry.description, propertyNumber: entry.propertyNumber, mrNumber: entry.mrNumber, unitValue: entry.unitValue, totalValue: entry.totalValue, condition: entry.condition, note: report.note, returnedBy: report.returnedBy, returnedTo: report.returnedTo })), { session, ordered: true });
   report.stockPosted = true;
+  report.returnedAt = new Date();
   await report.save({ session });
   await queueWorkflowEmail('RETURNED', report, session);
 };

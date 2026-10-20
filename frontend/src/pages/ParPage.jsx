@@ -1,4 +1,3 @@
-import FormRecordTabs from '../components/FormRecordTabs';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
@@ -18,7 +17,6 @@ import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
 import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
-import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -29,12 +27,10 @@ import ExcelJS from "exceljs";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { saveAs } from "file-saver";
-import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
+import { getStickySignatory } from '../utils/stickySignatories';
 import FundClusterField from '../components/FundClusterField';
 import Pagination from '../components/Pagination';
-import { FileText, Printer, RotateCcw } from 'lucide-react';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
-import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
 
 const emptyItem = () => ({
     quantity: '',
@@ -45,6 +41,11 @@ const emptyItem = () => ({
     unitCost: '',
     amount: 0
 });
+
+const reportItemNames = record => {
+    const names = (record.items || []).map(item => item.itemName || item.inventory?.item?.name || (item.inventory?.item?.category !== 'General' ? item.inventory?.item?.category : '')).filter(Boolean).map(name => String(name).trim()).filter(Boolean);
+    return [...new Map(names.map(name => [name.toLocaleLowerCase(), name])).values()].join(', ') || 'Item name unavailable';
+};
 
 const toDateInputValue = (date) => {
     if (!date) return '';
@@ -88,12 +89,12 @@ export default function ParPage() {
 
     const [records, setRecords] = useState([]);
     const [editingId, setEditingId] = useState(null);
-    const [editorOpen, setEditorOpen] = useState(!isUser);
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [viewOnly, setViewOnly] = useState(false);
     const [form, setForm] = useState(() => isUser ? null : withCurrentDates(toForm({ items: [emptyItem()] })));
-    const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('PAR', 'parNumber', setForm);
     const [saving, setSaving] = useState(false);
     const selectedRecord = records.find(record => record._id === editingId);
-    const readOnly = !!(selectedRecord?.user || selectedRecord?.offlineRecipient);
+    const readOnly = viewOnly || !!(selectedRecord?.user || selectedRecord?.offlineRecipient);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
@@ -118,34 +119,24 @@ export default function ParPage() {
 
     useEffect(() => {
         load();
-        if (!isUser) refreshNumberPreview();
         const timer = window.setInterval(() => { if (!document.hidden) axios.get('/par').then(({ data }) => setRecords(data.data || [])).catch(() => {}); }, 15000);
         return () => window.clearInterval(timer);
     }, []);
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleRecords = filteredReports.slice((page - 1) * perPage, page * perPage);
 
-    const startEdit = (record) => {
+    const startEdit = (record, readOnlyView = false) => {
         setEditorOpen(true);
-        cancelNumberPreview();
+        setViewOnly(readOnlyView);
         setEditingId(record._id);
         const nextForm = toForm(record);
         if (!record.user) nextForm.issuedBy = getStickySignatory('issuedBy', nextForm.issuedBy);
         setForm(nextForm);
     };
 
-    const createNew = () => {
-        setEditorOpen(true);
-        setEditingId(null);
-        const nextForm = withCurrentDates(toForm({ items: [emptyItem()] }));
-        nextForm.issuedBy = getStickySignatory('issuedBy', nextForm.issuedBy);
-        setForm(nextForm);
-        refreshNumberPreview();
-    };
-
     const cancelEdit = () => {
         setEditorOpen(false);
-        cancelNumberPreview();
+        setViewOnly(false);
         setEditingId(null);
         setForm(null);
     };
@@ -341,20 +332,20 @@ export default function ParPage() {
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
         <div className="space-y-6">
-            {!isUser && <FormRecordTabs label="Property Acknowledgement Receipt" showForm={editorOpen} onForm={() => { if (form) setEditorOpen(true); else createNew(); }} onRecords={() => setEditorOpen(false)} />}
             {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
                         <div>
+                            <div className="mb-1 font-semibold text-slate-900">{reportItemNames(record)}</div>
                             <b>{record.parNumber || 'Unassigned PAR No.'}</b>
                             <div className="text-sm text-slate-500">
                                 {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <RecordActionButton action="edit" title={readOnly || isUser ? "Open form" : "Update record"} onClick={() => startEdit(record)} />
+                            <RecordActionButton action="view" title="View Form" onClick={() => startEdit(record, true)} />
                             {/* <button type="button" onClick={() => generateDoc(record)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(record)} />
                             <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(record, true)} />
@@ -367,7 +358,6 @@ export default function ParPage() {
             {editorOpen && form && (
                 <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                     <FormEditorHeader title="Property Acknowledgement Receipt" description="Linked RIS issuances for items with a unit cost of ₱50,000 or more are recorded here under the requester account." onClose={cancelEdit} />
-            {!isUser && <div className="mb-4 flex justify-end"><NewFormButton onNew={createNew} editorRef={editorRef} /></div>}
                 {!editingId && !isUser && <IarSourceSelect type="par" setForm={setForm} />}
                     <fieldset disabled={readOnly} className="min-w-0">
                     <div className="grid gap-3 md:grid-cols-3">

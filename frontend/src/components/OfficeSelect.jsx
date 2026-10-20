@@ -18,8 +18,8 @@ const OFFICE_OPTIONS = [
   'Supply Office',
 ];
 
-export default function OfficeSelect({ value = '', readOnly = false, ...props }) {
-  return <select {...props} value={value} disabled={readOnly || props.disabled}>
+export default function OfficeSelect({ value = '', readOnly = false, className = '', ...props }) {
+  return <select {...props} className={`office-select ${className}`} value={value} disabled={readOnly || props.disabled}>
     <option value="">Select office</option>
     {value && !OFFICE_OPTIONS.includes(value) && <option value={value}>{value}</option>}
     {OFFICE_OPTIONS.map(office => <option key={office} value={office}>{office}</option>)}
