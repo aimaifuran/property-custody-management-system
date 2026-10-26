@@ -6,7 +6,7 @@ import { Eye, EyeOff, UserRound } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
 
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 
@@ -76,6 +76,7 @@ export default function LoginPage() {
   const { login } = useAuth();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const reducedMotion = useReducedMotion();
   const signingIn = submitting || !!loginDestination;
 
@@ -96,7 +97,11 @@ export default function LoginPage() {
     try {
 
       const result = await login(identifier, password, rememberMe);
-      setLoginDestination(result.data?.user?.role === 'admin' ? '/dashboard' : '/my-issued-items');
+      const target = location.state?.from;
+      const userTarget = ['/my-issued-items', '/my-returns'].includes(target?.pathname)
+        ? `${target.pathname}${target.search || ''}`
+        : '/my-issued-items';
+      setLoginDestination(result.data?.user?.role === 'admin' ? '/dashboard' : userTarget);
 
     } catch (error) {
 

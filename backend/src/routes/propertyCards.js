@@ -22,6 +22,10 @@ router.get('/stock-ledger', authenticate, authorize(['canViewRIS', 'canManageInv
     const card = await PropertyCard.findById(req.query.card).lean();
     if (card && (card.items || []).some(row => Number(row.itdQuantity) > 0)) { const inventory = await require('../models/Inventory').findOne({ _id: { $in: (card.items || []).map(row => row.inventory).filter(Boolean) } }).lean(); initialItemId = inventory?.item; }
   }
+  // A Property Card becomes visible only after an issuance has been posted.
+  const issuedCards = await PropertyCard.find({ deleted: false, items: { $elemMatch: { itdQuantity: { $gt: 0 } } } }).select('stockItem').lean();
+  const issuedStockIds = issuedCards.map(card => card.stockItem).filter(Boolean);
+  filter._id = { $in: issuedStockIds };
   const items = await Item.find(filter).sort({ stockNumber: 1 }).lean();
   const state = item => Number(item.quantityOnHand) <= 0 ? 'Out of Stock' : item.reorderLevel != null && item.quantityOnHand <= item.reorderLevel ? 'Low Stock' : 'In Stock';
   const summary = { total: items.length, inStock: items.filter(item => item.quantityOnHand > 0).length, lowStock: items.filter(item => state(item) === 'Low Stock').length, outOfStock: items.filter(item => state(item) === 'Out of Stock').length };
@@ -54,6 +58,8 @@ router.get('/stock-ledger', authenticate, authorize(['canViewRIS', 'canManageInv
 });
 router.get('/stock-ledger/:itemId', authenticate, authorize(['canViewRIS', 'canManageInventory', 'canViewDashboard']), async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.itemId)) return errorResponse(res, 'Invalid item', [], 400);
+  const hasIssuedCard = await PropertyCard.exists({ deleted: false, stockItem: req.params.itemId, items: { $elemMatch: { itdQuantity: { $gt: 0 } } } });
+  if (!hasIssuedCard) return errorResponse(res, 'Property Card history is available after an item has been issued', [], 404);
   const result = await require('../utils/itemPropertyLedger')(req.params.itemId);
   if (!result) return errorResponse(res, 'Item not found', [], 404);
   return successResponse(res, 'Item Property Card retrieved', result);

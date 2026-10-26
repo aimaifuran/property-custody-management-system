@@ -23,13 +23,14 @@ const secondaryCards = [
   { key: 'prs', title: 'Property Return Slip', icon: RotateCcw, iconBg: 'bg-rose-50', iconColor: 'text-rose-700' },
 ];
 
+// Reuse the Issue card icon palette so the dashboard charts feel connected.
 const RETURN_SLIP_COLORS = {
-  disposal: '#dc2626',
-  'returned to stock': '#ffff00',
-  repair: '#0f766e',
-  return: '#84cc16',
+  disposal: '#f97316', // Inventory Custodian Slip: orange
+  'returned to stock': '#10b981', // IAR: emerald
+  repair: '#0ea5e9', // Property Card: blue
+  return: '#c026d3', // RIS: fuchsia
 };
-const getReturnSlipColor = (label) => RETURN_SLIP_COLORS[String(label || '').trim().toLowerCase()] || '#64748b';
+const getReturnSlipColor = (label) => RETURN_SLIP_COLORS[String(label || '').trim().toLowerCase()] || '#4f46e5'; // PAR: indigo
 const REPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const renderReturnCount = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {

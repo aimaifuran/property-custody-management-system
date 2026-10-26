@@ -30,9 +30,10 @@ const userRoutes = new Set(['/my-issued-items', '/my-returns', '/profile']);
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   if (!authReady || loading) return <div className="auth-loading-screen" role="status" aria-label="Checking session"><HourglassLoader /><span className="sr-only">Checking session...</span></div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   if (user.role !== 'admin' && !userRoutes.has(pathname)) return <Navigate to="/my-issued-items" replace />;
   if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/my-issued-items" replace />;
   const requiredPermissions = Array.isArray(permission) ? permission : [permission];

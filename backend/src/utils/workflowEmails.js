@@ -16,8 +16,12 @@ function emailContent(event, record) {
     return `- ${row.description || row.stockNumber || 'Item'}: ${quantity ?? 0} ${row.unit || 'unit(s)'}${event === 'RETURNED' ? ` (${row.condition || 'Serviceable'})` : ''}`;
   });
   const page = event === 'RETURNED' ? '/my-returns' : '/my-issued-items';
-  const base = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
-  return { subject: `PAMS: ${title} (${reference})`, text: [description, `Reference: ${reference}`, ...rows, ...(base ? [`View your records: ${base}${page}`] : ['Sign in to PAMS to view your records.'])].join('\n\n') };
+  const base = String(process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://pais-v1.vercel.app' : 'http://localhost:5173')).replace(/\/$/, '');
+  const url = `${base}${page}`;
+  const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  const text = [description, `Reference: ${reference}`, ...rows, `View your records: ${url}`].join('\n\n');
+  const html = `<div style="font-family:Arial,sans-serif;color:#1f2937;line-height:1.6"><h2 style="color:#0f5132">${escapeHtml(title)}</h2><p>${escapeHtml(description)}</p><p><strong>Reference:</strong> ${escapeHtml(reference)}</p>${rows.length ? `<ul>${rows.map(row => `<li>${escapeHtml(row.slice(2))}</li>`).join('')}</ul>` : ''}<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="display:inline-block;background:#0f766e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold">Open ${event === 'RETURNED' ? 'Returned Items' : 'Issued Items'}</a></p><p>Sign in to PAMS to view your account records.</p></div>`;
+  return { subject: `PAMS: ${title} (${reference})`, text, html };
 }
 
 async function queueWorkflowEmail(event, record, session) {

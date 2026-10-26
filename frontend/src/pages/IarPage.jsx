@@ -172,6 +172,9 @@ export default function IarPage() {
             [key]: value,
             ...(key === 'stockPropertyNumber' ? { stockNumber: value } : {})
         } : item);
+        if (key === 'serialNumber' && String(value || '').trim()) {
+          items[index] = { ...items[index], quantity: 1, acceptedQuantity: 1 };
+        }
         if (['quantity', 'serialNumber'].includes(key)) {
           const stockPropertyNumber = singleStockPropertyNumber(items[index]);
           items[index] = { ...items[index], stockPropertyNumber, stockNumber: stockPropertyNumber };
@@ -268,8 +271,6 @@ export default function IarPage() {
             })
         };
         if (!payload.items.length) { showSaveValidationError('Enter at least one received item before saving the IAR.', '[aria-label="Property, Plant and Equipment"]'); return; }
-        const invalidSerialIndex = form.items.findIndex(item => hasRowData(item, emptyItem()) && String(item.serialNumber || '').trim() && Number(item.quantity) !== 1);
-        if (invalidSerialIndex >= 0) { showSaveValidationError(`Item ${invalidSerialIndex + 1}: Only 1 Qty. per Serial Number`, '[aria-label="Quantity"][aria-invalid="true"]'); return; }
         setSaveError('');
         setSaving(true);
         try {
@@ -498,19 +499,18 @@ export default function IarPage() {
                 </thead>
                 <tbody>
                   {form.items.map((item, index) => {
-                    const serialQuantityConflict = Boolean(String(item.serialNumber || '').trim()) && Number(item.quantity) !== 1;
+                    const hasSerialNumber = Boolean(String(item.serialNumber || '').trim());
                     return <tr key={index}>
                       {['stockPropertyNumber', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
                           {key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={item[key] ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
-                            <input required={key !== 'serialNumber' && hasRowData(item, emptyItem())} aria-invalid={key === 'serialNumber' && serialQuantityConflict ? 'true' : undefined} aria-label={key === 'serialNumber' ? 'Serial Number' : key} value={item[key] ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className={`w-full rounded-xl border px-2 py-2 ${key === 'serialNumber' && serialQuantityConflict ? 'border-rose-500 bg-rose-50 ring-1 ring-rose-300' : 'border-slate-200'}`} />}
+                            <input required={key !== 'serialNumber' && hasRowData(item, emptyItem())} aria-label={key === 'serialNumber' ? 'Serial Number' : key} value={item[key] ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                           {key === 'serialNumber' && Number(item.quantity) <= 1 && item.serialNumbers?.length > 0 && <p className="mt-1 break-words text-xs text-slate-500">Assigned: {item.serialNumbers[0]}</p>}
                         </td>
                       )}
                       <td className="p-2">
                         <div className="relative">
-                        {serialQuantityConflict && <div id={`iar-quantity-error-${index}`} role="alert" className="absolute bottom-full left-1/2 z-30 mb-2 w-max -translate-x-1/2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow-lg">Only 1 Qty. per Serial Number</div>}
-                        <input required={hasRowData(item, emptyItem())} aria-invalid={serialQuantityConflict ? 'true' : undefined} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className={`w-full rounded-xl border px-2 py-2 ${serialQuantityConflict ? 'border-rose-500 bg-rose-50 ring-1 ring-rose-300' : 'border-slate-200'}`} />
+                        <input required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} readOnly={hasSerialNumber} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className={`w-full rounded-xl border border-slate-200 px-2 py-2 ${hasSerialNumber ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`} />
                         </div>
                       </td>
                       {form.acceptanceStatus === 'Partial' && <td className="p-2"><input type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>}
@@ -522,7 +522,7 @@ export default function IarPage() {
                 </tbody>
               </table>
             </TableScroll>
-            <p className="mt-2 text-sm text-slate-600">Serial number is optional. When provided, quantity must be 1; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
+            <p className="mt-2 text-sm text-slate-600">Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
             <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
             <div className="mt-3 flex justify-end"><AddRowButton onClick={() => {
               setSaveError('');

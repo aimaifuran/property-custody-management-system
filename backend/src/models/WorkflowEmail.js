@@ -5,6 +5,7 @@ const schema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   subject: { type: String, required: true },
   text: { type: String, required: true },
+  html: { type: String },
   status: { type: String, enum: ['PENDING', 'SENDING', 'SENT', 'SKIPPED'], default: 'PENDING' },
   attempts: { type: Number, default: 0 },
   nextAttemptAt: { type: Date, default: Date.now },

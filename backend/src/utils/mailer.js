@@ -68,6 +68,7 @@ const sendWorkflowEmail = async (user, email) => getTransporter().sendMail({
   to: user.email,
   subject: email.subject,
   text: email.text,
+  html: email.html,
   messageId: `<pams-${email._id}@notifications.pams.local>`,
 });
 

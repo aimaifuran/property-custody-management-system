@@ -6,7 +6,6 @@ const InspectionAcceptanceReport = require('../models/InspectionAcceptanceReport
 const Inventory = require('../models/Inventory');
 const Item = require('../models/Item');
 const LedgerTransaction = require('../models/LedgerTransaction');
-const PropertyCard = require('../models/PropertyCard');
 const Accountability = require('../models/PropertyAccountability');
 
 
@@ -173,7 +172,6 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
       if (automaticNumber) payload.iarNumber = await reserveDocumentNumber(InspectionAcceptanceReport, 'iarNumber', new Date(), session);
       else await recordManualIarNumber(payload.iarNumber, session);
       const [report] = await InspectionAcceptanceReport.create([payload], { session });
-      const propertyCardItems = [];
       for (const entry of report.items) {
         const acceptedQuantity = entry.acceptedQuantity ?? entry.quantity;
         if (!acceptedQuantity) continue;
@@ -256,53 +254,15 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
             runningBalance: newBalance,
           }], { session });
         }
-        propertyCardItems.push({
-          inventory: inventory?._id,
-          _stockItem: item?._id,
-          propertyPlantAndEquipment: entry.propertyPlantAndEquipment,
-          property: inventory?.property,
-          propertyNumber: inventory?.propertyNumber || entry.stockPropertyNumber || entry.stockNumber || null,
-          description: entry.description || entry.item || null,
-          serialNumber: unitSerial || null,
-          date: report.acceptanceDate || null,
-          referenceParNo: null,
-          receiptQuantity,
-          itdQuantity: null,
-          itdOfficeOfficer: null,
-          balanceQuantity: receiptQuantity,
-          amount: lineAmount(receiptQuantity, entry.unitCost),
-          unitCost: entry.unitCost,
-          remarks: null,
-        });
         }
       }
-      const cardGroups = new Map();
-      for (const row of propertyCardItems) {
-        const key = String(row._stockItem);
-        if (!cardGroups.has(key)) cardGroups.set(key, []);
-        cardGroups.get(key).push(row);
-      }
-      const propertyCards = [];
-      for (const [itemId, rows] of cardGroups) {
-        const cleanRows = rows.map(({ _stockItem, ...row }) => ({ ...row, sourceType: 'IAR', sourceDocument: report._id, sourceDate: report.acceptanceDate }));
-        const card = await PropertyCard.findOneAndUpdate({ stockItem: itemId }, {
-          $setOnInsert: { stockItem: itemId, iar: report._id, month: report.iarDate ? new Date(report.iarDate).toISOString().slice(0, 7) : null,
-            poNumber: report.poNumber, entityName: report.entityName, fundCluster: report.fundCluster,
-            propertyPlantAndEquipment: [...new Set(rows.map(row => row.propertyPlantAndEquipment).filter(Boolean))].join('; '),
-            description: [...new Set(rows.map(row => row.description).filter(Boolean))].join('; '),
-            propertyNumber: rows[0]?.propertyNumber, serialNumber: rows.map(row => row.serialNumber).filter(Boolean).join('; ') || null },
-          $push: { items: { $each: cleanRows } },
-        }, { upsert: true, returnDocument: 'after', runValidators: true, session });
-        propertyCards.push(card);
-      }
-      report.propertyCards = propertyCards.map(card => card._id);
       report.status = 'LOGGED_TO_STOCKS';
       await report.save({ session });
 
       await ActivityLog.create([{
         user: req.user._id,
         action: 'IAR created',
-        details: `IAR ${report.iarNumber} created; Property Card stock updated`,
+        details: `IAR ${report.iarNumber} created; stock and RIS draft recorded`,
         ipAddress: req.ip,
         browser: req.get('user-agent'),
       }], { session });

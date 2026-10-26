@@ -93,7 +93,7 @@ export default function MyIssuedItemsPage() {
     {error && <div role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">{error}</div>}
     {loading ? <Skeleton className="h-4 w-20" /> : !error && <section className="minimal-surface p-6">
       {items.length === 0 ? <p className="text-sm text-slate-500">No requests or issued items have been recorded under your account yet.</p> : <TableScroll className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="user-issued-items-table min-w-full text-left text-sm">
           <thead><tr className="border-b text-slate-500">{['Property / Item', 'Stock No.', 'Quantity Requested', 'Quantity Issued', 'RIS No.', 'ICS / PAR No.', 'Date Issued', 'Status'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
           <tbody>{items.map(item => <tr key={item.rowKey} className="border-b border-slate-100">
             <td className="p-3 font-medium">{item.description || item.stockNumber || 'Item'}</td><td className="p-3">{item.stockNumber || '—'}</td><td className="p-3">{item.quantityRequested ?? '—'}</td><td className="p-3">{item.quantityIssued ?? '—'}</td><td className="p-3">{item.risNumber || '—'}</td><td className="p-3">{item.documentNumber ? `${item.formType} ${item.documentNumber}` : '—'}</td><td className="p-3">{item.issuedAt ? new Date(item.issuedAt).toLocaleDateString() : '—'}</td><td className="p-3"><div className="flex flex-col items-start gap-2"><ItemStatus item={item} />
