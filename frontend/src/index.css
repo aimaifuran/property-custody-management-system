@@ -1747,7 +1747,7 @@ body { font-size: var(--app-text-size); }
   min-height: 100dvh; padding: 12px; color: #fff;
 }
 .forgot-password-page .recovery-card {
-  width: 100%; max-width: 380px; min-width: 0; padding: 20px;
+  width: 100%; max-width: 380px; min-width: 0; margin: auto; padding: 20px;
   border-radius: 24px; background: rgba(19, 58, 39, .88);
   border-color: rgba(226, 238, 201, .45);
 }
@@ -1804,9 +1804,6 @@ body { font-size: var(--app-text-size); }
   .forgot-password-page .recovery-card { padding: 16px; border-radius: 20px; }
   .login-page.forgot-password-page .recovery-form .recovery-input { font-size: 16px !important; }
   .forgot-password-page .recovery-heading h1 { font-size: 20px !important; }
-}
-@media (max-height: 680px) {
-  .forgot-password-page { align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .recovery-spinner { animation: none; }
