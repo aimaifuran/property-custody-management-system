@@ -31,7 +31,7 @@ export default function RegisterPage() {
     } catch (error) { setError(error.response?.data?.message || 'Unable to send registration request. Please try again.'); }
     finally { setSaving(false); }
   };
-  return <div className="login-page flex min-h-screen items-center justify-center px-4 py-8 text-white">
+  return <div className="login-page registration-page flex min-h-screen items-center justify-center px-4 py-8 text-white">
     <div className="login-page__wash" aria-hidden="true" />
     <div className="login-card-shell relative w-full max-w-2xl"><div className="login-card rounded-2xl p-6 sm:p-8">
       <div className="mb-6 text-center"><img src="/lgu-logo.png" alt="Municipality of Carigara official seal" className="mx-auto mb-3 h-16 w-16 rounded-full" /><h1 className="register-pams-title font-bold">Register for PAMS</h1><p className="mt-2 text-sm text-white/75">Submit your details for administrator approval.</p></div>
