@@ -11,6 +11,21 @@ const { authenticate, authorize, adminOnly } = require('../middlewares/auth');
 const router = express.Router();
 const { linkLegacyRequests } = require('../utils/accountLinks');
 const { lockInactiveUsers } = require('../utils/inactivityLock');
+const { pictureUpload, pictureData } = require('../utils/pictureUpload');
+
+router.post('/:id/profile-picture', authenticate, adminOnly, (req, res, next) => {
+  if (!require('mongoose').isValidObjectId(req.params.id)) return errorResponse(res, 'Invalid user account', [], 400);
+  pictureUpload(req, res, error => {
+    if (error) return errorResponse(res, error.code === 'LIMIT_FILE_SIZE' ? 'Profile picture must be 2 MB or smaller.' : 'Upload one profile picture.', [], 400);
+    next();
+  });
+}, async (req, res) => {
+  const image = pictureData(req.file);
+  if (!image) return errorResponse(res, 'Choose a valid JPG, PNG, or WebP image.', [], 400);
+  const user = await User.findOneAndUpdate({ _id: req.params.id, deleted: false, role: 'user' }, { $set: { profilePicture: image } }, { new: true });
+  if (!user) return errorResponse(res, 'User account not found', [], 404);
+  return successResponse(res, 'User profile picture updated', { profilePicture: user.profilePicture });
+});
 
 router.get('/:id/records', authenticate, adminOnly, async (req, res) => {
   const mongoose = require('mongoose');

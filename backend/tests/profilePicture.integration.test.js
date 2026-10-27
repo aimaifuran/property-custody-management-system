@@ -17,9 +17,10 @@ test('profile picture upload persists only to the authenticated account and vali
   const other = await makeUser('records-other');
 
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=', 'base64');
-  const upload = async (actor, bytes, type = 'image/png') => {
+  const upload = async (actor, bytes, type = 'image/png', target) => {
     const form = new FormData(); form.append('picture', new Blob([bytes], { type }), 'photo.png');
-    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/profile-picture`, { method: 'POST', headers: { Authorization: `Bearer ${jwt.sign({ id: actor._id }, process.env.JWT_SECRET || 'dev-secret')}` }, body: form });
+    const route = target ? `/users/${target}/profile-picture` : '/auth/profile-picture';
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, { method: 'POST', headers: { Authorization: `Bearer ${jwt.sign({ id: actor._id }, process.env.JWT_SECRET || 'dev-secret')}` }, body: form });
     return { status: response.status, body: await response.json() };
   };
   assert.equal((await upload(admin, png)).status, 200);
@@ -36,4 +37,12 @@ test('profile picture upload persists only to the authenticated account and vali
   assert.equal((await User.findById(admin._id)).profilePicture, `data:image/png;base64,${png.toString('base64')}`, 'Rejected uploads preserve the saved picture');
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/me`, { headers: { Authorization: `Bearer ${jwt.sign({ id: admin._id }, process.env.JWT_SECRET || 'dev-secret')}` } });
   assert.equal((await response.json()).data.user.profilePicture, `data:image/png;base64,${png.toString('base64')}`);
+  assert.equal((await upload(user, png, 'image/png', other._id)).status, 403);
+  assert.equal((await User.findById(other._id)).profilePicture, undefined);
+  assert.equal((await upload(admin, Buffer.from('invalid'), 'image/png', other._id)).status, 400);
+  assert.equal((await upload(admin, png, 'image/png', 'invalid')).status, 400);
+  assert.equal((await upload(admin, png, 'image/png', new mongoose.Types.ObjectId())).status, 404);
+  assert.equal((await upload(admin, png, 'image/png', other._id)).status, 200);
+  const profile = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/me`, { headers: { Authorization: `Bearer ${jwt.sign({ id: other._id }, process.env.JWT_SECRET || 'dev-secret')}` } });
+  assert.equal((await profile.json()).data.user.profilePicture, `data:image/png;base64,${png.toString('base64')}`, 'User profile returns the photo assigned by the administrator');
 });
