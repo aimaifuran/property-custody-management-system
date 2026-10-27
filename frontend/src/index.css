@@ -2480,16 +2480,19 @@ body { font-size: var(--app-text-size); }
   .sign-in-page .login-welcome-copy { margin-top: 2px; }
   .sign-in-page .login-welcome-copy h2 { font-size: 16px !important; margin-bottom: 2px; }
   .sign-in-page .login-welcome-copy p { font-size: 10px !important; line-height: 1.25; }
-  .sign-in-page .login-card__form { padding: 8px 10px !important; }
-  .sign-in-page .login-card__form img { width: 24px; height: 24px; margin-bottom: 2px; }
-  .sign-in-page .login-pams-title { font-size: 16px !important; }
-  .sign-in-page .login-card__form > .mb-3 { margin-bottom: 4px; }
-  .sign-in-page .login-card__form form > * + * { margin-top: 5px; }
-  .sign-in-page .login-card__form .login-input { min-height: 32px; padding-block: 4px; }
-  .sign-in-page .login-card__form .login-button { min-height: 32px; padding-block: 6px !important; }
-  .sign-in-page .login-card__form > a { margin-top: 3px; }
-  .sign-in-page .login-card__form > div:last-child { margin-top: 4px; padding-top: 4px; }
-  .sign-in-page .login-card__form > div:last-child a { margin-top: 3px; padding-block: 4px; }
+  .sign-in-page .login-card__form { padding: 6px 10px !important; }
+  .sign-in-page .login-card__form img { width: 20px; height: 20px; margin-bottom: 0; }
+  .sign-in-page .login-pams-title { font-size: 14px !important; line-height: 1.2; }
+  .sign-in-page .login-card__form > .mb-3 { margin-bottom: 3px; }
+  .sign-in-page .login-card__form form > * + * { margin-top: 4px; }
+  .sign-in-page .login-card__form label > span { margin-bottom: 2px; font-size: 11px !important; }
+  .sign-in-page .login-card__form label.flex { min-height: 24px; font-size: 11px !important; }
+  .sign-in-page .login-card__form .login-input { height: 28px; min-height: 28px; padding-block: 2px; }
+  .sign-in-page .login-card__form .login-button { min-height: 28px; padding-block: 4px !important; font-size: 11px !important; }
+  .sign-in-page .login-card__form > a { margin-top: 2px; padding-block: 2px; font-size: 11px !important; }
+  .sign-in-page .login-card__form > div:last-child { margin-top: 3px; padding-top: 3px; }
+  .sign-in-page .login-card__form > div:last-child p { font-size: 11px !important; line-height: 1.3; }
+  .sign-in-page .login-card__form > div:last-child a { margin-top: 2px; padding-block: 3px; font-size: 11px !important; }
 }
 
 .app-shell main :is(.user-issued-items-table, .user-returns-table) thead,
