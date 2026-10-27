@@ -83,6 +83,8 @@ export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}
     drawTemplateRows(page, fonts.regular, rows, layout, { ...options, page: pageIndex });
   }
   const number = data.iarNumber || data.icsNumber || data.parNumber || data.prsNumber || data.propertyNumber;
-  await appendTemplateInformation(output, overflow, record.type, number, async () => fonts, options);
+  if (template !== 'pc') {
+    await appendTemplateInformation(output, overflow, record.type, number, async () => fonts, options);
+  }
   return output.save();
 }
