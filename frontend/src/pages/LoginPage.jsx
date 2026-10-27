@@ -125,7 +125,7 @@ export default function LoginPage() {
 
   return (
 
-    <div className="login-page flex min-h-screen items-center justify-center px-3 py-4 md:px-4 md:py-10 text-white">
+    <div className="login-page sign-in-page flex min-h-screen items-center justify-center px-3 py-4 md:px-4 md:py-10 text-white">
 
       <div className="login-page__wash" aria-hidden="true" />
 
