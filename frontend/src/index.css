@@ -1744,40 +1744,40 @@ body { font-size: var(--app-text-size); }
 /* Account recovery shares the login background, municipal branding, and green palette. */
 .forgot-password-page {
   display: flex; align-items: center; justify-content: center;
-  min-height: 100svh; padding: 32px 20px; color: #fff;
+  min-height: 100dvh; padding: 12px; color: #fff;
 }
 .forgot-password-page .recovery-card {
-  width: 100%; max-width: 440px; min-width: 0; padding: 32px;
+  width: 100%; max-width: 380px; min-width: 0; padding: 20px;
   border-radius: 24px; background: rgba(19, 58, 39, .88);
   border-color: rgba(226, 238, 201, .45);
 }
 .recovery-brand {
-  display: flex; flex-direction: column; align-items: center; gap: 14px; padding-bottom: 24px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding-bottom: 12px; text-align: center;
   border-bottom: 1px solid rgba(255, 255, 255, .16);
 }
-.recovery-brand img { flex-shrink: 0; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .18); }
-.forgot-password-page .recovery-brand__name { font-size: 22px !important; font-weight: 700; letter-spacing: .08em; }
+.recovery-brand img { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .18); }
+.forgot-password-page .recovery-brand__name { font-size: 18px !important; font-weight: 700; letter-spacing: .08em; }
 .forgot-password-page .recovery-brand p { margin: 4px 0 0; font-size: 12px !important; color: #d9e6cf; line-height: 1.5; }
-.recovery-heading { padding: 24px 0; }
+.recovery-heading { padding: 12px 0; }
 .recovery-icon {
   display: flex; align-items: center; justify-content: center;
-  width: 48px; height: 48px; margin-bottom: 18px; border-radius: 14px;
+  width: 32px; height: 32px; margin-bottom: 8px; border-radius: 10px;
   border: 1px solid rgba(192, 208, 125, .35); background: rgba(176, 194, 94, .14); color: #d5e59d;
 }
 .forgot-password-page .recovery-eyebrow { margin: 0 0 8px; color: #d5e59d; font-size: 11px !important; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.forgot-password-page .recovery-heading h1 { margin: 0; font-size: 24px !important; font-weight: 700; line-height: 1.25; }
-.forgot-password-page .recovery-heading > p:last-child { margin: 12px 0 0; color: #e0eadb; font-size: 14px !important; line-height: 1.6; }
-.recovery-form { display: grid; gap: 18px; }
-.forgot-password-page .recovery-label { display: block; margin-bottom: 8px; font-size: 13px !important; font-weight: 600; }
+.forgot-password-page .recovery-heading h1 { margin: 0; font-size: 20px !important; font-weight: 700; line-height: 1.25; }
+.forgot-password-page .recovery-heading > p:last-child { margin: 6px 0 0; color: #e0eadb; font-size: 12px !important; line-height: 1.4; }
+.recovery-form { display: grid; gap: 10px; }
+.forgot-password-page .recovery-label { display: block; margin-bottom: 4px; font-size: 12px !important; font-weight: 600; }
 .recovery-input-wrap { position: relative; }
 .recovery-input-wrap > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #c5d6ba; pointer-events: none; }
 .login-page.forgot-password-page .recovery-form .recovery-input {
   display: block; width: 100%; min-width: 0; box-sizing: border-box;
-  min-height: 46px; border-radius: 10px; padding: 12px 14px 12px 42px;
+  min-height: 36px; border-radius: 10px; padding: 7px 12px;
   font-size: 14px !important; color: #fff; outline: none;
 }
 .forgot-password-page .recovery-submit {
-  width: 100%; min-height: 46px !important; padding: 12px 16px !important;
+  width: 100%; min-height: 36px !important; padding: 8px 12px !important;
   border-radius: 10px !important; font-size: 14px !important; font-weight: 600;
   color: #fff; background: linear-gradient(100deg, #42762b, #245437);
   border-color: rgba(213, 229, 157, .6); transition: background .2s, transform .2s;
@@ -1792,17 +1792,18 @@ body { font-size: var(--app-text-size); }
 .recovery-confirmation > svg { flex-shrink: 0; margin-top: 2px; color: #d5e59d; }
 .forgot-password-page .recovery-confirmation h2 { margin: 0; font-size: 14px !important; font-weight: 600; }
 .forgot-password-page .recovery-confirmation p { margin: 10px 0 0; font-size: 13px !important; color: #e0eadb; line-height: 1.6; }
-.recovery-footer { margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, .16); text-align: center; }
+.recovery-footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .16); text-align: center; }
+.login-page.forgot-password-page .recovery-input-wrap .recovery-input { padding-left: 40px; }
 .forgot-password-page .recovery-back { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; padding: 0 8px; color: #e5eddb; font-size: 13px !important; font-weight: 600; text-decoration: none; }
 .recovery-back:hover { color: #fff; text-decoration: underline; }
 .recovery-back:focus-visible, .recovery-submit:focus-visible { outline: 2px solid #d5e59d; outline-offset: 4px; }
 .recovery-spinner { animation: recovery-spin .8s linear infinite; }
 @keyframes recovery-spin { to { transform: rotate(360deg); } }
 @media (max-width: 480px) {
-  .forgot-password-page { padding: 20px 12px; }
-  .forgot-password-page .recovery-card { padding: 24px 20px; border-radius: 20px; }
+  .forgot-password-page { padding: 12px; }
+  .forgot-password-page .recovery-card { padding: 16px; border-radius: 20px; }
   .login-page.forgot-password-page .recovery-form .recovery-input { font-size: 16px !important; }
-  .forgot-password-page .recovery-heading h1 { font-size: 22px !important; }
+  .forgot-password-page .recovery-heading h1 { font-size: 20px !important; }
 }
 @media (max-height: 680px) {
   .forgot-password-page { align-items: flex-start; }
