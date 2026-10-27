@@ -2498,4 +2498,14 @@ body { font-size: var(--app-text-size); }
     margin-bottom: 0;
   }
   .user-issued-items-table.table-responsive-cards td > * { min-width: 0; }
+  .user-issued-items-table.table-responsive-cards tbody td.issued-item-status {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .user-issued-items-table .issued-item-status-actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
 }
