@@ -2421,6 +2421,29 @@ body { font-size: var(--app-text-size); }
   .form-document :is(.entity-name-value, .signatory-value) { padding-block: 5px; }
 }
 
+@media (max-width: 767px) {
+  .login-page { padding: 12px !important; }
+  .login-card-shell { max-width: 420px; }
+  .login-card__illustration { min-height: 0; padding: 10px 14px; }
+  .login-page .login-system-title {
+    max-width: 360px;
+    margin-bottom: 4px;
+    font-size: 12px !important;
+    line-height: 1.3;
+  }
+  .login-illustration-stage { height: 92px; }
+  .login-illustration #svg-global { height: 88px; }
+  .login-welcome-copy { margin-top: 6px; }
+  .login-page .login-welcome-copy h2 { margin-bottom: 4px; font-size: 21px !important; }
+  .login-welcome-copy p { font-size: 12px; }
+  .login-card__form { padding: 12px !important; }
+  .login-card__form > .mb-3 { margin-bottom: 8px; }
+  .login-card__form img { width: 40px; height: 40px; margin-bottom: 4px; }
+  .login-page .login-pams-title { font-size: 22px !important; }
+  .login-card__form > a { margin-top: 8px; }
+  .login-card__form > div:last-child { margin-top: 10px; padding-top: 8px; }
+}
+
 .app-shell main :is(.user-issued-items-table, .user-returns-table) thead,
 .app-shell main :is(.user-issued-items-table, .user-returns-table) thead th {
   background: #154734 !important;

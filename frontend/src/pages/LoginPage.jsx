@@ -135,7 +135,7 @@ export default function LoginPage() {
 
         animate={{ opacity: 1, y: 0 }}
 
-        className="login-card-shell w-full max-w-[288px] md:max-w-[640px]"
+        className="login-card-shell w-full max-w-[420px] md:max-w-[640px]"
 
       >
 

@@ -42,7 +42,7 @@ export default function UserManualPage() {
         <li><strong>Property Transfer Report (PTR):</strong> records or processes a transfer of an accountable item between custodians.</li>
         <li><strong>Property Return Slip (PRS):</strong> lets authorized staff record and confirm returned items and their condition.</li>
         <li><strong>Reports:</strong> includes List of PPEs and Monthly Reports. Administrators may also see Historical Records, depending on permissions.</li>
-        <li><strong>User Manual:</strong> opens this guide. It is available to signed-in administrators and users.</li>
+        <li><strong>User Manual:</strong> opens this guide. It is available to signed-in administrators.</li>
         <li><strong>User menu:</strong> use the menu in the top bar to open My Profile, User Management or System Settings (where permitted), or to log out.</li>
         <li><strong>User accounts:</strong> users can see their Issued Items and Returned Items in the navigation. These pages show account-specific information and available actions.</li>
       </ul>

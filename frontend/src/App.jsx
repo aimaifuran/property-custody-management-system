@@ -27,7 +27,7 @@ import AboutPage from './pages/AboutPage';
 import RegisterPage from './pages/RegisterPage';
 import UserManualPage from './pages/UserManualPage';
 
-const userRoutes = new Set(['/my-issued-items', '/my-returns', '/profile', '/user-manual']);
+const userRoutes = new Set(['/my-issued-items', '/my-returns', '/profile']);
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
@@ -65,7 +65,7 @@ const permissionRoutes = {
   '/users': 'canManageUsers',
   '/settings': 'canManageSettings',
   '/profile': null,
-  '/user-manual': null,
+  '/user-manual': 'adminOnly',
   '/my-returns': 'canViewRIS',
   '/my-issued-items': 'canViewRIS',
 };

@@ -32,7 +32,7 @@ const navItems = [
   { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
-  { to: '/user-manual', label: 'User Manual', icon: BookOpen, permissions: [], authenticated: true },
+  { to: '/user-manual', label: 'User Manual', icon: BookOpen, permissions: [], adminOnly: true },
 ];
 
 const canAccessNavItem = (user, item) => {
