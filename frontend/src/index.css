@@ -2473,13 +2473,13 @@ body { font-size: var(--app-text-size); }
   .login-card__form > div:last-child { margin-top: 10px; padding-top: 8px; }
   .login-page.sign-in-page { padding: 24px 20px !important; }
   .sign-in-page .login-card-shell { max-width: 300px; }
-  .sign-in-page .login-card__illustration { padding: 6px 10px; }
-  .sign-in-page .login-system-title { font-size: 9px !important; }
-  .sign-in-page .login-illustration-stage { height: 32px; }
-  .sign-in-page .login-illustration #svg-global { height: 30px; }
-  .sign-in-page .login-welcome-copy { margin-top: 2px; }
-  .sign-in-page .login-welcome-copy h2 { font-size: 16px !important; margin-bottom: 2px; }
-  .sign-in-page .login-welcome-copy p { font-size: 10px !important; line-height: 1.25; }
+  .sign-in-page .login-card__illustration { padding: 14px 12px; }
+  .sign-in-page .login-system-title { font-size: 11px !important; }
+  .sign-in-page .login-illustration-stage { height: 100px; }
+  .sign-in-page .login-illustration #svg-global { height: 96px; }
+  .sign-in-page .login-welcome-copy { margin-top: 8px; }
+  .sign-in-page .login-welcome-copy h2 { font-size: 22px !important; margin-bottom: 5px; }
+  .sign-in-page .login-welcome-copy p { font-size: 12px !important; line-height: 1.35; }
   .sign-in-page .login-card__form { padding: 6px 10px !important; }
   .sign-in-page .login-card__form img { width: 20px; height: 20px; margin-bottom: 0; }
   .sign-in-page .login-pams-title { font-size: 14px !important; line-height: 1.2; }
