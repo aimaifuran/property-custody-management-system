@@ -1,5 +1,5 @@
 import FormRecordTabs from '../components/FormRecordTabs';
-import UserAccountSelect from '../components/UserAccountSelect';
+import SearchInput from '../components/SearchInput';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
 import { todayManila } from '../utils/formDates';
@@ -159,6 +159,7 @@ export default function PtrPage() {
     }, []);
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
+    const transferableAssets = assets.filter(asset => asset.acceptedAt && !asset.pendingMovement && Number(asset.quantityRemaining) > 0);
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -239,7 +240,12 @@ export default function PtrPage() {
         } finally { setSaving(false); }
     };
 
-    const field = (label, key, type = 'text') => key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
+    const field = (label, key, type = 'text') => key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
+        <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+            <SearchInput aria-label={label} placeholder={`Enter ${label.toLowerCase()}`} value={form[key] || ''} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => update(key, value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+        </label>
+    ) : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <input required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
@@ -250,10 +256,12 @@ export default function PtrPage() {
         <div className="rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
-                {section === 'receivedBy' && !editingId && <UserAccountSelect person={form[section]} onChange={person => setForm(previous => ({ ...previous, [section]: { ...previous[section], ...person, designation: person.designation || person.office || '' } }))} />}
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
-                    <SignatoryValue  value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="ptr" role={section} field="name" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
+                    {section === 'receivedBy' ? <SearchInput aria-label="Received By Name" placeholder="Enter name or select a custodian" value={form[section].name} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => updateSignatory(section, 'name', value)} onSelect={option => {
+                        const person = people.find(row => row._id === option.value);
+                        if (person) setForm(previous => ({ ...previous, [section]: { ...previous[section], name: person.name, designation: person.office || previous[section].designation } }));
+                    }} className="w-full rounded-xl border border-slate-200 px-3 py-2" /> : <SignatoryValue value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="ptr" role={section} field="name" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />}
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
@@ -471,7 +479,7 @@ export default function PtrPage() {
                                         <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        {isUser && !editingId ? <select required={hasRowData(item, emptyItem())} aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = assets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select your accepted property</option>{assets.map(asset => <option key={asset._id} value={asset._id} disabled={!asset.acceptedAt || !!asset.pendingMovement}>{asset.inventory?.item?.description} - {asset.documentNumber}{!asset.acceptedAt ? ' (accept ICS/PAR first)' : asset.pendingMovement ? ' (pending movement)' : ''}</option>)}</select> : <input required={hasRowData(item, emptyItem())} aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = transferableAssets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select an issued item</option>{transferableAssets.map(asset => <option key={asset._id} value={asset._id}>{asset.inventory?.item?.description} - {asset.documentNumber}</option>)}</select> : <input required={hasRowData(item, emptyItem())} aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />

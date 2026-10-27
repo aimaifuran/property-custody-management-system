@@ -25,8 +25,9 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import AboutPage from './pages/AboutPage';
 import RegisterPage from './pages/RegisterPage';
+import UserManualPage from './pages/UserManualPage';
 
-const userRoutes = new Set(['/my-issued-items', '/my-returns', '/profile']);
+const userRoutes = new Set(['/my-issued-items', '/my-returns', '/profile', '/user-manual']);
 
 function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
@@ -64,6 +65,7 @@ const permissionRoutes = {
   '/users': 'canManageUsers',
   '/settings': 'canManageSettings',
   '/profile': null,
+  '/user-manual': null,
   '/my-returns': 'canViewRIS',
   '/my-issued-items': 'canViewRIS',
 };
@@ -102,6 +104,7 @@ function AppRoutes() {
               '/profile': ProfilePage,
               '/my-returns': MyReturnsPage,
               '/my-issued-items': MyIssuedItemsPage,
+              '/user-manual': UserManualPage,
             };
             const Page = pages[path];
             return <Route key={path} path={path} element={<ProtectedRoute permission={permission}><Page /></ProtectedRoute>} />;

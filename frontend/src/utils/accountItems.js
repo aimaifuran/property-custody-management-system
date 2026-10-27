@@ -1,3 +1,5 @@
+import { stockItemName } from './iarItemSelection.js';
+
 const idOf = value => String(value?._id || value || '');
 const numberOf = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const risKey = row => {
@@ -60,6 +62,7 @@ export function mergeAccountItems({ risRows = [], assets = [], returnSlips = [],
       ...base, rowKey: `asset:${accountability}`, accountability,
       risId: idOf(asset.ris) || base.risId, itemId: idOf(asset.risItem) || base.itemId,
       risNumber: base.risNumber || asset.ris?.risNumber || '',
+      itemName: base.itemName || stockItemName(stock) || base.description || asset.propertyNumber || 'Property',
       description: stock.description || stock.name || base.description || asset.propertyNumber || 'Property',
       stockNumber: stock.stockNumber || base.stockNumber || '', unit: stock.unit || base.unit,
       formType: asset.formType, documentNumber: asset.documentNumber, formId: asset.issuanceForm,
@@ -98,6 +101,7 @@ export function mergeAccountItems({ risRows = [], assets = [], returnSlips = [],
       ...previous, ...base, rowKey: `asset:${accountability}`, accountability,
       risId: first.risId, itemId: first.itemId,
       risNumber: base.risNumber || previous.risNumber || '',
+      itemName: base.itemName || previous.itemName || first.itemName || base.description || previous.description || first.description || first.propertyNumber || 'Property',
       description: base.description || previous.description || first.description || first.propertyNumber || 'Property',
       stockNumber: base.stockNumber || previous.stockNumber || '',
       formType: previous.formType || base.formType || (numberOf(first.unitValue) < 50000 ? 'ICS' : 'PAR'),

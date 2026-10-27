@@ -142,6 +142,7 @@ export default function LoginPage() {
         <div className="login-card login-card--split w-full overflow-hidden rounded-2xl md:rounded-3xl">
 
         <div className={`login-card__illustration login-illustration ${signingIn ? 'login-card__illustration--signing-in' : ''}`}>
+          <p className="login-system-title">Property Accountability Management System of Supply Office of Local Government Unit Carigara, Leyte</p>
           <div className={`login-illustration-stage ${signingIn ? 'login-illustration-stage--signing-in' : ''}`}>
             <div className="login-illustration-layer login-illustration-layer--original" aria-hidden="true">
               <LoginIllustration />
@@ -165,8 +166,6 @@ export default function LoginPage() {
             <img src="/lgu-logo.png" alt="Municipality of Carigara official seal" className="mx-auto mb-2 aspect-square h-12 w-12 rounded-full object-cover shadow-2xl ring-2 ring-white/80 md:mb-3 md:h-16 md:w-16 md:ring-2" />
 
             <div className="login-pams-title font-bold tracking-wide">PAMS</div>
-
-            <p className="mt-1 text-xs text-white/75 md:mt-2 md:text-sm">Property Accountability Management System</p>
 
           </div>
 

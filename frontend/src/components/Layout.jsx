@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info, Settings, X } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info, Settings, BookOpen, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { preloadFormFonts } from '../utils/formPdfFonts';
@@ -32,9 +32,11 @@ const navItems = [
   { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
+  { to: '/user-manual', label: 'User Manual', icon: BookOpen, permissions: [], authenticated: true },
 ];
 
 const canAccessNavItem = (user, item) => {
+  if (item.authenticated) return Boolean(user);
   if (item.userOnly) return user?.role === 'user' && item.permissions?.some((permission) => user?.permissions?.includes(permission));
   if (user?.role === 'admin') return true;
   if (item.adminOnly) return false;

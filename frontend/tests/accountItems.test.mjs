@@ -4,7 +4,7 @@ import { loadAccountItems, mergeAccountItems, returnSubmission } from '../src/ut
 
 const baseRow = {
   risId: 'ris-1', itemId: 'line-1', risNumber: 'RIS-001',
-  description: 'Laptop', quantityIssued: 2, quantityRequested: 2,
+  itemName: 'Business Laptop', description: 'Laptop computer for office', quantityIssued: 2, quantityRequested: 2,
   formType: 'PAR', documentNumber: 'PAR-OLD', issued: true,
   quantityRemaining: 2, quantityReturned: 0, returns: [],
 };
@@ -13,7 +13,7 @@ const asset = {
   quantity: 2, returnedQuantity: 0, quantityRemaining: 2,
   formType: 'PAR', documentNumber: 'PAR-CURRENT', issuanceForm: 'form-current',
   issueDate: '2026-10-01T00:00:00Z',
-  inventory: { unitCost: 60000, item: { stockNumber: 'LAPTOP', description: 'Laptop', unit: 'piece' } },
+  inventory: { unitCost: 60000, item: { stockNumber: 'LAPTOP', name: 'Laptop', description: 'Dell business computer', unit: 'piece' } },
 };
 const slip = (number, quantity, status = 'RETURNED', overrides = {}) => ({
   prsNumber: number, status, createdAt: '2026-10-08T00:00:00Z',
@@ -31,6 +31,8 @@ test('owned assets replace their RIS row once and deduplicate return receipts', 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].documentNumber, 'PAR-CURRENT');
   assert.equal(rows[0].formId, 'form-current');
+  assert.equal(rows[0].itemName, 'Business Laptop');
+  assert.equal(rows[0].description, 'Dell business computer');
   assert.equal(rows[0].quantityIssued, 2);
   assert.equal(rows[0].quantityReturned, 1);
   assert.equal(rows[0].quantityRemaining, 1);

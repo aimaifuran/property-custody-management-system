@@ -175,7 +175,7 @@ body {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: #173d2d url('/login-background.jpg') center / cover no-repeat;
+  background: #173d2d url('/login-background.png') center / cover no-repeat;
 }
 
 .login-page::before {
@@ -243,12 +243,21 @@ body {
   align-items: center;
   justify-content: center;
   padding: 2rem 1.5rem;
-  background: linear-gradient(165deg, rgba(15, 52, 35, 0.72), rgba(23, 61, 45, 0.55) 45%, rgba(54, 109, 10, 0.35));
+  background: #063e22 url('/bg-1.png') center / 105% 105% no-repeat;
   border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
 .login-welcome-copy { margin-top: 20px; text-align: center; color: #fff; }
 .login-page .login-welcome-copy h2 { margin: 0 0 8px; font-size: 25px !important; font-weight: 700; line-height: 1.2; }
 .login-page .login-pams-title { font-size: 25px !important; font-weight: 700; line-height: 1.2; }
+.login-page .login-system-title {
+  max-width: 440px;
+  margin: 0 auto 8px;
+  color: #fff;
+  font-size: 14px !important;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
 .login-page h1.register-pams-title { font-size: 15px !important; }
 .app-shell main button.view-property-card-button {
   background: transparent !important;
@@ -1016,7 +1025,7 @@ aside nav button svg {
   position: absolute;
   inset: 0;
   z-index: -2;
-  background: url('/login-background.jpg') center 54% / cover no-repeat;
+  background: url('/login-background.png') center 54% / cover no-repeat;
   opacity: 0.72;
 }
 
@@ -2027,16 +2036,72 @@ body { font-size: var(--app-text-size); }
 
 /* Keep return charts inside their cards at every dashboard height. */
 .dashboard-page .dashboard-breakdowns .dashboard-return-chart {
-  height: 150px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  height: auto;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: none;
+}
+.dashboard-return-pie {
+  min-width: 0;
+  height: 220px;
+}
+.dashboard-return-legend {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 8px;
+  max-height: none;
+  min-width: 0;
+  overflow: visible;
+  padding: 4px;
+}
+.dashboard-return-legend li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.dashboard-return-legend-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dashboard-return-legend-swatch {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+}
+.dashboard-return-legend-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-return-legend-value {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .dashboard-page .dashboard-breakdowns .dashboard-return-chart {
+    height: auto;
+    min-height: 0;
+  }
+  .dashboard-return-legend {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 @media (min-width: 1024px) and (min-height: 540px) {
   .dashboard-main .dashboard-breakdowns > .dashboard-return-summary { min-height: 0; }
   .dashboard-main .dashboard-breakdowns .dashboard-return-chart {
-    height: 0;
+    height: auto;
     min-height: 0;
-    flex: 1 1 0;
+    flex: none;
   }
 }
 

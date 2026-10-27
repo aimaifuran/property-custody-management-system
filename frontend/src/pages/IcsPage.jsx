@@ -94,7 +94,6 @@ export default function IcsPage() {
     const [form, setForm] = useState(() => isUser ? null : withCurrentDates(toForm({ items: [emptyItem()] })));
     const [saving, setSaving] = useState(false);
     const selectedRecord = records.find(record => record._id === editingId);
-    const readOnly = isUser || viewOnly;
     const linkedIssuance = !!(selectedRecord?.user || selectedRecord?.offlineRecipient);
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
@@ -325,7 +324,7 @@ export default function IcsPage() {
       await exportOfficialFormPdf('ICS', data, print);
     };
 
-    useSourceDocument(records, setRecords, startEdit, '/ics');
+    useSourceDocument(records, setRecords, record => startEdit(record, true), '/ics');
 
     if (pageLoading) return <PageSkeleton />;
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
@@ -359,8 +358,8 @@ export default function IcsPage() {
                     <FormEditorHeader title="Inventory Custodian Slip" description="Linked RIS issuances for items with a unit cost below ₱50,000 are recorded here under the requester account." onClose={cancelEdit} />
                 {!editingId && !isUser && <IarSourceSelect type="ics" setForm={setForm} />}
                     <p className="mb-3 text-sm text-slate-600">{!isUser && linkedIssuance ? 'Edit form details below. Issued quantities, costs, item numbers and the ICS number are tied to the stock records.' : ''}</p>
-                    <fieldset disabled={readOnly} className="min-w-0">
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <fieldset disabled={isUser} className="min-w-0">
+                    <div inert={viewOnly ? true : undefined} className="grid gap-3 md:grid-cols-3">
                         {field('Entity Name', 'entityName')}
                         <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
                         {field('ICS No.', 'icsNumber')}{field('Office', 'office')}
@@ -384,27 +383,27 @@ export default function IcsPage() {
                                 {form.items.map((item, index) => (
                                     <tr key={index}>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} data-positive="true" min="0" step="any" readOnly={linkedIssuance} aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} data-positive="true" min="0" step="any" readOnly={linkedIssuance || viewOnly} aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} readOnly={viewOnly} aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance || viewOnly} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
                                             <input required={hasRowData(item, emptyItem())} aria-label="Total Cost" readOnly value={Number(item.totalCost || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} readOnly={viewOnly} pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance || viewOnly} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
                                             <input required={hasRowData(item, emptyItem())} aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
-                                      <td className="p-2 text-center">{!linkedIssuance && <DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} />}</td>
+                                      <td className="p-2 text-center">{!linkedIssuance && !viewOnly && <DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} />}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -419,21 +418,21 @@ export default function IcsPage() {
                                 </tr>
                                 <tr>
                                     <th scope="row" colSpan={2} className="text-left">REMARKS:</th>
-                                    <td colSpan={6}><textarea aria-label="Remarks" value={form.remarks} onChange={event => update('remarks', event.target.value)} className="w-full" rows={2} /></td>
+                                    <td colSpan={6}><textarea disabled={viewOnly} aria-label="Remarks" value={form.remarks} onChange={event => update('remarks', event.target.value)} className="w-full" rows={2} /></td>
                                 </tr>
                             </tfoot>
                         </table>
                     </TableScroll>
-                    <div className="ics-signatories grid md:grid-cols-2">
+                    <div inert={viewOnly ? true : undefined} className="ics-signatories grid md:grid-cols-2">
                         {signatoryFields('Received from:', 'receivedFrom')}
                         {signatoryFields('Received by:', 'receivedBy')}
                     </div>
-                    {!linkedIssuance && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
+                    {!linkedIssuance && !viewOnly && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
 
                     </fieldset>
                     <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : linkedIssuance ? 'Awaiting custodian acceptance' : ''}</p>
                     <div className="flex justify-end">
-                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : 'Save'}</button>
+                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : false)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : viewOnly ? 'Save Estimated Useful Life' : 'Save'}</button>
                     </div>
                 </ValidatedForm>
             )}

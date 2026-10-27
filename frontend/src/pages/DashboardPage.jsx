@@ -23,22 +23,14 @@ const secondaryCards = [
   { key: 'prs', title: 'Property Return Slip', icon: RotateCcw, iconBg: 'bg-rose-50', iconColor: 'text-rose-700' },
 ];
 
-// Reuse the Issue card icon palette so the dashboard charts feel connected.
 const RETURN_SLIP_COLORS = {
-  disposal: '#f97316', // Inventory Custodian Slip: orange
-  'returned to stock': '#10b981', // IAR: emerald
-  repair: '#0ea5e9', // Property Card: blue
-  return: '#c026d3', // RIS: fuchsia
+  disposal: '#d97706',
+  'returned to stock': '#059669',
+  repair: '#2563eb',
+  return: '#7c3aed',
 };
-const getReturnSlipColor = (label) => RETURN_SLIP_COLORS[String(label || '').trim().toLowerCase()] || '#4f46e5'; // PAR: indigo
+const getReturnSlipColor = (label) => RETURN_SLIP_COLORS[String(label || '').trim().toLowerCase()] || '#0284c7';
 const REPORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-const renderReturnCount = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
-  if (!Number(value)) return null;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
-  const angle = -midAngle * Math.PI / 180;
-  return <text x={cx + radius * Math.cos(angle)} y={cy + radius * Math.sin(angle)} textAnchor="middle" dominantBaseline="central" fill="white" stroke="#172033" strokeWidth={0.4} paintOrder="stroke" fontSize={13} fontWeight={700}>{value}</text>;
-};
 
 const formatRelativeTime = (dateStr) => {
   const date = new Date(dateStr);
@@ -101,6 +93,8 @@ export default function DashboardPage() {
     });
     return REPORT_MONTHS.map((month, index) => ({ month, reports: countsByMonth[index] }));
   }, [issuedReports]);
+  const returnSlipData = chartData.returnSlip.filter(entry => Number(entry.count) > 0);
+  const returnSlipTotal = returnSlipData.reduce((total, entry) => total + Number(entry.count), 0);
 
   if (loading) return <PageSkeleton dashboard />;
  return (
@@ -130,7 +124,30 @@ export default function DashboardPage() {
       <div className="dashboard-results grid items-stretch gap-4 xl:grid-cols-3">
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-2">
-            <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4"><h2 className="text-sm font-semibold">Returned Slip</h2>{chartData.returnSlip.some(entry => entry.count > 0) ? <div className="dashboard-return-chart mt-2 h-40"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={chartData.returnSlip} dataKey="count" nameKey="label" outerRadius="75%" labelLine={false} label={renderReturnCount}>{chartData.returnSlip.map((entry) => <Cell key={entry.label} fill={getReturnSlipColor(entry.label)} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}</div>
+            <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4">
+              <h2 className="text-sm font-semibold">Returned Slip</h2>
+              {returnSlipData.length ? <div className="dashboard-return-chart mt-2">
+                <div className="dashboard-return-pie">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={returnSlipData} dataKey="count" nameKey="label" outerRadius="82%" stroke="#fff" strokeWidth={1.5}>
+                        {returnSlipData.map((entry) => <Cell key={entry.label} fill={getReturnSlipColor(entry.label)} />)}
+                      </Pie>
+                      <Tooltip formatter={(value, _name, item) => [`${value} (${Math.round((Number(value) / returnSlipTotal) * 100)}%)`, item.payload.label]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <ul className="dashboard-return-legend" aria-label="Returned slip breakdown">
+                  {returnSlipData.map(entry => <li key={entry.label}>
+                    <span className="dashboard-return-legend-swatch" style={{ backgroundColor: getReturnSlipColor(entry.label) }} aria-hidden="true" />
+                    <span className="dashboard-return-legend-copy">
+                      <span className="dashboard-return-legend-label">{entry.label}</span>
+                      <span className="dashboard-return-legend-value">{((Number(entry.count) / returnSlipTotal) * 100).toFixed(2)}%</span>
+                    </span>
+                  </li>)}
+                </ul>
+              </div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}
+            </div>
             <div className="dashboard-monthly minimal-surface p-4">
               <h2 className="text-sm font-semibold">Monthly Reports</h2>
               <p className="text-xs text-slate-500">Issued reports this year</p>
@@ -195,11 +212,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
