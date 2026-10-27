@@ -2483,3 +2483,19 @@ body { font-size: var(--app-text-size); }
 .app-shell main :is(.user-issued-items-table, .user-returns-table) tbody > tr {
   border-radius: 0 !important;
 }
+
+@container item-table (max-width: 760px) {
+  .user-issued-items-table.table-responsive-cards tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 8px 10px;
+    overflow-wrap: anywhere;
+  }
+  .user-issued-items-table.table-responsive-cards td[data-label]::before {
+    content: attr(data-label) ':';
+    margin-bottom: 0;
+  }
+  .user-issued-items-table.table-responsive-cards td > * { min-width: 0; }
+}
