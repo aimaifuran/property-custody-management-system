@@ -1831,6 +1831,16 @@ body { font-size: var(--app-text-size); }
   .record-form-preview { min-height: 280px; height: 60dvh; }
 }
 
+@container workspace (max-width: 760px) {
+  .app-shell main .issued-items-header { padding: 12px !important; }
+  .issued-items-header > .flex { flex-wrap: nowrap; gap: 8px; }
+  .issued-items-header > .flex > .flex { flex: 1; gap: 8px; align-items: flex-start; }
+  .issued-items-header .bg-emerald-100 { padding: 7px; flex-shrink: 0; }
+  .issued-items-header .bg-emerald-100 svg { width: 18px; height: 18px; }
+  .app-shell main .issued-items-header p { font-size: 11px !important; line-height: 1.35; }
+  .app-shell main .issued-items-header button { flex-shrink: 0; padding: 5px 7px !important; font-size: 11px !important; min-height: 30px; }
+}
+
 @container item-table (max-width: 760px) {
   .table-responsive-cards, .table-responsive-cards tbody,
   .table-responsive-cards tfoot { display: block; width: 100% !important; min-width: 0 !important; }

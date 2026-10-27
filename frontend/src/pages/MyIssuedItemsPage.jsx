@@ -80,7 +80,7 @@ export default function MyIssuedItemsPage() {
 
   if (loading) return <PageSkeleton />;
  return <div className="space-y-6">
-    <section className="minimal-surface p-6">
+    <section className="issued-items-header minimal-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-emerald-100 p-3 text-emerald-700"><PackageCheck size={24} /></div>
