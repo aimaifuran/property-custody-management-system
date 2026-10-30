@@ -516,13 +516,17 @@ export default function PrsPage() {
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
                         <div>
-                            <b>{item.lguName || 'No LGU'}</b>
-                            <div className="text-sm text-slate-500">
-                                {item.purpose || 'N/A'} · {item.items?.length || 0} item(s)
+                            <b>{item.returnedBy?.name || 'Unnamed return'}</b>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                                <span>{(() => {
+                                    const date = new Date(item.status === 'RETURNED'
+                                        ? item.returnedTo?.date || item.returnedAt || item.createdAt
+                                        : item.returnedBy?.date || item.createdAt);
+                                    return Number.isNaN(date.getTime()) ? 'Date not recorded' : date.toLocaleDateString();
+                                })()}</span>
+                                <span className="font-semibold">{item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</span>
                             </div>
-                            <div className="mt-1 text-sm font-semibold">{item.returnedBy?.name || 'Unnamed return'} · {item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</div>
-                            {(requestView || item.submittedBy) && <div className="mt-2 text-sm text-slate-600">{item.items.map((entry, index) => <div key={index}>{entry.description} · Qty {entry.quantity} · {entry.mrNumber}</div>)}</div>}
-                            {item.rejectionReason && <div className="text-sm text-rose-700">{item.rejectionReason}</div>}
+                            <div className="mt-1 text-sm text-slate-600">{(item.items || []).map((entry, index) => <div key={entry._id || index}>{entry.itemName || entry.description || entry.propertyNumber || 'Item'} - Qty {entry.quantity ?? 0}</div>)}</div>
                         </div>
                         <div className="flex gap-2">
                             {requestView ? <button type="button" onClick={() => startEdit(item)} className="prs-review-request rounded-xl px-4 py-2 text-sm font-semibold text-white">Review Request</button> : <>

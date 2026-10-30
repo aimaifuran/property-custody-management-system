@@ -32,7 +32,7 @@ async function annualOfficeItems(year, acquiredOnly = false) {
     Accountability.find({ deleted: false }).populate({ path: 'inventory', populate: { path: 'item' } }).lean(),
     ICS.find({ deleted: false }).lean(), PAR.find({ deleted: false }).lean(), PropertyCard.find({ deleted: false }).lean(),
     ReturnedSupply.find({ deleted: false, prs: null, ris: { $ne: null } }).lean(),
-    PTR.find({ deleted: false, status: 'APPROVED', fromUser: { $exists: true } }).lean(),
+    PTR.find({ deleted: false, status: { $in: ['APPROVED', 'RECORDED'] }, fromUser: { $exists: true } }).lean(),
   ]);
   const returned = new Map();
   for (const record of returns) {

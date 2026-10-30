@@ -47,7 +47,7 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   const received = { iarNumber: '001', entityName: 'Carigara', fundCluster: 'General Fund', supplierName: 'Supplier', poNumber: 'PO-001', poDate: '2026-10-01', responsibilityCenterCode: '004', iarDate: '2026-10-08', invoiceNumber: 'INV-001', invoiceDate: '2026-10-08', inspectionDate: '2026-10-08', inspectedBy: 'Inspector', acceptanceDate: '2026-10-08', custodian: 'Supply Officer', items: [
     { stockNumber: 'PAPER', description: 'Bond paper', unit: 'ream', quantity: 10, unitCost: 250, itemType: 'SUPPLY' },
     { stockNumber: 'CHAIR', description: 'Office chair', unit: 'piece', quantity: 2, unitCost: 1500, itemType: 'ASSET' },
-    { stockNumber: 'LAPTOP', description: 'Laptop', unit: 'unit', quantity: 1, unitCost: 60000, itemType: 'ASSET' },
+    { stockNumber: 'LAPTOP', propertyPlantAndEquipment: 'Laptop', description: 'Laptop computer', unit: 'unit', quantity: 1, unitCost: 60000, itemType: 'ASSET' },
   ].map(row => ({ ...row, stockPropertyNumber: row.stockNumber })) };
   assert.equal((await request(sender, '/iar', received)).status, 403);
   const receipt = await request(admin, '/iar', received);
@@ -59,7 +59,7 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal(await Card.countDocuments({ iar: receipt.body.data._id }), 3);
   assert.equal((await request(admin, `/iar/${receipt.body.data._id}`, { ...received, items: received.items.map(item => ({ ...item, quantity: 100 })) }, 'PUT')).status, 409);
   const before = await Inventory.countDocuments();
-  const badReceipt = await request(admin, '/iar', { ...received, iarNumber: '002', items: [received.items[0], { ...received.items[1], stockNumber: 'PAPER', itemType: 'ASSET' }] });
+  const badReceipt = await request(admin, '/iar', { ...received, iarNumber: '002', items: [received.items[0], { ...received.items[1], quantity: 0 }] });
   assert.equal(badReceipt.status, 400);
   assert.equal(await IAR.countDocuments({ iarNumber: '002' }), 0);
   assert.equal(await Inventory.countDocuments(), before);
@@ -98,13 +98,14 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   lockedIcs.fundCluster = 'General Fund';
   lockedIcs.items = lockedIcs.items.map(row => ({ ...row, estimatedUsefulLife: '5 years' }));
   assert.equal((await request(admin, `/ics/${chair.issuanceForm}`, { ...lockedIcs, user: receiver._id }, 'PUT')).status, 409);
-  const transfer = { accountability: laptop._id, toUser: receiver._id, reason: 'Office reassignment' };
+  const transfer = { accountability: laptop._id, toUser: receiver._id, reason: 'Office reassignment', dateAcquired: '2026-10-15' };
   assert.equal((await request(sender, '/custody/transfers', transfer)).status, 400, 'Acceptance is required before transfer');
   assert.equal((await request(outsider, `/custody/forms/PAR/${laptop.issuanceForm}/accept`, {})).status, 404);
   for (const asset of assets) assert.equal((await request(sender, `/custody/forms/${asset.formType}/${asset.issuanceForm}/accept`, {})).status, 200);
   assert.ok((await Accountability.findById(laptop._id)).acceptedAt);
   const pending = await request(sender, '/custody/transfers', transfer);
   assert.equal(pending.status, 201, JSON.stringify(pending.body)); const ptrId = pending.body.data._id;
+  assert.equal(new Date(pending.body.data.items[0].dateAcquired).toISOString().slice(0, 10), '2026-10-15');
   assert.equal((await request(receiver, '/ptr')).body.data.length, 1);
   assert.equal((await request(outsider, '/ptr')).body.data.length, 0);
   assert.equal((await request(sender, '/custody/transfers', transfer)).status, 409);
@@ -129,6 +130,33 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal(String(reassigned.user), String(receiver._id));
   assert.notEqual(String(reassigned.issuanceForm), laptop.issuanceForm);
   assert.equal(reassigned.transferHistory.length, 1);
+  const senderIssuedItems = (await request(sender, '/ris/my-items')).body.data;
+  const transferredFromSender = senderIssuedItems.find(row => String(row.itemId) === String(ris.items[3]._id));
+  assert.equal(transferredFromSender.transferred, true);
+  assert.equal(transferredFromSender.quantityRemaining, 0);
+  const receiverAssets = (await request(receiver, '/custody/assets')).body.data;
+  assert.equal(receiverAssets.length, 1);
+  assert.equal(String(receiverAssets[0]._id), String(laptop._id));
+  assert.equal(String(receiverAssets[0].user), String(receiver._id));
+  const senderRecords = (await request(admin, `/users/${sender._id}/records`)).body.data;
+  assert.equal(senderRecords.transfers, undefined);
+  const transferredSenderRow = senderRecords.risRows.find(row => String(row.itemId) === String(ris.items[3]._id));
+  assert.equal(transferredSenderRow?.transferred, true);
+  assert.equal(String(transferredSenderRow?.accountability), String(laptop._id));
+  assert.equal(senderRecords.assets.some(asset => String(asset._id) === String(laptop._id)), false);
+  const outgoingPtr = senderRecords.transferRecords.find(report => String(report._id) === String(ptrId));
+  assert.equal(outgoingPtr?.direction, 'OUTGOING');
+  const receiverRecords = (await request(admin, `/users/${receiver._id}/records`)).body.data;
+  const receiverLaptop = receiverRecords.assets.find(asset => String(asset._id) === String(laptop._id));
+  assert.equal(String(receiverLaptop?.user), String(receiver._id));
+  assert.equal(receiverLaptop?.inventory?.item?.name, 'Laptop');
+  assert.equal(receiverLaptop?.quantityRemaining, 1);
+  const incomingPtr = receiverRecords.transferRecords.find(report => String(report._id) === String(ptrId));
+  assert.equal(incomingPtr?.direction, 'INCOMING');
+  assert.equal(receiverRecords.transfers, undefined);
+  const currentIssuedItems = (await request(admin, '/ris/issued-items')).body.data;
+  const laptopHolder = currentIssuedItems.find(group => group.name === 'Laptop')?.holders.find(holder => String(holder.userId) === String(receiver._id));
+  assert.equal(laptopHolder?.quantity, 1);
   assert.equal((await request(sender, '/custody/assets')).body.data.length, 2);
   assert.equal((await request(receiver, '/custody/assets')).body.data.length, 1);
   assert.equal((await request(sender, '/ris/my-returns')).body.data.some(row => row.stockNumber === 'LAPTOP'), false);
@@ -157,6 +185,9 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal((await Item.findOne({ stockNumber: 'CHAIR' })).quantityOnHand, 1);
   const remainingChair = await Accountability.findById(chair._id);
   assert.equal(remainingChair.active, false); assert.equal(remainingChair.returnedQuantity, 1);
+  const senderAfterReturn = (await request(admin, `/users/${sender._id}/records`)).body.data;
+  assert.equal(senderAfterReturn.returnSlips.find(slip => String(slip._id) === String(partial.body.data._id))?.status, 'RETURNED');
+  assert.equal(senderAfterReturn.assets.some(asset => String(asset._id) === String(chair._id)), false);
   assert.equal((await request(admin, `/prs/${partial.body.data._id}/confirm`, {})).status, 404);
   assert.equal(await ReturnedSupply.countDocuments({ prs: partial.body.data._id }), 1);
 
@@ -176,6 +207,10 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   const broken = await request(receiver, '/custody/returns', { accountability: laptop._id, quantity: 1, note: 'Broken screen' });
   assert.equal(broken.status, 201);
   assert.equal((await request(admin, `/prs/${broken.body.data._id}/confirm`, { condition: 'Unserviceable' })).status, 200);
+  const returnedReceiverRecords = (await request(admin, `/users/${receiver._id}/records`)).body.data;
+  assert.ok(returnedReceiverRecords.returnSlips.some(slip => String(slip._id) === String(broken.body.data._id)));
+  assert.equal(returnedReceiverRecords.assets.some(asset => String(asset._id) === String(laptop._id)), false);
+  assert.equal(returnedReceiverRecords.transfers, undefined);
   assert.equal((await Accountability.findById(laptop._id)).active, false);
   assert.equal((await Item.findOne({ stockNumber: 'LAPTOP' })).quantityOnHand, 0);
   assert.equal((await Inventory.findById(reassigned.inventory)).status, 'RETURNED_UNSERVICEABLE');
@@ -224,4 +259,22 @@ test('stock receipt, mixed issuance, custodian acceptance, approved transfer and
   assert.equal(await PAR.countDocuments({ ris: suppliesOnly.body.data._id }), 0);
   assert.equal(await Accountability.countDocuments({ ris: suppliesOnly.body.data._id }), 0);
   assert.equal((await Item.findOne({ stockNumber: 'PAPER' })).quantityOnHand, 5);
+
+  const assignedSupply = await request(sender, '/ris/my-requests', { purpose: 'Issue directly to receiving account', items: [{ stockNumber: 'PAPER', quantityRequested: 1 }] });
+  await RIS.updateOne({ _id: assignedSupply.body.data._id }, { $set: { 'receivedBy.user': receiver._id, 'receivedBy.name': 'receiver Test', 'receivedBy.designation': receiver.office } });
+  await RIS.updateOne({ _id: assignedSupply.body.data._id }, [{ $set: { items: { $map: { input: '$items', as: 'row', in: { $mergeObjects: ['$$row', { quantityIssued: '$$row.quantityRequested' }] } } } } }], { updatePipeline: true });
+  const notificationsBefore = await Notification.countDocuments({ user: admin._id, title: 'Items issued to user' });
+  assert.equal((await request(admin, `/ris/${assignedSupply.body.data._id}/approve`, {})).status, 200);
+  const receiverSupplyRows = (await request(receiver, '/ris/my-items')).body.data;
+  assert.ok(receiverSupplyRows.some(row => row.risId === assignedSupply.body.data._id && row.quantityRemaining === 1));
+  const senderSupplyRows = (await request(sender, '/ris/my-items')).body.data;
+  assert.equal(senderSupplyRows.some(row => row.risId === assignedSupply.body.data._id), false);
+  const receiverAccountRecords = (await request(admin, `/users/${receiver._id}/records`)).body.data;
+  assert.ok(receiverAccountRecords.risRows.some(row => row.risId === assignedSupply.body.data._id && row.quantityRemaining === 1));
+  const issueNotification = await Notification.findOne({ user: admin._id, title: 'Items issued to user' }).sort({ createdAt: -1 });
+  assert.equal(await Notification.countDocuments({ user: admin._id, title: 'Items issued to user' }), notificationsBefore + 1);
+  assert.equal(issueNotification.link, '/users');
+  assert.match(issueNotification.body, /receiver Test received Bond paper \(1\)/);
+  assert.ok(await Notification.exists({ user: receiver._id, title: 'Request issued' }));
+  assert.equal((await Item.findOne({ stockNumber: 'PAPER' })).quantityOnHand, 4);
 });

@@ -1,10 +1,12 @@
+import { useAuth } from '../contexts/AuthContext';
+import { userRecordItems, currentIssuedItems } from '../utils/userRecordItems';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import { PackageCheck, CircleCheck, Clock3, RotateCcw, CircleX } from 'lucide-react';
-import { loadAccountItems, mergeAccountItems, returnSubmission } from '../utils/accountItems';
+import { loadAccountItems, returnSubmission } from '../utils/accountItems';
 
 function ItemStatus({ item }) {
   let label = item.status;
@@ -24,6 +26,10 @@ function ItemStatus({ item }) {
   } else if (item.requestStatus === 'REJECTED') {
     Icon = CircleX;
     colors = 'border-rose-200 bg-rose-50 text-rose-700';
+  } else if (item.transferNumber) {
+    label = item.status;
+    Icon = CircleCheck;
+    colors = 'border-blue-200 bg-blue-50 text-blue-700';
   } else if (item.issued || ['APPROVED', 'ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(item.requestStatus)) {
     label = item.issued ? 'Approved' : 'Approved ? awaiting issuance';
     Icon = CircleCheck;
@@ -38,6 +44,7 @@ function ItemStatus({ item }) {
 }
 
 export default function MyIssuedItemsPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -45,22 +52,28 @@ export default function MyIssuedItemsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [returnError, setReturnError] = useState('');
   const [notice, setNotice] = useState('');
-  const load = async (background = false) => {
+  const load = useCallback(async (background = false) => {
     if (!background) { setLoading(true); setError(''); }
     try {
-      const data = await loadAccountItems(axios, '/ris/my-items');
-      setItems(previousRows => mergeAccountItems({ ...data, previousRows }));
+      await axios.post('/custody/transfers/reconcile');
+      const [data, transfers] = await Promise.all([
+        loadAccountItems(axios, '/ris/my-items'), axios.get('/ptr'),
+      ]);
+      const transferRecords = (transfers.data.data || []).map(report => ({
+        ...report, direction: String(report.toUser || '') === String(user?._id) ? 'INCOMING' : 'OUTGOING',
+      }));
+      setItems(previousRows => currentIssuedItems(userRecordItems({ ...data, transferRecords, previousRows })));
     } catch (err) {
       if (!background) setError(err.response?.data?.message || 'Unable to load your issued items. Please try again.');
     } finally { if (!background) setLoading(false); }
-  };
+  }, [user?._id]);
   useEffect(() => {
-    load();
+    const initial = window.setTimeout(() => load(), 0);
     const refresh = () => { if (!document.hidden) load(true); };
     const timer = window.setInterval(refresh, 15000);
     window.addEventListener('focus', refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, []);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [load]);
 
   const requestReturn = async event => {
     event.preventDefault();
@@ -91,13 +104,13 @@ export default function MyIssuedItemsPage() {
     </section>
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-emerald-800">{notice}</p>}
     {error && <div role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">{error}</div>}
-    {loading ? <Skeleton className="h-4 w-20" /> : !error && <section className="minimal-surface p-6">
+    {loading ? <Skeleton className="h-4 w-20" /> : !error && <section className="issued-items-panel minimal-surface p-4">
       {items.length === 0 ? <p className="text-sm text-slate-500">No requests or issued items have been recorded under your account yet.</p> : <TableScroll className="overflow-x-auto">
         <table className="user-issued-items-table min-w-full text-left text-sm">
-          <thead><tr className="border-b text-slate-500">{['Property / Item', 'Stock No.', 'Quantity Requested', 'Quantity Issued', 'RIS No.', 'ICS / PAR No.', 'Date Issued', 'Status'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
+          <thead><tr className="border-b text-slate-500">{['Property / Item', 'Stock No.', 'Quantity Requested', 'Quantity Issued', 'RIS No.', 'ICS / PAR / PTR No.', 'Date Issued', 'Status'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
           <tbody>{items.map(item => <tr key={item.rowKey} className="border-b border-slate-100">
-            <td className="p-3 font-medium">{item.itemName || item.description || item.stockNumber || 'Item'}</td><td className="p-3">{item.stockNumber || '—'}</td><td className="p-3">{item.quantityRequested ?? '—'}</td><td className="p-3">{item.quantityIssued ?? '—'}</td><td className="p-3">{item.risNumber || '—'}</td><td className="p-3">{item.documentNumber ? `${item.formType} ${item.documentNumber}` : '—'}</td><td className="p-3">{item.issuedAt ? new Date(item.issuedAt).toLocaleDateString() : '—'}</td><td className="issued-item-status p-3"><div className="issued-item-status-actions flex flex-col items-start gap-2"><ItemStatus item={item} />
-              {item.issued && !item.transferred && !item.historyOnly && Number(item.quantityRemaining) > 0 && !item.pendingReturn && <button type="button" onClick={() => { setReturnItem(item); setReturnError(''); setNotice(''); }} className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 font-semibold text-white hover:bg-teal-800"><RotateCcw size={16} />Request Return</button>}
+            <td className="p-3 font-medium">{item.itemName || item.description || item.stockNumber || 'Item'}</td><td className="p-3">{item.stockNumber || '—'}</td><td className="p-3">{item.quantityRequested ?? '—'}</td><td className="p-3">{item.quantityIssued ?? '—'}</td><td className="p-3">{item.risNumber || '—'}</td><td className="p-3">{item.documentNumber ? `${item.transferNumber ? 'PTR' : item.formType || ''} ${item.documentNumber}` : '—'}</td><td className="p-3">{item.issuedAt ? new Date(item.issuedAt).toLocaleDateString() : '—'}</td><td className="issued-item-status p-3"><div className="issued-item-status-actions flex flex-col items-start gap-2">{(!item.issued || item.pendingReturn || item.quantityReturned > 0) && <ItemStatus item={item} />}
+              {item.issued && !item.transferred && !item.historyOnly && Number(item.quantityRemaining) > 0 && !item.pendingReturn && <button type="button" onClick={() => { setReturnItem(item); setReturnError(''); setNotice(''); }} className="issued-item-return-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-teal-700 px-2 py-1 text-xs font-semibold leading-5 text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><RotateCcw size={13} aria-hidden="true" />Request Return</button>}
             </div></td>
           </tr>)}</tbody>
         </table>

@@ -51,9 +51,12 @@ async function linkLegacyRequests() {
   }
 }
 
-const ownerFilter = (userId, offline = false) => offline ? { 'requestedBy.offlineRecipient': userId } : ({ $or: [
+const ownerFilter = (userId, offline = false) => offline ? { $or: [
+  { 'requestedBy.offlineRecipient': userId },
+  { 'receivedBy.offlineRecipient': userId },
+] } : ({ $or: [
   { 'requestedBy.user': userId },
-  { 'requestedBy.user': null, 'receivedBy.user': userId },
+  { 'receivedBy.user': userId },
 ] });
 
 module.exports = { accountName, resolveAccount, linkLegacyRequests, ownerFilter };

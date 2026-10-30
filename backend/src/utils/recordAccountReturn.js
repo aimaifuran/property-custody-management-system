@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { notifyUsers, notifyAdmins } = require('./workflowNotifications');
 const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('./response');
 module.exports = (offline = false) => async (req, res) => {
@@ -56,6 +57,8 @@ module.exports = (offline = false) => async (req, res) => {
         items: [entry] }], { session });
       await postPropertyReturn(created, session, req.user);
       await ActivityLog.create([{ user: req.user._id, action: 'User item returned', details: `${created.prsNumber}: ${quantity} ${item.description} returned by ${owner.username || owner.name}` }], { session });
+      if (!offline) await notifyUsers([owner._id], 'Return received', `${created.prsNumber}: ${quantity} ${item.description} returned (${condition}).`, '/my-returns', session);
+      await notifyAdmins('PRS recorded', `${created.prsNumber}: ${quantity} ${item.description} returned by ${owner.username || owner.name} (${condition}).`, '/users', session);
       return created;
     });
     return successResponse(res, 'Successfully returned', report, 201);

@@ -11,7 +11,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Accountability = require('../models/PropertyAccountability');
 const postPropertyReturn = require('../utils/postPropertyReturn');
-const { notifyUsers } = require('../utils/workflowNotifications');
+const { notifyUsers, notifyAdmins } = require('../utils/workflowNotifications');
 const { reserveDocumentNumber } = require('../utils/documentNumber');
 
 const PRS_SEARCH_FIELDS = [
@@ -73,6 +73,8 @@ router.post('/', authenticate, validateAdminForm('prs'), authorize('canManageInv
       if (automaticNumber) payload.prsNumber = await reserveDocumentNumber(PropertyReturnSlip, 'prsNumber', new Date(), session);
       const [created] = await PropertyReturnSlip.create([payload], { session });
       await postPropertyReturn(created, session, req.user);
+      await notifyUsers([created.returnedBy?.user], 'Return received', `${created.prsNumber}: return recorded and accountability updated.`, '/my-returns', session);
+      await notifyAdmins('PRS recorded', `${created.prsNumber}: return received from ${created.returnedBy?.name || 'custodian'}.`, '/users', session);
       return created;
     });
   } catch (error) { return errorResponse(res, error.message, [], 400); }
@@ -110,6 +112,7 @@ router.post('/:id/confirm', authenticate, authorize('canManageInventory'), async
       });
       await postPropertyReturn(pending, session, req.user);
       await notifyUsers([pending.submittedBy || pending.returnedBy?.user], 'Return received', `${pending.prsNumber || 'PRS'} received and accountability updated.`, '/my-returns', session);
+      await notifyAdmins('PRS confirmed', `${pending.prsNumber}: return received and accountability updated.`, '/users', session);
       return pending;
     });
   } catch (error) { return errorResponse(res, error.message, [], error.status || 400); }
@@ -126,6 +129,7 @@ router.post('/:id/reject', authenticate, authorize('canManageInventory'), async 
       await Accountability.updateMany({ pendingMovement: `PRS:${rejected._id}` }, { $unset: { pendingMovement: 1 } }, { session });
       await notifyUsers([rejected.submittedBy || rejected.returnedBy?.user], 'Return rejected', `${rejected.prsNumber || 'PRS'}: ${reason}`, '/my-returns', session);
     }
+    if (rejected) await notifyAdmins('PRS rejected', `${rejected.prsNumber}: ${reason}`, '/users', session);
     return rejected;
   });
   if (!report) return errorResponse(res, 'Pending return slip not found', [], 404);
@@ -150,6 +154,8 @@ router.put('/:id', authenticate, validateAdminForm('prs'), authorize('canManageI
       report = await mongoose.connection.transaction(async session => {
         const updated = await PropertyReturnSlip.findByIdAndUpdate(existing._id, { $set: corrections }, { returnDocument: 'after', runValidators: true, session });
         await ReturnedSupply.updateMany({ prs: updated._id }, { $set: { note: updated.note, lguName: updated.lguName, returnedTo: updated.returnedTo } }, { session });
+        await notifyUsers([updated.returnedBy?.user, updated.submittedBy], 'PRS updated', `${updated.prsNumber}: return details updated.`, '/my-returns', session);
+        await notifyAdmins('PRS updated', `${updated.prsNumber}: return details updated.`, '/users', session);
         return updated;
       });
     } catch (error) { return errorResponse(res, error.message, [], 400); }
@@ -185,6 +191,8 @@ router.put('/:id', authenticate, validateAdminForm('prs'), authorize('canManageI
     browser: req.get('user-agent'),
   });
 
+  await notifyUsers([report.returnedBy?.user, report.submittedBy], 'PRS updated', `${report.prsNumber}: return details updated.`, '/my-returns');
+  await notifyAdmins('PRS updated', `${report.prsNumber}: return details updated.`, '/users');
   return successResponse(res, 'PRS updated', report);
 });
 

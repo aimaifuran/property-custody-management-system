@@ -26,7 +26,21 @@ router.get('/:id/records', async (req, res) => {
     require('../models/PropertyAccountability').find({ offlineRecipient: owner._id, active: true, deleted: false }).populate({ path: 'inventory', populate: 'item' }).lean(),
     require('../models/PropertyReturnSlip').find({ 'returnedBy.offlineRecipient': owner._id, deleted: false }).lean(),
   ]);
-  return successResponse(res, 'Offline records retrieved', { risRows, assets, returnSlips });
+  const transferRecords = await require('../models/PropertyTransferReport').find({
+    deleted: false,
+    'items.returnSlip': { $in: returnSlips.map(slip => slip._id) },
+  }).populate({ path: 'items.inventory', populate: { path: 'item', select: 'name description stockNumber' } })
+    .sort({ date: -1, createdAt: -1 }).lean();
+  return successResponse(res, 'Offline records retrieved', {
+    risRows,
+    assets: assets.map(asset => ({ ...asset, quantityRemaining: Math.max(0, Number(asset.quantity || 0) - Number(asset.returnedQuantity || 0)) })),
+    returnSlips,
+    transferRecords: transferRecords.map(report => ({
+      ...report,
+      direction: 'OUTGOING',
+      fromAccountableOfficer: report.fromAccountableOfficer || report.items.map(item => returnSlips.find(slip => String(slip._id) === String(item.returnSlip))?.returnedBy?.name).find(Boolean) || '',
+    })),
+  });
 });
 router.post('/:id/records/returned', require('../utils/recordAccountReturn')(true));
 module.exports = router;

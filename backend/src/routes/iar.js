@@ -241,6 +241,7 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
           }
           if (unitIndex === 0) entry.inventory = inventory._id;
           entry.inventories.push(inventory._id);
+          await require('../utils/issueRis').ensureIssuedPropertyCard(inventory, item, session, report);
           const newBalance = item.quantityOnHand + receiptQuantity;
           await Item.findByIdAndUpdate(item._id, { $inc: { quantityOnHand: receiptQuantity }, $set: { status: 'IN_STORAGE' } }, { session });
           item.quantityOnHand = newBalance;

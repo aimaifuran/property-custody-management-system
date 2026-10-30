@@ -449,9 +449,10 @@ export default function IarPage() {
           {visibleReports.map((item) =>
             <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}><NewFormBadge record={item} />
               <div>
-                <b className="text-sm tracking-tight text-[#285943]">{formatDate(item.iarDate || item.createdAt)}</b>
-                <div className="mt-1 text-xs text-slate-500">
-                  {item.entityName || 'No entity'} · linked records created
+                <b className="text-sm tracking-tight text-[#285943]">IAR No. {item.iarNumber || 'Unassigned'}</b>
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                  <span>{formatDate(item.createdAt || item.iarDate)}</span>
+                  <span>{item.items?.length || 0} {(item.items?.length || 0) === 1 ? 'item' : 'items'} recorded</span>
                 </div>
               </div>
               <div className="flex items-center gap-3">

@@ -17,6 +17,7 @@ const Notification = require('../models/Notification');
 const Card = require('../models/PropertyCard');
 const Item = require('../models/Item');
 const Inventory = require('../models/Inventory');
+const reassignAccountability = require('../utils/reassignAccountability');
 const router = express.Router();
 router.use(authenticate);
 
@@ -45,6 +46,23 @@ router.post('/stock/:id/classify', adminOnly, transaction(async (req, session) =
   return { data: item, message: 'Stock classification updated for future issuances' };
 }));
 
+router.post('/transfers/reconcile', async (req, res) => {
+  const userId = req.user.role === 'admin' ? req.body.userId : req.user._id;
+  if (!mongoose.isValidObjectId(userId)) return errorResponse(res, 'Select a valid account', [], 400);
+  const reports = await PTR.find({ deleted: false, toUser: userId, status: { $in: ['RECORDED', 'APPROVED'] }, items: { $elemMatch: { returnSlip: { $ne: null }, accountability: null } } }).select('_id');
+  const errors = [];
+  for (const report of reports) {
+    try {
+      await mongoose.connection.transaction(async session => {
+        const current = await PTR.findOne({ _id: report._id, toUser: userId, deleted: false, status: { $in: ['RECORDED', 'APPROVED'] } }).session(session);
+        if (!current) return;
+        await require('../utils/issueReturnedTransfer')(current, req.user, session);
+      });
+    } catch (error) { errors.push(error.message); }
+  }
+  return successResponse(res, 'Transfer custody checked', { errors });
+});
+
 router.get('/assets', async (req, res) => {
   const query = { deleted: false, active: true, ...(req.user.role === 'admin' ? {} : { user: req.user._id }) };
   const rows = await Accountability.find(query).populate({ path: 'inventory', populate: { path: 'item' } }).sort({ createdAt: -1 }).lean();
@@ -70,7 +88,7 @@ router.get('/transfers', async (req, res) => {
 });
 
 router.get('/returns', async (req, res) => {
-  const rows = await PRS.find({ deleted: false, ...(req.user.role === 'admin' ? {} : { submittedBy: req.user._id }) }).sort({ createdAt: -1 }).lean();
+  const rows = await PRS.find({ deleted: false, ...(req.user.role === 'admin' ? {} : { $or: [{ submittedBy: req.user._id }, { 'returnedBy.user': req.user._id }] }) }).sort({ createdAt: -1 }).lean();
   return successResponse(res, 'Return requests', rows);
 });
 
@@ -115,7 +133,7 @@ router.post('/transfers', transaction(async (req, session) => {
   if (!reason) fail('A transfer reason is required');
   const sourceForm = await (row.formType === 'ICS' ? ICS : PAR).findById(row.issuanceForm).session(session);
   const ptrNumber = await reserveDocumentNumber(PTR, 'ptrNumber', new Date(), session);
-  const [report] = await PTR.create([{ entityName: String(req.body.entityName || sourceForm?.entityName || ''), fundCluster: String(req.body.fundCluster || sourceForm?.fundCluster || ''), transferType: String(req.body.transferType || 'Reassignment'), remarks: String(req.body.remarks || ''), issuedBy: { name: accountName(req.user), designation: req.user.office, date: new Date() }, ptrNumber, date: new Date(), fromUser: req.user._id, toUser: receiver._id, fromAccountableOfficer: accountName(req.user), toAccountableOfficer: accountName(receiver), status: 'PENDING_RECEIVER', reasonForTransfer: reason, items: [{ inventory: row.inventory?._id, property: row.inventory?.property, serialNumber: row.inventory?.serialNumber, accountability: row._id, dateAcquired: row.inventory?.purchaseDate, propertyNumber: row.propertyNumber || row.inventory?.propertyNumber, description: row.inventory?.serialNumber ? `${row.inventory?.item?.description} (S/N: ${row.inventory.serialNumber})` : row.inventory?.item?.description, amount: (row.quantity - (row.returnedQuantity || 0)) * Number(row.inventory?.unitCost || 0), condition: row.condition }] }], { session });
+  const [report] = await PTR.create([{ entityName: String(req.body.entityName || sourceForm?.entityName || ''), fundCluster: String(req.body.fundCluster || sourceForm?.fundCluster || ''), transferType: String(req.body.transferType || 'Reassignment'), remarks: String(req.body.remarks || ''), issuedBy: { name: accountName(req.user), designation: req.user.office, date: new Date() }, ptrNumber, date: new Date(), fromUser: req.user._id, toUser: receiver._id, fromAccountableOfficer: accountName(req.user), toAccountableOfficer: accountName(receiver), status: 'PENDING_RECEIVER', reasonForTransfer: reason, items: [{ inventory: row.inventory?._id, property: row.inventory?.property, serialNumber: row.inventory?.serialNumber, accountability: row._id, dateAcquired: req.body.dateAcquired || row.inventory?.purchaseDate || new Date(), propertyNumber: row.propertyNumber || row.inventory?.propertyNumber, description: row.inventory?.serialNumber ? `${row.inventory?.item?.description} (S/N: ${row.inventory.serialNumber})` : row.inventory?.item?.description, amount: (row.quantity - (row.returnedQuantity || 0)) * Number(row.inventory?.unitCost || 0), condition: row.condition }] }], { session });
   row.pendingMovement = `PTR:${report._id}`; await row.save({ session });
   await notifyUsers([receiver._id], 'Property transfer awaiting receipt', `${accountName(req.user)} requested a property transfer to you. Confirm receipt before admin approval.`, '/transfers', session);
   await log(req, 'Transfer requested', report.ptrNumber, session);
@@ -142,27 +160,20 @@ router.post('/transfers/:id/approve', adminOnly, transaction(async (req, session
   for (const entry of report.items) {
     const row = await Accountability.findOne({ _id: entry.accountability, user: report.fromUser, active: true, deleted: false, pendingMovement: `PTR:${report._id}` }).populate({ path: 'inventory', populate: { path: 'item' } }).session(session);
     if (!row || !row.inventory) fail('The current accountability has changed', 409);
-    const remaining = row.quantity - Number(row.returnedQuantity || 0);
-    const Model = row.formType === 'ICS' ? ICS : PAR;
-    const field = row.formType === 'ICS' ? 'icsNumber' : 'parNumber';
-    const number = await reserveDocumentNumber(Model, field, now, session);
-    const source = await Model.findById(row.issuanceForm).session(session);
-    const [form] = await Model.create([{ [field]: number, ris: row.ris, user: receiver._id, entityName: source?.entityName, fundCluster: source?.fundCluster, office: receiver.office, acceptedAt: report.receiverConfirmedAt, acceptedBy: receiver._id, remarks: `Transfer ${report.ptrNumber}; previous ${row.formType} ${row.documentNumber}`, receivedBy: { name: accountName(receiver), position: receiver.office, date: report.receiverConfirmedAt }, ...(row.formType === 'ICS' ? { receivedFrom: { name: report.fromAccountableOfficer, position: row.office, date: now } } : { issuedBy: { name: accountName(req.user), position: req.user.office, date: now } }), items: [row.formType === 'ICS' ? { inventory: row.inventory._id, property: row.inventory.property, serialNumber: row.inventory.serialNumber, quantity: remaining, unit: row.inventory.item?.unit, description: entry.description, unitCost: row.inventory.unitCost, totalCost: remaining * row.inventory.unitCost, inventoryItemNo: row.propertyNumber || row.inventory.item?.stockNumber } : { inventory: row.inventory._id, property: row.inventory.property, serialNumber: row.inventory.serialNumber, quantity: remaining, unit: row.inventory.item?.unit, description: entry.description, propertyNumber: row.propertyNumber || row.inventory.item?.stockNumber, dateAcquired: row.inventory.purchaseDate, amount: remaining * row.inventory.unitCost }] }], { session });
-    row.transferHistory.push({ from: row.user, to: receiver._id, ptr: report._id, fromDocumentNumber: row.documentNumber, toDocumentNumber: number, date: now });
-    row.user = receiver._id; row.employee = accountName(receiver); row.office = receiver.office;
-    row.issuanceForm = form._id; row.documentNumber = number;
-    row.acceptedAt = report.receiverConfirmedAt; row.acceptedBy = receiver._id; row.pendingMovement = undefined;
-    row.signatureHash = crypto.createHash('sha256').update(JSON.stringify({ form: String(form._id), user: String(receiver._id), acceptedAt: report.receiverConfirmedAt, ptr: String(report._id) })).digest('hex');
-    await row.save({ session });
-    if (row.inventory.property) await require('../models/Property').findByIdAndUpdate(row.inventory.property, {
-      $set: { status: 'TRANSFERRED', currentCustodian: { name: accountName(receiver), office: receiver.office, assignedDate: now } },
-      $push: { events: { action: 'Transferred', status: 'TRANSFERRED', custodian: accountName(receiver), office: receiver.office, remarks: report.ptrNumber } },
-    }, { session });
-    row.inventory.status = 'TRANSFERRED'; await row.inventory.save({ session });
-    await Card.updateMany({ deleted: false, 'items.inventory': row.inventory._id }, { $push: { items: { sourceType: 'PTR', sourceDocument: report._id, sourceDate: report.date, sourceRemarks: report.remarks || report.reasonForTransfer, inventory: row.inventory._id, property: row.inventory.property, serialNumber: row.inventory.serialNumber, propertyNumber: row.propertyNumber || row.inventory.item?.stockNumber, description: entry.description, date: now, referenceParNo: number, receiptQuantity: 0, itdQuantity: 0, itdOfficeOfficer: accountName(receiver), balanceQuantity: row.inventory.item?.quantityOnHand || 0, amount: remaining * row.inventory.unitCost, remarks: `PTR ${report.ptrNumber}: ${report.fromAccountableOfficer} to ${report.toAccountableOfficer}` } } }, { session });
+    await reassignAccountability({
+      row,
+      receiver,
+      report,
+      entry,
+      actor: req.user,
+      session,
+      date: now,
+      acceptedAt: report.receiverConfirmedAt,
+    });
   }
   report.status = 'APPROVED'; report.approvedBy = { name: accountName(req.user), designation: req.user.office, date: now };
   await report.save({ session });
+  await notifyAdmins('Transfer approved', `${report.ptrNumber}: accountability transferred to ${report.toAccountableOfficer}.`, '/users', session);
   await notifyUsers([report.fromUser, report.toUser], 'Transfer approved', `${report.ptrNumber} approved. Accountability now belongs to ${report.toAccountableOfficer}.`, '/transfers', session);
   await log(req, 'Transfer approved', report.ptrNumber, session);
   return { data: report, message: 'Transfer approved and accountability reassigned' };
@@ -175,6 +186,7 @@ router.post('/transfers/:id/reject', transaction(async (req, session) => {
   const reason = String(req.body.reason || '').trim(); if (!reason) fail('A rejection reason is required');
   report.status = 'REJECTED'; report.rejectionReason = reason; await report.save({ session });
   await Accountability.updateMany({ pendingMovement: `PTR:${report._id}` }, { $unset: { pendingMovement: 1 } }, { session });
+  await notifyAdmins('Transfer rejected', `${report.ptrNumber}: ${reason}`, '/users', session);
   await notifyUsers([report.fromUser, report.toUser], 'Transfer rejected', `${report.ptrNumber}: ${reason}`, '/transfers', session);
   await log(req, 'Transfer rejected', `${report.ptrNumber}: ${reason}`, session);
   return { data: report, message: 'Transfer rejected; accountability retained by sender' };

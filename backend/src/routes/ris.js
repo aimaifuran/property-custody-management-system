@@ -177,6 +177,8 @@ router.post('/my-returns', authenticate, async (req, res) => {
   const ris = await RequisitionIssueSlip.findOne({ _id: req.body.risId, deleted: false, ...ownRisFilter(req.user), status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } });
   const item = ris?.items.id(req.body.itemId);
   if (!item || !(item.quantityIssued > 0)) return errorResponse(res, 'Issued item not found under your account', [], 404);
+  const accountability = await Accountability.findOne({ ris: ris._id, risItem: item._id, deleted: false });
+  if (!accountability && String(ris.receivedBy?.user || ris.requestedBy?.user || '') !== String(req.user._id)) return errorResponse(res, 'Issued item is assigned to another account', [], 404);
   const quantity = Number(req.body.quantity);
   if (!Number.isInteger(quantity) || quantity <= 0) return errorResponse(res, 'Return quantity must be a positive whole number', [], 400);
   const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': ris._id });
@@ -188,7 +190,7 @@ router.post('/my-returns', authenticate, async (req, res) => {
   const unitValue = Number(inventory?.unitCost ?? stock?.cost ?? 0);
   try {
     const report = await mongoose.connection.transaction(async session => {
-      const asset = await Accountability.findOne({ ris: ris._id, risItem: item._id, deleted: false }).session(session);
+      const asset = accountability ? await Accountability.findById(accountability._id).session(session) : null;
       if (asset && (!asset.active || String(asset.user) !== String(req.user._id))) throw new Error('This property is no longer under your accountability');
       if (asset?.pendingMovement) throw Object.assign(new Error('This property already has a pending movement'), { code: 11000 });
       const prsNumber = await reserveDocumentNumber(PropertyReturnSlip, 'prsNumber', new Date(), session);

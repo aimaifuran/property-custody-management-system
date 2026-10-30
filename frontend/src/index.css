@@ -890,7 +890,7 @@ button:hover:not(:disabled) {
   box-shadow: none;
   color: #172e24;
 }
-.dashboard-activity-column .dashboard-row:nth-of-type(odd) { background: #cbd0d6 !important; }
+.dashboard-activity-column .dashboard-row:nth-of-type(odd) { background: #eef0f2 !important; }
 .dashboard-activity-column .dashboard-row:nth-of-type(even) { background: #fff !important; }
 .saved-records {
   box-sizing: border-box;
@@ -2168,7 +2168,7 @@ body { font-size: var(--app-text-size); }
   width: 100%;
   margin: 0;
   padding: 14px 16px;
-  border-radius: 0 !important;
+  border-radius: 16px 16px 0 0 !important;
   background: #154734;
 }
 .saved-records > .saved-reports-header .saved-reports-heading h2,
@@ -2184,7 +2184,7 @@ body { font-size: var(--app-text-size); }
   border-radius: 0 !important;
 }
 .app-shell main .saved-record:nth-of-type(odd) {
-  background: #cbd0d6 !important;
+  background: #eef0f2 !important;
   color: #172e24;
 }
 .app-shell main .saved-record:nth-of-type(even) {
@@ -2195,7 +2195,7 @@ body { font-size: var(--app-text-size); }
   background: #fff !important;
 }
 .app-shell main .saved-records > .saved-record:nth-of-type(even) {
-  background: #cbd0d6 !important;
+  background: #eef0f2 !important;
 }
 .monthly-report-month-controls { display: flex; align-items: center; gap: 10px; }
 .monthly-report-month-controls label { position: relative; }
@@ -2407,7 +2407,7 @@ body { font-size: var(--app-text-size); }
 
 .app-shell main .property-stock-table tbody tr:nth-child(odd),
 .app-shell main .property-stock-table tbody tr:nth-child(odd) > td {
-  background: #cbd0d6 !important;
+  background: #eef0f2 !important;
   color: #172e24 !important;
   border-color: #d1d5db;
 }
@@ -2417,10 +2417,10 @@ body { font-size: var(--app-text-size); }
   border-color: #d1d5db;
 }
 
-/* Approved RIS actions align with the item heading instead of a separate bottom row. */
-.saved-record.ris-approved-record { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+/* Issued RIS actions are vertically centered alongside the item details. */
+.saved-record.ris-approved-record { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
 .saved-record.ris-approved-record > :is(.recent-form-marker, .reviewed-form-marker) { position: absolute; }
-.saved-record.ris-approved-record > .ris-record-actions { width: auto; margin-top: 0; align-self: start; }
+.saved-record.ris-approved-record > .ris-record-actions { width: auto; margin-top: 0; align-self: center; }
 @media (max-width: 640px) {
   .saved-record.ris-approved-record { grid-template-columns: minmax(0, 1fr); }
   .saved-record.ris-approved-record > .ris-record-actions { justify-content: flex-start; }
@@ -2502,7 +2502,7 @@ body { font-size: var(--app-text-size); }
 }
 .app-shell main :is(.user-issued-items-table, .user-returns-table) tbody > tr:nth-child(odd),
 .app-shell main :is(.user-issued-items-table, .user-returns-table) tbody > tr:nth-child(odd) > td {
-  background: #cbd0d6 !important;
+  background: #eef0f2 !important;
   color: #172e24 !important;
   border-color: #d1d5db !important;
 }
@@ -2540,4 +2540,190 @@ body { font-size: var(--app-text-size); }
     justify-content: space-between;
     flex-wrap: wrap;
   }
+}
+
+/* Compact issued-item rows and reserve enough room for the return action. */
+.app-shell main .user-issued-items-table :is(th, td) {
+  padding: 12px 16px;
+  font-family: var(--app-font-family);
+  font-size: var(--app-text-size) !important;
+  line-height: 1.6;
+  vertical-align: middle;
+}
+.app-shell main .user-issued-items-table .issued-item-status-actions {
+  gap: 6px;
+}
+.app-shell main .user-issued-items-table button.issued-item-return-button {
+  display: inline-flex;
+  width: max-content;
+  min-height: 34px;
+  height: auto;
+  padding: 6px 10px !important;
+  gap: 4px;
+  font-size: var(--app-text-size) !important;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  flex-wrap: nowrap;
+}
+@container item-table (min-width: 761px) {
+  .app-shell main .user-issued-items-table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 880px;
+  }
+  .user-issued-items-table th:nth-child(1) { width: 10%; }
+  .user-issued-items-table th:nth-child(2) { width: 18%; }
+  .user-issued-items-table th:nth-child(3) { width: 12%; }
+  .user-issued-items-table th:nth-child(4) { width: 9%; }
+  .user-issued-items-table th:nth-child(5) { width: 11%; }
+  .user-issued-items-table th:nth-child(6) { width: 14%; }
+  .user-issued-items-table th:nth-child(7) { width: 10%; }
+  .user-issued-items-table th:nth-child(8) { width: 16%; }
+  .app-shell main .user-issued-items-table td { overflow-wrap: anywhere; }
+}
+
+/* User tables follow the same text scale as sidebar navigation. */
+.app-shell main :is(.user-issued-items-table, .user-returns-table) :is(th, td, button, span) {
+  font-family: var(--app-font-family);
+  font-size: var(--app-text-size) !important;
+}
+
+/* Match application table headers to the rounded stock-table style. */
+@media screen {
+  .app-shell main table:not(.form-document table) {
+    border-radius: 16px 16px 0 0 !important;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .app-shell main table:not(.form-document table) > thead > tr:first-child > :first-child {
+    border-top-left-radius: 16px !important;
+  }
+  .app-shell main table:not(.form-document table) > thead > tr:first-child > :last-child {
+    border-top-right-radius: 16px !important;
+  }
+}
+
+/* Give user-table text breathing room without crowding the action column. */
+.app-shell main .user-returns-table :is(th, td) {
+  padding: 12px 16px;
+  line-height: 1.6;
+}
+.app-shell main .user-issued-items-table .issued-item-status {
+  padding-inline: 12px;
+}
+
+/* Shared readable spacing for application tables. */
+@media screen {
+  .app-shell main table:not(.form-document table) :is(th, td) {
+    padding: 12px 16px;
+    line-height: 1.6;
+  }
+}
+
+@container item-table (min-width: 761px) {
+  .app-shell main .user-issued-items-table :is(th, td):first-child { padding-right: 8px; }
+  .app-shell main .user-issued-items-table :is(th, td):nth-child(2) { padding-left: 8px; }
+  .app-shell main .user-issued-items-table th {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+}
+
+/* Saved lists use adjoining rows, like the stock table. */
+.app-shell main .saved-records > .saved-record,
+.app-shell main .saved-records > :has(> .saved-record) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.app-shell main .saved-records > :has(> .saved-record) {
+  gap: 0;
+}
+.app-shell main .saved-records > :has(> .saved-record) > .saved-record {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.app-shell main .saved-records .saved-record {
+  padding: 12px 16px;
+  border-width: 0 0 1px;
+  border-color: #e2e8e5;
+  box-shadow: none;
+}
+
+/* New documents use a soft red background with readable dark text. */
+.app-shell main .saved-records .saved-record:is(:has(> .recent-form-marker), .animate-pulse) {
+  background: #f2cccc !important;
+  border-color: rgb(185 64 64 / 35%) !important;
+  --tw-ring-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell main .saved-record {
+  align-items: center;
+}
+.app-shell main .saved-record > .ris-record-actions {
+  align-self: center;
+  align-items: center;
+}
+.app-shell main table:not(.form-document table) td {
+  vertical-align: middle;
+}
+@media (min-width: 768px) {
+  .app-shell main .saved-record:has(> .ris-record-actions) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 16px;
+  }
+  .app-shell main .saved-record > .ris-record-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin-top: 0;
+    width: auto;
+  }
+  .app-shell main .saved-record:has(> .ris-record-actions) > div:not(.ris-record-actions) {
+    grid-column: 1;
+    min-width: 0;
+  }
+}
+
+.app-shell main .saved-record .iar-draft-actions {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  align-self: center;
+}
+
+/* Keep new-document text legible against the red row background. */
+.app-shell main .saved-records .saved-record:is(:has(> .recent-form-marker), .animate-pulse) > div:not(:has(button, a)),
+.app-shell main .saved-records .saved-record:is(:has(> .recent-form-marker), .animate-pulse) > div:not(:has(button, a)) :is(div, p, span, h3, b, strong) {
+  color: #472626 !important;
+}
+
+/* Keep issued status and export controls together in compact rows. */
+.app-shell main .saved-record.ris-approved-record {
+  padding: 8px 16px;
+  row-gap: 0;
+}
+.app-shell main .saved-record.ris-approved-record > .ris-record-actions {
+  grid-row: 1;
+  align-self: center;
+  gap: 8px;
+}
+.app-shell main .saved-record.ris-approved-record > .ris-record-actions > div:empty {
+  display: none;
+}
+
+/* Reserve scrollbar and border space so sidebar labels never jump on hover. */
+.app-shell .sidebar-nav {
+  scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+.app-shell .sidebar-shell nav :is(a, button) {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid transparent !important;
+}
+.app-shell .sidebar-shell nav :is(a, button):hover {
+  border-color: rgb(255 255 255 / 24%) !important;
 }

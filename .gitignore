@@ -32,3 +32,6 @@ lerna-debug.log*
 
 Flow Chart.excalidraw
 .tmp-user-management-review/
+
+# Private record-reset backups
+backend/backups/record-reset-*.json

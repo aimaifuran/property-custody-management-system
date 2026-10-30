@@ -1,4 +1,3 @@
-import FormRecordTabs from '../components/FormRecordTabs';
 import SearchInput from '../components/SearchInput';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
@@ -34,18 +33,25 @@ import Pagination from '../components/Pagination';
 import { FileText, Printer, RotateCcw } from 'lucide-react';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
+import { getAccountableOwner, matchSourceRowsToAccountabilities } from '../utils/ptrIssuedItems';
 
 const FIXED_TRANSFER_TYPES = ['Donation', 'Reassignment', 'Relocation'];
 
 const emptyItem = () => ({
     dateAcquired: todayManila(),
     propertyNumber: '',
+    itemName: '',
     description: '',
     amount: '',
     condition: ''
 });
 
 const emptySignatory = () => ({ name: '', designation: '', date: todayManila() });
+
+const getIssuedItemName = (asset) => {
+    const stockItem = asset.inventory?.item;
+    return stockItem?.name || 'Item name unavailable';
+};
 
 const initial = {
     entityName: '',
@@ -91,15 +97,19 @@ const toForm = (record) => ({
     fundCluster: record.fundCluster || '',
     fromAccountableOfficer: record.fromAccountableOfficer || '',
     toAccountableOfficer: record.toAccountableOfficer || '',
+    toUser: record.toUser?._id || record.toUser || '',
     ptrNumber: record.ptrNumber || '',
     date: toDateInputValue(record.date),
     transferTypeChoice: FIXED_TRANSFER_TYPES.includes(record.transferType) ? record.transferType : 'Other',
     transferTypeOther: FIXED_TRANSFER_TYPES.includes(record.transferType) ? '' : (record.transferType || ''),
     items: record.items && record.items.length ? record.items.map((item) => ({
         inventory: item.inventory, property: item.property, serialNumber: item.serialNumber,
-        dateAcquired: toDateInputValue(item.dateAcquired),
+        returnSlip: item.returnSlip, returnSlipItem: item.returnSlipItem,
+        dateAcquired: toDateInputValue(item.dateAcquired) || todayManila(),
         propertyNumber: item.propertyNumber || '',
+        itemName: item.itemName || item.inventory?.item?.name || '',
         description: item.description || '',
+        quantity: item.quantity ?? '',
         amount: item.amount ?? '',
         condition: item.condition || ''
     })) : [],
@@ -116,6 +126,9 @@ export default function PtrPage() {
     const makeForm = () => ({ ...newForm(), fromAccountableOfficer: isUser ? [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username : '', toUser: '' });
     const [assets, setAssets] = useState([]);
     const [people, setPeople] = useState([]);
+    const [selectedFromAccountableUserId, setSelectedFromAccountableUserId] = useState('');
+    const [returnDrafts, setReturnDrafts] = useState([]);
+    const [returnDraftItem, setReturnDraftItem] = useState(null);
     const [saving, setSaving] = useState(false);
     const [decision, setDecision] = useState('confirm');
     const [rejectionReason, setRejectionReason] = useState('');
@@ -127,13 +140,22 @@ export default function PtrPage() {
     const { refreshNumberPreview, cancelNumberPreview } = useDocumentNumberPreview('PTR', 'ptrNumber', setForm);
     const [editingId, setEditingId] = useState(null);
     const activeRecord = reports.find(record => record._id === editingId);
-    const workflow = !!activeRecord?.fromUser;
+    const workflow = !!activeRecord?.fromUser && activeRecord.status !== 'RECORDED';
     const canProcess = workflow && (isUser ? String(activeRecord.toUser) === String(user?._id) && activeRecord.status === 'PENDING_RECEIVER' : ['PENDING_RECEIVER', 'PENDING_ADMIN'].includes(activeRecord.status) && (decision === 'reject' || activeRecord.status === 'PENDING_ADMIN'));
     const [editorOpen, setEditorOpen] = useState(true);
+    const [savedView, setSavedView] = useState('records');
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
+  const [returnDraftSearch, setReturnDraftSearch] = useState('');
+  const [returnDraftPage, setReturnDraftPage] = useState(1);
   const filteredReports = filterReports(sortSavedReports(reports), search);
+  const savedPrsItems = new Set(reports.flatMap(report => (report.items || []).filter(item => item.returnSlip && item.returnSlipItem).map(item => `${item.returnSlip}:${item.returnSlipItem}`)));
+  const availableReturnDrafts = returnDrafts.filter(draft => !savedPrsItems.has(`${draft.item?.returnSlip}:${draft.item?.returnSlipItem}`));
+  const filteredReturnDrafts = availableReturnDrafts.filter(draft => [draft.prsNumber, draft.fromAccountableOfficer, draft.item?.itemName, draft.item?.description, draft.item?.propertyNumber].some(value => String(value || '').toLocaleLowerCase().includes(returnDraftSearch.toLocaleLowerCase())));
+  const returnDraftPageCount = Math.max(1, Math.ceil(filteredReturnDrafts.length / perPage));
+  const currentReturnDraftPage = Math.min(returnDraftPage, returnDraftPageCount);
+  const visibleReturnDrafts = filteredReturnDrafts.slice((currentReturnDraftPage - 1) * perPage, currentReturnDraftPage * perPage);
     const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
     useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
@@ -142,8 +164,8 @@ export default function PtrPage() {
       setPageLoadError('');
       try {
 
-        const [records, inventory, users] = await Promise.all([axios.get('/ptr'), axios.get('/custody/assets'), axios.get('/custody/people')]);
-        setReports(records.data.data || []); setAssets(inventory.data.data || []); setPeople(users.data.data || []);
+        const [records, inventory, users, returns] = await Promise.all([axios.get('/ptr'), axios.get('/custody/assets'), axios.get('/custody/people'), axios.get('/ptr/return-item-drafts')]);
+        setReports(records.data.data || []); setAssets(inventory.data.data || []); setPeople(users.data.data || []); setReturnDrafts(returns.data.data || []);
 
       } catch (error) {
         setPageLoadError(error.response?.data?.message || 'Unable to load records.');
@@ -160,6 +182,131 @@ export default function PtrPage() {
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
     const transferableAssets = assets.filter(asset => asset.acceptedAt && !asset.pendingMovement && Number(asset.quantityRemaining) > 0);
+    const adminTransferableAssets = transferableAssets.filter(asset => asset.user);
+    const selectedSourceAssets = form.items
+        .map(item => transferableAssets.find(asset => String(asset._id) === String(item.accountability)))
+        .filter(Boolean);
+    const selectedSourceOwnerIds = [...new Set(selectedSourceAssets.map(asset => String(asset.user?._id || asset.user)))];
+    const fromAccountableOptions = people
+        .map(person => ({ value: String(person._id), label: person.name, keywords: person.office || '' }))
+        .filter(option => option.value && option.label);
+
+    const adminSourceItemOptions = rowIndex => {
+        const otherSelectedOwnerIds = [...new Set(form.items
+            .filter((_, index) => index !== rowIndex)
+            .map(item => adminTransferableAssets.find(asset => String(asset._id) === String(item.accountability)))
+            .filter(Boolean)
+            .map(asset => String(asset.user?._id || asset.user)))];
+        return adminTransferableAssets
+            .filter(asset => {
+                const ownerId = String(asset.user?._id || asset.user);
+                return (!selectedFromAccountableUserId || ownerId === selectedFromAccountableUserId) &&
+                    (!otherSelectedOwnerIds.length || otherSelectedOwnerIds.includes(ownerId));
+            })
+            .map(asset => {
+                const stockItem = asset.inventory?.item;
+                const { name: ownerName } = getAccountableOwner(asset, people);
+                const itemName = getIssuedItemName(asset);
+                return {
+                    value: asset._id,
+                    label: `${itemName} · ${asset.propertyNumber || asset.inventory?.propertyNumber || stockItem?.stockNumber || 'No property number'} · ${ownerName}`,
+                    keywords: `${stockItem?.description || ''} ${stockItem?.stockNumber || ''} ${asset.documentNumber || ''}`,
+                };
+            });
+    };
+
+    const updateAdminSourceSearch = (rowIndex, value) => {
+        setSelectedFromAccountableUserId('');
+        setForm(previous => ({
+            ...previous,
+            fromAccountableOfficer: '',
+            items: previous.items.map((item, index) => index === rowIndex ? {
+                ...item,
+                accountability: undefined,
+                inventory: undefined,
+                property: undefined,
+                serialNumber: '',
+                propertyNumber: '',
+                itemName: value,
+                description: '',
+                amount: '',
+                condition: '',
+            } : item),
+        }));
+    };
+
+    const selectAdminSourceItem = (rowIndex, option) => {
+        const asset = adminTransferableAssets.find(candidate => String(candidate._id) === String(option.value));
+        if (!asset) return;
+        const stockItem = asset.inventory?.item;
+        const owner = getAccountableOwner(asset, people);
+        setSelectedFromAccountableUserId(owner.userId);
+        setForm(previous => ({
+            ...previous,
+            fromAccountableOfficer: owner.name,
+            items: previous.items.map((item, index) => index === rowIndex ? {
+                ...item,
+                accountability: asset._id,
+                inventory: asset.inventory?._id,
+                property: asset.inventory?.property,
+                serialNumber: asset.serialNumber || asset.inventory?.serialNumber || '',
+                dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || todayManila(),
+                propertyNumber: asset.propertyNumber || asset.inventory?.propertyNumber || stockItem?.stockNumber || '',
+                itemName: getIssuedItemName(asset),
+                description: stockItem?.description || '',
+                amount: Number(asset.quantityRemaining || 0) * Number(asset.inventory?.unitCost || 0),
+                condition: asset.condition || 'Serviceable',
+            } : item),
+        }));
+    };
+
+    const selectSourcePropertyRecord = (report, sourceForm) => {
+        const sourceRows = (report.items || []).filter(item => (item.acceptedQuantity ?? item.quantity) > 0);
+        const sourceMatches = matchSourceRowsToAccountabilities(sourceRows, assets);
+        const eligibleSourceMatches = sourceMatches.map(candidates => candidates.filter(asset =>
+            transferableAssets.some(eligible => String(eligible._id) === String(asset._id))
+        ));
+        const items = sourceForm.items.map((item, index) => {
+            const eligibleCandidates = eligibleSourceMatches[index] || [];
+            const asset = eligibleCandidates.length === 1 ? eligibleCandidates[0] : null;
+            if (!asset) return item;
+            const stockItem = asset.inventory?.item;
+            return {
+                ...item,
+                accountability: asset._id,
+                inventory: asset.inventory?._id,
+                property: asset.inventory?.property,
+                serialNumber: asset.serialNumber || asset.inventory?.serialNumber || '',
+                propertyNumber: asset.propertyNumber || asset.inventory?.propertyNumber || item.propertyNumber,
+                itemName: stockItem?.name || (stockItem?.category !== 'General' ? stockItem?.category : '') || item.itemName,
+                description: stockItem?.description || item.description,
+                dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || item.dateAcquired || todayManila(),
+                amount: Number(asset.quantityRemaining || 0) * Number(asset.inventory?.unitCost || 0),
+                condition: asset.condition || 'Serviceable',
+            };
+        });
+        const matchedAssets = eligibleSourceMatches.flat();
+        const ownerIds = [...new Set(matchedAssets.map(asset => String(asset.user?._id || asset.user)).filter(Boolean))];
+        const owner = ownerIds.length === 1 ? people.find(person => String(person._id) === ownerIds[0]) : null;
+        const accountableName = owner?.name || (ownerIds.length === 1 ? matchedAssets.find(asset => String(asset.user?._id || asset.user) === ownerIds[0])?.employee : '') || '';
+        setSelectedFromAccountableUserId(ownerIds.length === 1 ? ownerIds[0] : '');
+        setForm(previous => ({
+            ...previous,
+            ...sourceForm,
+            items,
+            fromAccountableOfficer: accountableName,
+        }));
+    };
+
+    const clearSourcePropertyRecord = () => {
+        setSelectedFromAccountableUserId('');
+        setForm(previous => ({
+            ...previous,
+            iar: undefined,
+            fromAccountableOfficer: '',
+            items: [emptyItem()],
+        }));
+    };
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -177,13 +324,45 @@ export default function PtrPage() {
 
     const startEdit = (record) => {
         cancelNumberPreview();
+        setSelectedFromAccountableUserId('');
         setEditorOpen(true);
+        setSavedView('records');
+        setReturnDraftItem(null);
         setEditingId(record._id);
         setForm(toForm(record)); setDecision('confirm'); setRejectionReason('');
     };
 
+    const startReturnDraft = (draft) => {
+        cancelNumberPreview();
+        setSelectedFromAccountableUserId('');
+        const adminName = [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '';
+        const adminSignatory = { name: adminName, designation: user?.office || '', date: todayManila() };
+        setEditorOpen(true);
+        setEditingId(null);
+        setReturnDraftItem(draft);
+        setForm({
+            ...makeForm(),
+            entityName: draft.lguName || 'LGU Carigara',
+            fundCluster: draft.fundCluster || 'General Fund',
+            ptrNumber: form.ptrNumber,
+            fromAccountableOfficer: draft.fromAccountableOfficer,
+            toAccountableOfficer: '',
+            toUser: '',
+            date: todayManila(),
+            transferTypeChoice: 'Reassignment',
+            transferTypeOther: '',
+            reasonForTransfer: `Returned item from PRS ${draft.prsNumber || ''}`.trim(),
+            approvedBy: adminSignatory,
+            issuedBy: adminSignatory,
+            receivedBy: emptySignatory(),
+            items: [{ ...draft.item, dateAcquired: toDateInputValue(draft.item.dateAcquired) || todayManila() }],
+        });
+    };
+
     const cancelEdit = () => {
         setEditingId(null);
+        setReturnDraftItem(null);
+        setSelectedFromAccountableUserId('');
         setForm(makeForm()); setDecision('confirm'); setRejectionReason('');
         refreshNumberPreview();
     };
@@ -191,6 +370,15 @@ export default function PtrPage() {
     const save = async (event) => {
         event.preventDefault();
         if (saving) return;
+        if (returnDraftItem && !form.toUser) return toast.error('Search and select the new accountable officer.');
+        if (!isUser && !editingId && !returnDraftItem) {
+            if (form.items.some(item => !item.accountability)) return toast.error('Search and select an issued item for each PTR row.');
+            if (!selectedFromAccountableUserId || !selectedSourceOwnerIds.includes(selectedFromAccountableUserId)) {
+                return toast.error('Search and select the accountable user for the selected item.');
+            }
+            if (!form.toUser) return toast.error('Search and select the new accountable officer.');
+            if (selectedSourceOwnerIds.includes(String(form.toUser))) return toast.error('Select a different accountable officer for the transfer.');
+        }
         const transferType = form.transferTypeChoice === 'Other' ? form.transferTypeOther : form.transferTypeChoice;
         const payload = {
             ...(!editingId ? { autoNumber: true } : {}),
@@ -201,6 +389,7 @@ export default function PtrPage() {
             ptrNumber: form.ptrNumber,
             date: form.date,
             transferType,
+            ...(!isUser && !editingId || returnDraftItem || form.items.some(item => item.returnSlip) ? { toUser: form.toUser } : {}),
             items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => ({
                 ...item,
                 amount: Number(item.amount || 0)
@@ -218,37 +407,70 @@ export default function PtrPage() {
                 await axios.post(`/custody/transfers/${editingId}/${action}`, action === 'reject' ? { reason: rejectionReason } : {});
                 toast.success(action === 'receive' ? 'Receipt confirmed; awaiting admin approval' : action === 'approve' ? 'Transfer approved and accountability reassigned' : 'Transfer rejected');
             } else if (isUser) {
-                await axios.post('/custody/transfers', { accountability: form.items[0]?.accountability, toUser: form.toUser, reason: form.reasonForTransfer, entityName: form.entityName, fundCluster: form.fundCluster, transferType, remarks: form.remarks });
+                await axios.post('/custody/transfers', { accountability: form.items[0]?.accountability, toUser: form.toUser, reason: form.reasonForTransfer, entityName: form.entityName, fundCluster: form.fundCluster, transferType, remarks: form.remarks, dateAcquired: form.items[0]?.dateAcquired });
                 toast.success('PTR sent to the receiving custodian');
             } else if (editingId) {
                 await axios.put(`/ptr/${editingId}`, payload);
                 toast.success('PTR updated');
                 markUpdated(editingId);
             } else {
-                await axios.post('/ptr', payload);
-                toast.success('PTR created');
+                const { data } = await axios.post('/ptr', payload);
+                setReports(previous => [data.data, ...previous]);
+                if (returnDraftItem) {
+                    const transferred = new Set((data.data.items || []).map(item => `${item.returnSlip}:${item.returnSlipItem}`));
+                    setReturnDrafts(previous => previous.filter(draft => !transferred.has(`${draft.item?.returnSlip}:${draft.item?.returnSlipItem}`)));
+                    setReturnDraftPage(1);
+                    markUpdated(data.data._id);
+                }
+                toast.success(returnDraftItem ? 'Item transferred and saved in Saved Records. Removed from drafts.' : 'PTR created');
             }
             setSearch('');
             setEditorOpen(false);
+            setSavedView('records');
             setEditingId(null);
+            setReturnDraftItem(null);
+            setSelectedFromAccountableUserId('');
             setForm(makeForm()); setDecision('confirm'); setRejectionReason('');
             refreshNumberPreview();
-            load();
-            if (editingId) scrollToRecords();
+            await load();
+            if (editingId || returnDraftItem) scrollToRecords();
         } catch (error) {
-            toast.error(error?.response?.data?.message || 'Unable to save PTR');
+            if (returnDraftItem && error.response?.data?.errors?.some(entry => entry.code === 'TRANSFER_SOURCE_UNAVAILABLE')) {
+                setReturnDrafts(previous => previous.filter(draft => draft._id !== returnDraftItem._id));
+                cancelEdit();
+                setEditorOpen(false);
+                setSavedView('return-drafts');
+                setReturnDraftPage(1);
+                toast('This item is no longer available and has been removed from drafts.');
+                await load();
+            } else toast.error(error?.response?.data?.message || 'Unable to save PTR');
         } finally { setSaving(false); }
     };
 
-    const field = (label, key, type = 'text') => key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
+    const field = (label, key, type = 'text') => key === 'fromAccountableOfficer' && returnDraftItem ? (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <SearchInput aria-label={label} placeholder={`Enter ${label.toLowerCase()}`} value={form[key] || ''} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => update(key, value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input aria-label={label} readOnly value={form.fromAccountableOfficer} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
+        </label>
+    ) : key === 'fromAccountableOfficer' && !isUser && !editingId && !returnDraftItem ? (
+        <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+            <SearchInput required aria-label={label} placeholder="Search accountable officer" value={form.fromAccountableOfficer || ''} options={fromAccountableOptions} openOnFocus onChange={value => { setSelectedFromAccountableUserId(''); update('fromAccountableOfficer', value); }} onSelect={option => { setSelectedFromAccountableUserId(option.value); update('fromAccountableOfficer', option.label); }} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" />
+        </label>
+    ) : key === 'toAccountableOfficer' && returnDraftItem ? (
+        <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">To New Accountable Officer</span>
+            <SearchInput required aria-label="To New Accountable Officer" placeholder="Search To New Accountable Officer" value={form.toAccountableOfficer || ''} options={people.filter(person => String(person._id) !== String(returnDraftItem.returnedBy?.user || '')).map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => setForm(previous => ({ ...previous, toAccountableOfficer: value, toUser: '', receivedBy: { ...previous.receivedBy, user: undefined, name: '', designation: '' } }))} onSelect={option => { const person = people.find(row => row._id === option.value); if (person) setForm(previous => ({ ...previous, toUser: person._id, toAccountableOfficer: person.name, receivedBy: { ...previous.receivedBy, user: person._id, name: person.name, designation: person.office || '', date: todayManila() } })); }} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+        </label>
+    ) : key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' && returnDraftItem ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} readOnly value={form.entityName} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
+        <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+            <SearchInput aria-label={label} placeholder={`Enter ${label.toLowerCase()}`} value={form[key] || ''} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => setForm(previous => ({ ...previous, [key]: value, ...(key === 'toAccountableOfficer' ? { toUser: '' } : {}) }))} onSelect={key === 'toAccountableOfficer' ? option => { const person = people.find(row => row._id === option.value); if (person) setForm(previous => ({ ...previous, toUser: person._id, toAccountableOfficer: person.name })); } : undefined} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     ) : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <input required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer') || (returnDraftItem && key === 'date')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -398,20 +620,23 @@ export default function PtrPage() {
     if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
         <div className="space-y-6">
-            <FormRecordTabs label="Property Transfer Report" showForm={editorOpen} onForm={() => setEditorOpen(true)} onRecords={() => setEditorOpen(false)} />
-            {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <nav aria-label="Property Transfer Report sections" className="flex flex-wrap gap-2">
+                <button type="button" aria-pressed={editorOpen} onClick={() => setEditorOpen(true)} className={`rounded-xl border px-4 py-2 font-semibold ${editorOpen ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Property Transfer Report</button>
+                <button type="button" aria-pressed={!editorOpen && savedView === 'records'} onClick={() => { setEditorOpen(false); setSavedView('records'); }} className={`rounded-xl border px-4 py-2 font-semibold ${!editorOpen && savedView === 'records' ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Saved Records</button>
+                {!isUser && <button type="button" aria-pressed={!editorOpen && savedView === 'return-drafts'} onClick={() => { setEditorOpen(false); setSavedView('return-drafts'); setReturnDraftPage(1); }} className={`rounded-xl border px-4 py-2 font-semibold ${!editorOpen && savedView === 'return-drafts' ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Drafts from PRS{availableReturnDrafts.length > 0 && <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs">{availableReturnDrafts.length}</span>}</button>}
+            </nav>
+            {!editorOpen && savedView === 'records' && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {reports.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Transfer Reports yet.</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
                         <div>
-                            <b>{item.ptrNumber}</b><p className="mt-1 text-sm">{item.status?.replaceAll('_', ' ')}</p>
+                            <b>{item.ptrNumber}</b><p className="mt-1 text-sm">{item.items?.[0]?.itemName || item.items?.[0]?.inventory?.item?.name || 'Item name unavailable'}</p>
                             <div className="text-sm text-slate-500">
                                 {item.fromAccountableOfficer || 'N/A'} {'->'} {item.toAccountableOfficer || 'N/A'} · {item.transferType || 'N/A'}
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <RecordActionButton action="edit" title={item.fromUser ? "Open transfer form" : "Update record"} onClick={() => startEdit(item)} />
                             {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                             <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
                             <RecordActionButton action="print" title="Print record" onClick={() => generatePdf(item, true)} />
@@ -420,14 +645,36 @@ export default function PtrPage() {
                 ))}
                 <Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={(value) => { setPerPage(value); setPage(1); }} />
             </div>}
+            {!editorOpen && savedView === 'return-drafts' && <div className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <SavedReportsHeader title="Returned Items from PRS" searchPlaceholder="Search PRS, accountable officer, or item" search={returnDraftSearch} onSearch={value => { setReturnDraftSearch(value); setReturnDraftPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setReturnDraftPage(1); }} />
+                <p className="mt-2 text-sm text-slate-600">Select a received PRS item to transfer. Once saved, the item moves out of Drafts from PRS and appears in Saved Records.</p>
+                {visibleReturnDrafts.length === 0 && <p className="mt-3 text-sm text-slate-500">{availableReturnDrafts.length ? 'No matching PRS items.' : 'No unassigned saved PRS items available for PTR drafts.'}</p>}
+                <div className="mt-3 space-y-3">
+                    {visibleReturnDrafts.map(draft => <div key={draft._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4">
+                        <NewFormBadge record={draft} />
+                        <div>
+                            <b>{draft.item?.itemName || draft.item?.inventory?.item?.name || 'Returned item'}</b>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                                <span>PRS {draft.prsNumber || 'N/A'}</span>
+                                <span>{draft.fromAccountableOfficer || 'N/A'}</span>
+                                <span>Qty {draft.item?.quantity ?? 'N/A'}</span>
+                                <span>Property No. {draft.item?.propertyNumber || 'N/A'}</span>
+                                <span>{draft.item?.condition || 'Serviceable'}</span>
+                            </div>
+                        </div>
+                        <RecordActionButton action="edit" title="Edit PTR draft" onClick={() => startReturnDraft(draft)} />
+                    </div>)}
+                </div>
+                <Pagination showPageSize={false} page={currentReturnDraftPage} pageCount={returnDraftPageCount} perPage={perPage} onPageChange={setReturnDraftPage} onPerPageChange={value => { setPerPage(value); setReturnDraftPage(1); }} />
+            </div>}
 
             {editorOpen && (<ValidatedForm as={motion.form} ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
-                <FormEditorHeader title="Property Transfer Report" description="Transfer an accountable asset to another custodian." onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
-                {!editingId && !isUser && <IarSourceSelect type="ptr" setForm={setForm} />}
+                <FormEditorHeader title="Property Transfer Report" description={returnDraftItem ? `Select the new accountable officer, then click Transfer & Save. The PTR is saved automatically in Saved Records and removed from Drafts from PRS.` : 'Transfer an accountable asset to another custodian.'} onClose={() => { cancelEdit(); setEditorOpen(false); setSavedView('records'); scrollToRecords(); }} />
+                {!editingId && !isUser && !returnDraftItem && <IarSourceSelect type="ptr" setForm={setForm} onSourceSelect={selectSourcePropertyRecord} onSourceClear={clearSourcePropertyRecord} accountabilities={assets} />}
                 <fieldset disabled={workflow} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-3">
                     {field('Entity Name', 'entityName')}
-                    <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />
+                    {returnDraftItem ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Fund Cluster</span><input aria-label="Fund Cluster" readOnly value={form.fundCluster} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></label> : <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />}
                     {field('PTR No.', 'ptrNumber')}
                     {field('From Accountable Officer', 'fromAccountableOfficer')}
                     {field('To Accountable Officer', 'toAccountableOfficer')}
@@ -443,6 +690,7 @@ export default function PtrPage() {
                                     type="radio"
                                     name="transferType"
                                     value={option}
+                                    disabled={Boolean(returnDraftItem)}
                                     checked={form.transferTypeChoice === option}
                                     onChange={() => update('transferTypeChoice', option)}
                                 />
@@ -452,6 +700,7 @@ export default function PtrPage() {
                     </div>
                     {form.transferTypeChoice === 'Other' && (
                         <input required
+                            readOnly={Boolean(returnDraftItem)}
                             value={form.transferTypeOther}
                             onChange={(e) => update('transferTypeOther', e.target.value)}
                             placeholder="Specify transfer type"
@@ -466,6 +715,7 @@ export default function PtrPage() {
                             <tr className="bg-slate-50 text-left">
                                 <th className="p-2">Date Acquired <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                                <th className="p-2">Item Name <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Amount <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Condition of PPE <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
@@ -476,44 +726,47 @@ export default function PtrPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Date Acquired" type="date" value={item.dateAcquired || todayManila()} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = transferableAssets.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate), propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber || '', description: asset.inventory?.item?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select an issued item</option>{transferableAssets.map(asset => <option key={asset._id} value={asset._id}>{asset.inventory?.item?.description} - {asset.documentNumber}</option>)}</select> : <input required={hasRowData(item, emptyItem())} aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = transferableAssets.find(row => row._id === event.target.value); const stockItem = asset?.inventory?.item; setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || todayManila(), propertyNumber: asset.propertyNumber || stockItem?.stockNumber || '', itemName: getIssuedItemName(asset), description: stockItem?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select an issued item</option>{transferableAssets.map(asset => <option key={asset._id} value={asset._id}>{getIssuedItemName(asset)} - {asset.documentNumber}</option>)}</select> : <input required={hasRowData(item, emptyItem())} aria-label="Property Number" readOnly={Boolean(returnDraftItem)} value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        {!isUser && !editingId && !returnDraftItem ? <SearchInput required aria-label="Item Name" placeholder="Search an accountable item" value={item.itemName || ''} options={adminSourceItemOptions(index)} onChange={value => updateAdminSourceSearch(index, value)} onSelect={option => selectAdminSourceItem(index, option)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> : <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Item Name" value={item.itemName} onChange={(e) => updateItem(index, 'itemName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser} aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <select required={hasRowData(item, emptyItem())} disabled={isUser} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
+                                        <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
-                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} /></td>
+                                    <td className="p-2">
+                                        <select required={hasRowData(item, emptyItem())} disabled={isUser || Boolean(returnDraftItem)} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
+                                    </td>
+                                  <td className="p-2 text-center">{!returnDraftItem && <DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} />}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </TableScroll>
-                {!isUser && !workflow && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
+                {!isUser && !workflow && !returnDraftItem && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks (optional)</span>
-                        <textarea value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
+                        <textarea readOnly={Boolean(returnDraftItem)} value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
                     </label>
                     <label className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Reason for Transfer</span>
-                        <textarea required value={form.reasonForTransfer} onChange={(e) => update('reasonForTransfer', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
+                        <textarea required readOnly={Boolean(returnDraftItem)} value={form.reasonForTransfer} onChange={(e) => update('reasonForTransfer', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
                     </label>
                 </div>
 
-                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <fieldset disabled={Boolean(returnDraftItem)} className="mt-6 grid gap-4 md:grid-cols-2">
                     {signatoryFields('Approved By', 'approvedBy')}
                     {signatoryFields('Issued By', 'issuedBy')}
                     {signatoryFields('Received By', 'receivedBy')}
-                </div>
+                </fieldset>
 
                 </fieldset>
                 {workflow && <p className="mt-4 text-sm">Status: {activeRecord.status.replaceAll('_', ' ')}{activeRecord.rejectionReason ? ` - ${activeRecord.rejectionReason}` : ''}</p>}
@@ -522,7 +775,7 @@ export default function PtrPage() {
                 <div className="flex justify-end">
                   <button type="submit" disabled={saving || (workflow && !canProcess)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white">
                       <Send size={16} />
-                      {workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : 'Save'}
+                      {workflow ? decision === 'reject' ? 'Reject PTR' : canProcess ? isUser ? 'Confirm Receipt' : 'Approve PTR' : 'Awaiting / Recorded Transfer' : returnDraftItem ? 'Transfer & Save' : 'Save'}
                   </button>
                 </div>
             </ValidatedForm>)}

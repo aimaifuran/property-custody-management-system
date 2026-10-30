@@ -39,10 +39,10 @@ test('profile picture upload persists only to the authenticated account and vali
   assert.equal((await response.json()).data.user.profilePicture, `data:image/png;base64,${png.toString('base64')}`);
   assert.equal((await upload(user, png, 'image/png', other._id)).status, 403);
   assert.equal((await User.findById(other._id)).profilePicture, undefined);
-  assert.equal((await upload(admin, Buffer.from('invalid'), 'image/png', other._id)).status, 400);
-  assert.equal((await upload(admin, png, 'image/png', 'invalid')).status, 400);
-  assert.equal((await upload(admin, png, 'image/png', new mongoose.Types.ObjectId())).status, 404);
-  assert.equal((await upload(admin, png, 'image/png', other._id)).status, 200);
-  const profile = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/me`, { headers: { Authorization: `Bearer ${jwt.sign({ id: other._id }, process.env.JWT_SECRET || 'dev-secret')}` } });
-  assert.equal((await profile.json()).data.user.profilePicture, `data:image/png;base64,${png.toString('base64')}`, 'User profile returns the photo assigned by the administrator');
+  assert.equal((await upload(admin, png, 'image/png', other._id)).status, 403);
+  assert.equal((await User.findById(other._id)).profilePicture, undefined, 'Admins cannot change another account photo');
+  assert.equal((await upload(other, png)).status, 200);
+  const directory = await fetch(`http://127.0.0.1:${server.address().port}/api/users?role=user`, { headers: { Authorization: `Bearer ${jwt.sign({ id: admin._id }, process.env.JWT_SECRET || 'dev-secret')}` } });
+  const rows = (await directory.json()).data;
+  assert.equal(rows.find(row => row._id === String(other._id)).profilePicture, `data:image/png;base64,${png.toString('base64')}`, 'User-owned photo updates appear in the admin directory');
 });

@@ -6,6 +6,7 @@ import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info, Settings, BookOpen, X } from 'lucide-react';
+import useRecordActivity from '../utils/useRecordActivity';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { preloadFormFonts } from '../utils/formPdfFonts';
@@ -46,6 +47,7 @@ const canAccessNavItem = (user, item) => {
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { hasUnread: unreadUserRecords } = useRecordActivity(user?.role === 'admin' ? user._id : undefined);
   const location = useLocation();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
@@ -320,7 +322,7 @@ export default function Layout() {
               {accountMenuOpen && <div id="header-account-menu" className="title-bar-account-menu" role="menu" aria-label="Account actions">
                   <NavLink to="/profile" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />My Profile</NavLink>
                 {user?.role === 'admin' && <>
-                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management</NavLink>
+                  <NavLink to="/users" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Users size={16} aria-hidden="true" />User Management{unreadUserRecords && <span className="ml-auto inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-red-600" role="status" aria-label="Unread user account records" />}</NavLink>
                   <NavLink to="/settings" role="menuitem" onClick={() => setAccountMenuOpen(false)}><Settings size={16} aria-hidden="true" />System Settings</NavLink>
                 </>}
                 <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); logout(); }}><LogOut size={16} aria-hidden="true" />Logout</button>

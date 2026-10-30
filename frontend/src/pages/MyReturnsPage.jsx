@@ -34,14 +34,13 @@ export default function MyReturnsPage() {
     {error && <div role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-700">{error}</div>}
     {!error && <section className="minimal-surface p-6">
       {items.length === 0 ? <p className="text-slate-500">No confirmed returns have been recorded for your account yet.</p> : <TableScroll className="overflow-x-auto"><table className="user-returns-table w-full text-left text-sm">
-        <thead className="hidden lg:table-header-group"><tr className="border-b text-slate-500">{['Item', 'RIS No.', 'Issued', 'Returned', 'Remaining', 'Return result', 'Return slip details'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
+        <thead className="hidden lg:table-header-group"><tr className="border-b text-slate-500">{['Item', 'RIS No.', 'Issued', 'Returned', 'Remaining', 'Return result'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
         <tbody>{items.map(item => <tr key={item.rowKey} className="mb-4 block rounded-xl border border-slate-200 p-3 last:mb-0 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:p-0">
           <td data-label="Item" className="p-3 font-medium">{item.itemName || item.description || item.stockNumber}</td><td data-label="RIS No." className="p-3">{item.risNumber || '—'}</td><td data-label="Issued" className="p-3">{item.quantityIssued ?? '—'}</td><td data-label="Returned" className="p-3">{item.quantityReturned}</td><td data-label="Remaining" className="p-3">{item.quantityRemaining}</td>
           <td data-label="Return result" className="p-3"><span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-semibold leading-snug ${item.quantityRemaining === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
             {item.quantityRemaining === 0 ? <CircleCheck size={16} className="shrink-0" aria-hidden="true" /> : item.pendingReturn ? <Clock3 size={16} className="shrink-0" aria-hidden="true" /> : <RotateCcw size={16} className="shrink-0" aria-hidden="true" />}
             <span>{item.status}</span>
           </span></td>
-          <td data-label="Return slip details" className="p-3"><div className="min-w-0">{item.returns.length ? item.returns.map((entry, index) => <div key={index} className="space-y-1 rounded-lg bg-slate-50 p-2 mb-2 last:mb-0 break-words">{entry.prsNumber || 'Return slip'} · Qty {entry.quantity} · {new Date(entry.date).toLocaleDateString()}<div>{entry.status === 'PENDING' ? 'Awaiting admin confirmation' : entry.status === 'REJECTED' ? `Return rejected: ${entry.rejectionReason}` : 'Receipt confirmed'}</div>{entry.receivedBy && <div>Received by: {entry.receivedBy}</div>}{entry.note && <div>{entry.note}</div>}</div>) : 'No return recorded by admin'}</div></td>
 
         </tr>)}</tbody>
       </table></TableScroll>}

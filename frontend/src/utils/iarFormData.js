@@ -17,6 +17,16 @@ export function iarFormData(report, type) {
     if (type === 'ris') return { inventory: item.inventory, property: item.property, serialNumber: item.serialNumber || '', stockNumber: item.stockNumber || item.stockPropertyNumber || '', unit: common.unit, description, quantityRequested: quantity, stockAvailable: '', isAvailable: null, quantityIssued: '', unitCost, totalCost: amount, remarks: '' };
     if (type === 'ics') return { ...common, inventoryItemNo: propertyNumber, totalCost: amount, estimatedUsefulLife: item.estimatedUsefulLife || '' };
     if (type === 'par') return { ...common, propertyNumber, dateAcquired: date, amount };
+    if (type === 'ptr') return {
+      ...identity,
+      itemName: item.propertyPlantAndEquipment || item.inventory?.item?.name ||
+        (item.inventory?.item?.category !== 'General' ? item.inventory?.item?.category : '') || '',
+      description: common.description,
+      propertyNumber,
+      dateAcquired: date,
+      amount,
+      condition: '',
+    };
     return { ...identity, description: common.description, propertyNumber, dateAcquired: date, amount, condition: '' };
   });
   const result = { iar: report._id, fundCluster: report.fundCluster || '', items };

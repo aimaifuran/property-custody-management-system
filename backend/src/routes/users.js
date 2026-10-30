@@ -11,20 +11,12 @@ const { authenticate, authorize, adminOnly } = require('../middlewares/auth');
 const router = express.Router();
 const { linkLegacyRequests } = require('../utils/accountLinks');
 const { lockInactiveUsers } = require('../utils/inactivityLock');
-const { pictureUpload, pictureData } = require('../utils/pictureUpload');
+router.post('/:id/profile-picture', authenticate, (req, res) => {
+  return errorResponse(res, 'Profile photos can only be changed from your own account profile.', [], 403);
+});
 
-router.post('/:id/profile-picture', authenticate, adminOnly, (req, res, next) => {
-  if (!require('mongoose').isValidObjectId(req.params.id)) return errorResponse(res, 'Invalid user account', [], 400);
-  pictureUpload(req, res, error => {
-    if (error) return errorResponse(res, error.code === 'LIMIT_FILE_SIZE' ? 'Profile picture must be 2 MB or smaller.' : 'Upload one profile picture.', [], 400);
-    next();
-  });
-}, async (req, res) => {
-  const image = pictureData(req.file);
-  if (!image) return errorResponse(res, 'Choose a valid JPG, PNG, or WebP image.', [], 400);
-  const user = await User.findOneAndUpdate({ _id: req.params.id, deleted: false, role: 'user' }, { $set: { profilePicture: image } }, { new: true });
-  if (!user) return errorResponse(res, 'User account not found', [], 404);
-  return successResponse(res, 'User profile picture updated', { profilePicture: user.profilePicture });
+router.get('/record-activity', authenticate, adminOnly, async (req, res) => {
+  return successResponse(res, 'Account activity', await require('../utils/accountActivity')());
 });
 
 router.get('/:id/records', authenticate, adminOnly, async (req, res) => {
@@ -32,15 +24,40 @@ router.get('/:id/records', authenticate, adminOnly, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return errorResponse(res, 'Invalid user account', [], 400);
   const user = await User.findOne({ _id: req.params.id, deleted: false, role: 'user' });
   if (!user) return errorResponse(res, 'User account not found', [], 404);
+  await linkLegacyRequests();
   const { accountRecords } = require('../utils/accountRecords');
   const Accountability = require('../models/PropertyAccountability');
   const PropertyReturnSlip = require('../models/PropertyReturnSlip');
+  const PropertyTransferReport = require('../models/PropertyTransferReport');
   const [risRows, assets, returnSlips] = await Promise.all([
     accountRecords(user, true),
     Accountability.find({ deleted: false, active: true, user: user._id }).populate({ path: 'inventory', populate: { path: 'item' } }).sort({ createdAt: -1 }).lean(),
     PropertyReturnSlip.find({ deleted: false, $or: [{ submittedBy: user._id }, { 'returnedBy.user': user._id }] }).sort({ createdAt: -1 }).lean(),
   ]);
-  return successResponse(res, 'User records retrieved', { risRows, assets, returnSlips });
+  const ptrRecords = await PropertyTransferReport.find({
+    deleted: false,
+    $or: [
+      { fromUser: user._id },
+      { toUser: user._id },
+      ...(returnSlips.length ? [{ 'items.returnSlip': { $in: returnSlips.map(slip => slip._id) } }] : []),
+    ],
+  }).populate({ path: 'items.inventory', populate: { path: 'item', select: 'name description stockNumber' } })
+    .sort({ date: -1, createdAt: -1 }).lean();
+  const returnSlipById = new Map(returnSlips.map(slip => [String(slip._id), slip]));
+  const transferRecords = ptrRecords.map(report => {
+    const linkedSlip = report.items.map(item => returnSlipById.get(String(item.returnSlip || ''))).find(Boolean);
+    const sourceUser = report.fromUser || linkedSlip?.returnedBy?.user;
+    return {
+      ...report,
+      direction: String(sourceUser || '') === String(user._id) ? 'OUTGOING' : 'INCOMING',
+      fromAccountableOfficer: report.fromAccountableOfficer || linkedSlip?.returnedBy?.name || '',
+    };
+  });
+  const currentAssets = assets.map(asset => ({
+    ...asset,
+    quantityRemaining: Math.max(0, Number(asset.quantity || 0) - Number(asset.returnedQuantity || 0)),
+  }));
+  return successResponse(res, 'User records retrieved', { risRows, assets: currentAssets, returnSlips, transferRecords });
 });
 
 // Record a physical, serviceable return directly from the admin's account records.
@@ -96,6 +113,7 @@ router.post('/', authenticate, validateAdminForm('users'), authorize('canManageU
 
   const hashed = await bcrypt.hash(req.body.password || 'Password123!', 10);
   const payload = { ...req.body, password: hashed, createdBy: req.user._id };
+  delete payload.profilePicture;
   payload.permissions = payload.role === 'admin' ? [] : ['canViewRIS'];
   const user = await User.create(payload);
   await linkLegacyRequests();

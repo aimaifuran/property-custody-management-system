@@ -1,11 +1,12 @@
+import useRecordActivity from '../utils/useRecordActivity';
 import OfficeSelect from '../components/OfficeSelect';
 import RegistrationRequests from '../components/RegistrationRequests';
 import UserRecordsDialog from '../components/UserRecordsDialog';
 import ValidatedForm from '../components/ValidatedForm';
 import AccountLockButton from '../components/AccountLockButton';
 import Skeleton, { PageSkeleton } from '../components/Skeleton';
-import { useEffect, useRef, useState } from 'react';
-import { Building2, Camera, Eye, Mail, MoreVertical, Pencil, Plus, ShieldCheck, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Building2, Eye, Mail, MoreVertical, Pencil, Plus, ShieldCheck, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import AccountNotificationToaster from '../components/AccountNotificationToaster';
@@ -19,6 +20,8 @@ const initials = user => `${user.firstName?.trim()[0] || ''}${user.lastName?.tri
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
+  const { activity, markViewed, hasNew } = useRecordActivity(currentUser?._id);
+  const [recordVersion, setRecordVersion] = useState(0);
   const [pageLoading, setPageLoading] = useState(true);
   const [pageLoadError, setPageLoadError] = useState('');
 
@@ -41,36 +44,19 @@ export default function UsersPage() {
   const menuRef = useRef(null);
   const editorTriggerRef = useRef(null);
   const menuTriggerRef = useRef(null);
-  const pictureInputRef = useRef(null);
-  const pictureUserRef = useRef(null);
-  const [uploadingPicture, setUploadingPicture] = useState(false);
-
-  const uploadUserPicture = async event => {
-    const file = event.target.files?.[0];
-    const account = pictureUserRef.current;
-    event.target.value = '';
-    if (!file || !account || uploadingPicture) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
-      toast.error('Choose a JPG, PNG, or WebP image, 2 MB or smaller.'); return;
-    }
-    setUploadingPicture(true);
-    try {
-      const payload = new FormData(); payload.append('picture', file);
-      const { data } = await axios.post(`/users/${account._id}/profile-picture`, payload);
-      setUsers(previous => previous.map(user => user._id === account._id ? { ...user, profilePicture: data.data.profilePicture } : user));
-      toast.success(`Profile picture updated for ${account.username}`);
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Unable to upload profile picture.');
-    } finally { setUploadingPicture(false); }
-  };
-
-  const load = () => axios.get('/users', { params: { role: 'user' } }).then(({ data }) => {
+  const load = useCallback((background = false) => axios.get('/users', { params: { role: 'user' } }).then(({ data }) => {
     setUsers((data.data || []).filter(account => account.role === 'user')); setPageLoadError('');
   }).catch(error => {
-    setPageLoadError(error.response?.data?.message || 'Unable to load records.');
-  }).finally(() => setPageLoading(false));
+    if (!background) setPageLoadError(error.response?.data?.message || 'Unable to load records.');
+  }).finally(() => { if (!background) setPageLoading(false); }), []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const initial = window.setTimeout(() => load(), 0);
+    const refresh = () => { if (!document.hidden) load(true); };
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [load]);
 
   useEffect(() => {
     if (!editorOpen) return undefined;
@@ -135,7 +121,7 @@ export default function UsersPage() {
       const role = editingUser ? editingUser.role : form.role;
       const payload = { ...form, role, permissions: role === 'admin' ? [] : ['canViewRIS'] };
       if (!payload.password) delete payload.password;
-      const { data } = editingUser ? await axios.put(`/users/${editingUser._id}`, payload) : await axios.post('/users', payload);
+      editingUser ? await axios.put(`/users/${editingUser._id}`, payload) : await axios.post('/users', payload);
       await load();
       toast.success(editingUser ? 'Account details updated' : role === 'admin' ? 'Administrator account created' : 'User created', { toasterId: 'account-feedback' });
       setEditingUser(null);
@@ -201,8 +187,6 @@ export default function UsersPage() {
   if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={() => { setPageLoading(true); setPageLoadError(''); load(); }} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
     <div className="user-management-page">
-      <input ref={pictureInputRef} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose user profile picture" hidden onChange={uploadUserPicture} disabled={uploadingPicture} />
-      {uploadingPicture && <p role="status">Saving user profile picture...</p>}
       <header className="user-management-header">
         <div className="user-management-heading"><span className="user-management-eyebrow"><ShieldCheck size={14} aria-hidden="true" /> ACCOUNT DIRECTORY</span><h1>User Management</h1><p>Your team, their offices, and the access they need.</p></div>
         {currentUser?.role === 'admin' && <div className="user-management-create-actions"><button type="button" className="user-create-button" aria-haspopup="dialog" aria-expanded={editorOpen && !editingUser} onClick={createUser}><Plus size={16} aria-hidden="true" /> Add User</button></div>}
@@ -218,11 +202,10 @@ export default function UsersPage() {
             <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{user.office || 'Office not assigned'}</span></p>
           </div>
           {currentUser?.role === 'admin' && <div className="user-card-actions" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(previous => previous === user._id ? null : previous); }}>
-            <button type="button" className="user-card-menu-toggle relative" aria-label={`Actions for ${user.username}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" /></button>
+            <button type="button" className="user-card-menu-toggle relative" aria-label={`Actions for ${user.username}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" />{hasNew(user._id) && <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-red-600" role="status" aria-label="New record activity" />}</button>
             {openMenu === user._id && <div ref={menuRef} id={`user-actions-${user._id}`} className="user-card-menu" role="group" aria-label={`Account actions for ${user.username}`}>
-              <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records</button>
+              <button type="button" onClick={() => { recordsTriggerRef.current = menuTriggerRef.current; setOpenMenu(null); setRecordVersion(activity[user._id] || 0); setRecordsUser(user); }}><Eye size={16} aria-hidden="true" /> View Records{hasNew(user._id) && <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-red-600" aria-label="New record activity" />}</button>
                     <button type="button" onClick={event => editUser(user, event)}><Pencil size={15} aria-hidden="true" /> Edit user</button>
-              <button type="button" disabled={uploadingPicture} onClick={() => { pictureUserRef.current = user; pictureInputRef.current?.click(); setOpenMenu(null); }}><Camera size={16} aria-hidden="true" /> {user.profilePicture ? 'Change profile photo' : 'Upload profile photo'}</button>
               <div className="user-card-lock"><span>{user.status === 'inactive' ? 'Inactive account' : user.locked ? 'Unlock account' : 'Lock account'}</span><AccountLockButton locked={user.locked} username={user.username || user.email} busy={lockingUser === user._id} disabled={!!lockingUser || user.status === 'inactive'} onClick={() => toggleLock(user)} /></div>
             </div>}
           </div>}
@@ -231,7 +214,7 @@ export default function UsersPage() {
       {users.length === 0 && <div className="user-accounts-empty"><h2>No office accounts yet</h2><p>Click Add User to add an account.</p></div>}
       {users.length > pageSize && <nav className="user-management-pagination" aria-label="Account pages"><span>Page {currentPage} of {pageCount}</span><div><button type="button" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setOpenMenu(null); }}>Previous</button><button type="button" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); setOpenMenu(null); }}>Next</button></div></nav>}
 
-      {recordsUser && <UserRecordsDialog user={recordsUser} onClose={() => { setRecordsUser(null); window.requestAnimationFrame(() => recordsTriggerRef.current?.focus()); }} />}
+      {recordsUser && <UserRecordsDialog onViewed={() => markViewed(recordsUser._id, recordVersion)} user={recordsUser} onClose={() => { setRecordsUser(null); window.requestAnimationFrame(() => recordsTriggerRef.current?.focus()); }} />}
       {editorOpen && <dialog ref={dialogRef} role="dialog" className="user-editor-dialog" aria-labelledby="user-editor-title" onCancel={event => { event.preventDefault(); cancelEdit(); }}>
         <AccountNotificationToaster toasterId="user-editor" />
         <ValidatedForm onSubmit={save} onValidationError={errors => {

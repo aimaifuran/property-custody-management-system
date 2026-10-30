@@ -995,10 +995,10 @@ export default function RisPage() {
         <SavedReportsHeader title="Items recorded from IAR" searchPlaceholder="Search IAR, stock number, or item" search={search} onSearch={value => { setSearch(value); setIarDraftPage(1); }} perPage={iarDraftPerPage} onPerPage={() => {}} options={[5]} />
         {iarDraftError && <p role="alert" className="mt-3 text-sm text-rose-700">{iarDraftError}</p>}
         <div className="mt-4 space-y-3">
-          {visibleIarDrafts.map(row => { const serialNumber = row.serialNumber || (row.serialNumbers || []).join(', '); return <article key={row._id} className="flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">IAR No. {row.iarNumber || '—'}</div><div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-words font-medium text-slate-900"><span>{row.propertyPlantAndEquipment || row.description || row.item || 'Item'}</span>{serialNumber && <span className="text-sm font-normal text-slate-600">S/N: {serialNumber}</span>}</div></div><div className="flex shrink-0 flex-col items-end gap-3"><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Drafts</span><RecordActionButton action="edit" title={`Edit ${row.propertyPlantAndEquipment || row.description || row.item || 'IAR item'} in RIS form`} onClick={() => editIarDraft(row)} /></div></article>; })}
+          {visibleIarDrafts.map(row => { const serialNumber = row.serialNumber || (row.serialNumbers || []).join(', '); return <article key={row._id} className="saved-record flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">IAR No. {row.iarNumber || '—'}</div><div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-words font-medium text-slate-900"><span>{row.propertyPlantAndEquipment || row.description || row.item || 'Item'}</span>{serialNumber && <span className="text-sm font-normal text-slate-600">S/N: {serialNumber}</span>}</div></div><div className="iar-draft-actions flex shrink-0 items-center gap-2"><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Drafts</span><RecordActionButton action="edit" title={`Edit ${row.propertyPlantAndEquipment || row.description || row.item || 'IAR item'} in RIS form`} onClick={() => editIarDraft(row)} /></div></article>; })}
         </div>
         <Pagination page={iarDraftPage} pageCount={iarDraftPageCount} perPage={iarDraftPerPage} onPageChange={setIarDraftPage} />
-        {!iarDraftError && !visibleIarDrafts.length && <p className="mt-4 text-slate-500">{iarDrafts.length ? 'Walang draft na may available na stock.' : 'Wala pang item na naitala sa stock mula sa IAR.'}</p>}
+        {!iarDraftError && !visibleIarDrafts.length && <p className="mt-4 text-slate-500">{iarDrafts.length ? 'No drafts with available stock.' : 'No items from IAR have been recorded in stock yet.'}</p>}
       </section>}
       {risView === 'requests' && (editingRis || ((!filteredIarDrafts.length || selectedIarDraftId) && creatingRis)) ? (<>
       <ValidatedForm as={motion.form} validationSelector={decision === 'reject' ? '[data-rejection-reason]' : undefined}
@@ -1252,14 +1252,16 @@ export default function RisPage() {
           {!group.records.length && <p className="text-slate-500">{group.key === 'approved' ? 'No issued items found.' : 'No requests found.'}</p>}
           {group.records.map((item) => (
             <div key={item._id} className={`saved-record rounded-xl border p-4 ${group.key === 'approved' ? 'ris-approved-record' : ''} ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="break-words font-semibold text-slate-900">{(item.itemNames?.length ? item.itemNames : [...new Set((item.items || []).map(row => row.itemName || row.description).filter(Boolean))]).join(', ') || 'No items selected'}</h3>
                   {group.key !== 'approved' && <div className="mt-1 break-words text-sm text-slate-700">Requested by: {item.requestedBy?.name || 'N/A'}</div>}
-                  <div className="mt-1 text-xs text-slate-500">RIS {item.risNumber}{item.entityName ? ` · ${item.entityName}` : ''}</div>
-                  <div className="text-sm text-slate-500">{item.purpose}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                    <span>RIS {item.risNumber}</span>
+                    {item.purpose && <span>{item.purpose}</span>}
+                  </div>
                 </div>
-                {item.status !== 'ACCOUNTABILITY_LOCKED' && <div className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[item.status] || 'bg-slate-100 text-slate-700'}`}>
+                {item.status !== 'ACCOUNTABILITY_LOCKED' && !(group.key === 'approved' && canManage) && <div className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[item.status] || 'bg-slate-100 text-slate-700'}`}>
                   {item.status}
                 </div>}
               </div>
@@ -1277,6 +1279,7 @@ export default function RisPage() {
               )}
               {canManage ? (
               <div className="ris-record-actions mt-3 inline-flex w-full flex-wrap items-center justify-end gap-2">
+                {group.key === 'approved' && item.status !== 'ACCOUNTABILITY_LOCKED' && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses[item.status] || 'bg-slate-100 text-slate-700'}`}>{item.status}</span>}
                 <div className="inline-flex flex-wrap items-center gap-2">
                 {item.status === 'PENDING_REVIEW' || item.status === 'PENDING_APPROVAL' ? (
                   <button

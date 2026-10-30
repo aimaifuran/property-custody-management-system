@@ -248,7 +248,6 @@
 .my-profile-page .user-card-office, .my-profile-page .user-card-email { font-size: 15px; }
 .my-profile-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; margin: 24px 0; padding-top: 20px; border-top: 1px solid #c3d0c5; }
 .my-profile-facts > div { min-width: 0; padding: 8px 12px 12px; border-bottom: 1px solid #c3d0c5; }
-.my-profile-facts > div:nth-child(even) { border-left: 1px solid #c3d0c5; }
 .my-profile-facts dt { color: #819186; font-size: 12px; margin-bottom: 4px; }
 .my-profile-facts dd { color: #294f3b; font-weight: 600; overflow-wrap: anywhere; }
 @media (max-width: 640px) {
@@ -256,7 +255,6 @@
   .my-profile-page .admin-profile-card { grid-template-columns: minmax(0, 1fr); padding: 24px; gap: 20px; }
   .app-shell .my-profile-page .profile-picture-trigger { --profile-picture-size: 128px; }
   .my-profile-facts { gap: 16px; }
-  .my-profile-facts > div:nth-child(even) { border-left: 0; }
 }
 .registration-requests { margin-bottom: 24px; padding: 22px; }
 .registration-requests h2 { font-size: 18px; font-weight: 700; color: #294f3b; }

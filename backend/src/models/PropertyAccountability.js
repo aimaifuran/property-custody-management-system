@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const propertyAccountabilitySchema = new mongoose.Schema({
+  transferSource: { type: String, unique: true, sparse: true },
   property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
   inventory: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory', required: true },
   offlineRecipient: { type: mongoose.Schema.Types.ObjectId, ref: 'OfflineRecipient', index: true },

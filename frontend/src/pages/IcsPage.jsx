@@ -337,9 +337,9 @@ export default function IcsPage() {
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
                         <div>
                             <div className="mb-1 font-semibold text-slate-900">{reportItemNames(record)}</div>
-                            <b>{record.icsNumber || 'Unassigned ICS No.'}</b>
-                            <div className="text-sm text-slate-500">
-                                {record.entityName || 'No entity'} · Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                <b>{record.icsNumber || 'Unassigned ICS No.'}</b>
+                                <span className="text-sm text-slate-500">Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                         </div>
                         <div className="flex gap-2">

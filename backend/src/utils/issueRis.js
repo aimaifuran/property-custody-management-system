@@ -12,11 +12,11 @@ const PropertyCard = require('../models/PropertyCard');
 const ActivityLog = require('../models/ActivityLog');
 const { resolveAccount, accountName } = require('./accountLinks');
 const { reserveDocumentNumber } = require('./documentNumber');
-const { notifyUsers } = require('./workflowNotifications');
+const { notifyAdmins, notifyUsers } = require('./workflowNotifications');
 const { queueWorkflowEmail, deliverWorkflowEmails } = require('./workflowEmails');
 
-async function ensureIssuedPropertyCard(inventory, item, session) {
-  const report = inventory.inspectionAcceptanceReport;
+async function ensureIssuedPropertyCard(inventory, item, session, sourceReport) {
+  const report = sourceReport || inventory.inspectionAcceptanceReport;
   const iarItem = report?.items?.find(entry =>
     String(entry.inventory?._id || entry.inventory || '') === String(inventory._id)
     || (entry.inventories || []).some(unit => String(unit?._id || unit) === String(inventory._id))
@@ -52,7 +52,7 @@ async function ensureIssuedPropertyCard(inventory, item, session) {
 }
 
 // Approval authorizes issuance; stock and recipient accountability change together.
-module.exports = async function issueRis(id, admin, request = {}, { approve = false, manualIssue, completeQuantity, silent = false } = {}) {
+const issueRis = async function issueRis(id, admin, request = {}, { approve = false, manualIssue, completeQuantity, silent = false } = {}) {
   const topology = await mongoose.connection.db.admin().command({ hello: 1 });
   if (!topology.setName && topology.msg !== 'isdbgrid') {
     throw new Error('Issuance requires a MongoDB replica set or Atlas connection so stock and user accountability can be saved together. No items were issued.');
@@ -73,9 +73,12 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
     // Updating the RIS inside the transaction also prevents concurrent double issuance.
     ris.status = 'ACCOUNTABILITY_LOCKED';
     await ris.save({ session });
-    const requester = await resolveAccount(ris.requestedBy?.name || ris.requestedBy?.user ? ris.requestedBy.toObject() : ris.receivedBy?.toObject());
-    if (!requester?.name) throw new Error('Select the requesting employee before issuance');
-    if (!requester.user && !requester.offlineRecipient) throw new Error('Select a user account or offline recipient before issuance');
+    const recipientRecord = ris.receivedBy?.user || ris.receivedBy?.offlineRecipient || ris.receivedBy?.name
+      ? ris.receivedBy.toObject()
+      : ris.requestedBy?.toObject();
+    const recipientAccount = await resolveAccount(recipientRecord);
+    if (!recipientAccount?.name) throw new Error('Select the receiving employee before issuance');
+    if (!recipientAccount.user && !recipientAccount.offlineRecipient) throw new Error('Select a user account or offline recipient before issuance');
     const issuedAt = new Date();
     const settings = await require('../models/Setting').findOne().sort({ createdAt: 1 }).session(session).lean();
     const configured = require('./formSignatories').formSignatories(settings || {});
@@ -83,8 +86,9 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
       const saved = configured[form]?.[role];
       return saved?.name ? { ...fallback, name: saved.name, position: saved.designation || fallback.position } : fallback;
     };
+
     const issuer = { name: accountName(admin), position: admin.position || admin.office || 'Supply Officer', date: issuedAt };
-    const recipient = { name: requester.name, position: requester.designation || ris.office, date: issuedAt };
+    const recipient = { name: recipientAccount.name, position: recipientAccount.designation || ris.office, date: issuedAt };
     const groups = { SUPPLY: [], ICS: [], PAR: [] };
     const required = new Map();
     const selectedUnits = new Set();
@@ -134,7 +138,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
       inventory.status = updated.status; await inventory.save({ session });
       await Ledger.create([{ sourceType: 'RIS', sourceDocument: ris._id, sourceLine: row._id, sourceKey: `RIS:${ris._id}:${row._id}`, postedBy: admin._id, office: ris.office, inventory: inventory._id, type: 'outgoing', quantity, reference: ris.risNumber, description: 'RIS supply issuance', runningBalance: updated.quantityOnHand }], { session });
       await ensureIssuedPropertyCard(inventory, item, session);
-      await PropertyCard.updateMany({ deleted: false, 'items.inventory': inventory._id }, { $push: { items: { sourceType: 'RIS', sourceDocument: ris._id, sourceDate: ris.date || issuedAt, sourceRemarks: row.remarks || ris.purpose, inventory: inventory._id, property: inventory.property, serialNumber: inventory.serialNumber, propertyNumber: row.stockNumber, description: row.description || item.description, date: issuedAt, receiptQuantity: 0, itdQuantity: quantity, itdOfficeOfficer: requester.name, balanceQuantity: updated.quantityOnHand, unitCost, amount: lineAmount(quantity, unitCost), remarks: `RIS ${ris.risNumber}` } } }, { session });
+      await PropertyCard.updateMany({ deleted: false, 'items.inventory': inventory._id }, { $push: { items: { sourceType: 'RIS', sourceDocument: ris._id, sourceDate: ris.date || issuedAt, sourceRemarks: row.remarks || ris.purpose, inventory: inventory._id, property: inventory.property, serialNumber: inventory.serialNumber, propertyNumber: row.stockNumber, description: row.description || item.description, date: issuedAt, receiptQuantity: 0, itdQuantity: quantity, itdOfficeOfficer: recipientAccount.name, balanceQuantity: updated.quantityOnHand, unitCost, amount: lineAmount(quantity, unitCost), remarks: `RIS ${ris.risNumber}` } } }, { session });
       Object.assign(row, { quantityIssued: quantity, unitCost, totalCost: lineAmount(quantity, unitCost), formType: 'SUPPLY', documentNumber: undefined, issuanceForm: undefined, accountability: undefined });
     }
     for (const type of ['ICS', 'PAR']) {
@@ -144,7 +148,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
       const field = type === 'ICS' ? 'icsNumber' : 'parNumber';
       const documentNumber = await reserveDocumentNumber(Model, field, issuedAt, session);
       const [form] = await Model.create([{
-        ris: ris._id, iar: ris.iar, user: requester.user, offlineRecipient: requester.offlineRecipient, entityName: ris.entityName,
+        ris: ris._id, iar: ris.iar, user: recipientAccount.user, offlineRecipient: recipientAccount.offlineRecipient, entityName: ris.entityName,
         fundCluster: ris.fundCluster, office: ris.office, [field]: documentNumber,
         receivedBy: recipient, ...(type === 'ICS' ? { receivedFrom: official('ics', 'receivedFrom', issuer) } : { issuedBy: official('par', 'issuedBy', issuer) }),
         remarks: `Issued through RIS ${ris.risNumber}`,
@@ -166,16 +170,16 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
         updated.status = updated.quantityOnHand > 0 ? 'IN_STORAGE' : 'ISSUED';
         await updated.save({ session });
         const [accountability] = await Accountability.create([{
-          inventory: inventory._id, property: inventory.property, user: requester.user, offlineRecipient: requester.offlineRecipient, ris: ris._id, risItem: row._id, issuanceForm: form._id,
-          quantity, employee: requester.name, office: ris.office || requester.designation || 'Supply Office',
+          inventory: inventory._id, property: inventory.property, user: recipientAccount.user, offlineRecipient: recipientAccount.offlineRecipient, ris: ris._id, risItem: row._id, issuanceForm: form._id,
+          quantity, employee: recipientAccount.name, office: ris.office || recipientAccount.designation || 'Supply Office',
           serialNumber: inventory.serialNumber || '', propertyNumber: inventory.propertyNumber || row.stockNumber,
           issueDate: issuedAt, condition: 'Serviceable', remarks: row.remarks || ris.purpose,
           formType: type, documentNumber, active: true,
-          signatureHash: crypto.createHash('sha256').update(JSON.stringify({ ris: String(ris._id), form: String(form._id), item: String(row._id), user: String(requester.user || requester.offlineRecipient), issuedAt })).digest('hex'),
+          signatureHash: crypto.createHash('sha256').update(JSON.stringify({ ris: String(ris._id), form: String(form._id), item: String(row._id), user: String(recipientAccount.user || recipientAccount.offlineRecipient), issuedAt })).digest('hex'),
         }], { session });
         if (inventory.property) await require('../models/Property').findByIdAndUpdate(inventory.property, {
-          $set: { status: 'ISSUED', currentCustodian: { name: requester.name, office: ris.office || requester.designation, assignedDate: issuedAt } },
-          $push: { events: { action: 'Issued', status: 'ISSUED', custodian: requester.name, office: ris.office, remarks: `${type} ${documentNumber}` } },
+          $set: { status: 'ISSUED', currentCustodian: { name: recipientAccount.name, office: ris.office || recipientAccount.designation, assignedDate: issuedAt } },
+          $push: { events: { action: 'Issued', status: 'ISSUED', custodian: recipientAccount.name, office: ris.office, remarks: `${type} ${documentNumber}` } },
         }, { session });
         inventory.accountability = accountability._id; inventory.status = 'ACTIVE_IN_USE';
         await inventory.save({ session });
@@ -187,7 +191,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
         await PropertyCard.updateMany({ deleted: false, 'items.inventory': inventory._id }, {
           $push: { items: { sourceType: 'RIS', sourceDocument: ris._id, sourceDate: ris.date || issuedAt, sourceRemarks: row.remarks || ris.purpose, inventory: inventory._id, property: inventory.property, serialNumber: inventory.serialNumber, propertyNumber: inventory.propertyNumber || row.stockNumber,
             description: row.description || item.description, date: issuedAt, referenceParNo: documentNumber,
-            receiptQuantity: 0, itdQuantity: quantity, itdOfficeOfficer: requester.name,
+            receiptQuantity: 0, itdQuantity: quantity, itdOfficeOfficer: recipientAccount.name,
             balanceQuantity: updated.quantityOnHand, unitCost, amount: lineAmount(quantity, unitCost), remarks: `RIS ${ris.risNumber}` } },
         }, { session });
         Object.assign(row, { quantityIssued: quantity, unitCost, totalCost: lineAmount(quantity, unitCost),
@@ -195,8 +199,7 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
         accountabilities.push({ formType: type, documentNumber, formId: form._id, stockNumber: row.stockNumber, quantityIssued: quantity });
       }
     }
-    ris.requestedBy = requester;
-    ris.receivedBy = { user: requester.user, offlineRecipient: requester.offlineRecipient, name: requester.name, designation: recipient.position, date: issuedAt };
+    ris.receivedBy = { user: recipientAccount.user, offlineRecipient: recipientAccount.offlineRecipient, name: recipientAccount.name, designation: recipient.position, date: issuedAt };
     ris.issuedAt = issuedAt;
     const configuredIssuer = official('ris', 'issuedBy', issuer);
     ris.issuedBy = { name: configuredIssuer.name, designation: configuredIssuer.position, date: issuedAt };
@@ -204,9 +207,9 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
       const approver = official('ris', 'approvedBy', issuer);
       ris.approvedBy = { name: approver.name, designation: approver.position, date: issuedAt };
       ris.approvedAt = issuedAt;
-      await ActivityLog.create([{ user: admin._id, action: 'RIS approved', details: `RIS ${ris.risNumber} approved and issued to ${requester.name}`, ipAddress: request.ip, browser: request.browser }], { session });
+      await ActivityLog.create([{ user: admin._id, action: 'RIS approved', details: `RIS ${ris.risNumber} approved and issued to ${recipientAccount.name}`, ipAddress: request.ip, browser: request.browser }], { session });
     }
-    ris.signatureHash = crypto.createHash('sha256').update(JSON.stringify({ ris: String(ris._id), user: String(requester.user || requester.offlineRecipient), issuedAt })).digest('hex');
+    ris.signatureHash = crypto.createHash('sha256').update(JSON.stringify({ ris: String(ris._id), user: String(recipientAccount.user || recipientAccount.offlineRecipient), issuedAt })).digest('hex');
     if (priorIssuance) {
       ris.items = [...priorIssuance.items, ...ris.items.map(row => row.toObject())];
       for (const key of ['issuedAt', 'approvedAt', 'approvedBy', 'issuedBy', 'signatureHash', 'inventoryCustodianSlip', 'propertyAcknowledgementReceipt']) if (priorIssuance[key] != null) ris.set(key, priorIssuance[key]);
@@ -216,11 +219,16 @@ module.exports = async function issueRis(id, admin, request = {}, { approve = fa
     const hasAssets = groups.ICS.length || groups.PAR.length;
     if (!silent) {
       await queueWorkflowEmail('ISSUED', ris, session);
-      await notifyUsers([requester.user], 'Request issued', `RIS ${ris.risNumber} has been issued.${hasAssets ? ' Accept receipt in the ICS/PAR forms.' : ' View your supplies in My Issued Items.'}`, hasAssets ? groups.ICS.length ? '/inventory-custodian' : '/par' : '/my-issued-items', session);
+      const issuedLines = Object.values(groups).flat().map(({ row, quantity }) => `${row.itemName || row.description} (${quantity})`);
+      await notifyUsers([recipientAccount.user], 'Request issued', `RIS ${ris.risNumber} has been issued.${hasAssets ? ' Accept receipt in the ICS/PAR forms.' : ' View your supplies in My Issued Items.'}`, hasAssets ? groups.ICS.length ? '/inventory-custodian' : '/par' : '/my-issued-items', session);
+      await notifyAdmins('Items issued to user', `${recipientAccount.name} received ${issuedLines.join(', ')} under RIS ${ris.risNumber}.`, '/users', session);
     }
-    await ActivityLog.create([{ user: admin._id, action: 'RIS issued', details: `RIS ${ris.risNumber} issued to ${requester.name}; linked ICS/PAR generated`, ipAddress: request.ip, browser: request.browser }], { session });
+    await ActivityLog.create([{ user: admin._id, action: 'RIS issued', details: `RIS ${ris.risNumber} issued to ${recipientAccount.name}; linked ICS/PAR generated`, ipAddress: request.ip, browser: request.browser }], { session });
     return { ris, accountabilities };
   });
   if (!silent) await deliverWorkflowEmails();
   return result;
 };
+
+issueRis.ensureIssuedPropertyCard = ensureIssuedPropertyCard;
+module.exports = issueRis;

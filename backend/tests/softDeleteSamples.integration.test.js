@@ -29,4 +29,16 @@ test('sample reset archives originals and hides linked stock without deleting ac
   assert.equal(await mongoose.connection.collection('users').countDocuments({}), 1);
   assert.equal(await mongoose.connection.collection('settings').countDocuments({}), 1);
   assert.equal((await softDeleteSamples({ apply: true })).counts.Item, 0);
+  await softDeleteSamples({ clearActivity: true });
+  for (const name of ['Notification', 'ActivityLog', 'WorkflowEmail']) {
+    await mongoose.model(name).collection.insertOne({ message: 'Reset fixture' });
+  }
+  const fullReset = await softDeleteSamples({ apply: true, clearActivity: true });
+  for (const name of ['Notification', 'ActivityLog', 'WorkflowEmail']) {
+    assert.equal(fullReset.counts[name], 1);
+    assert.equal(await mongoose.model(name).collection.countDocuments({}), 0);
+    assert.equal(await mongoose.connection.collection('sample_record_archives').countDocuments({ batchId: new mongoose.Types.ObjectId(fullReset.batchId), collection: mongoose.model(name).collection.name }), 1);
+  }
+  assert.equal(await mongoose.connection.collection('users').countDocuments({}), 1);
+  assert.equal(await mongoose.connection.collection('settings').countDocuments({}), 1);
 });

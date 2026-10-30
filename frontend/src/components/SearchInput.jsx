@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 // Options are { value, label, keywords? }; free text remains editable.
-export default function SearchInput({ options = [], value = '', onChange, onSelect, onFocus, ...props }) {
+export default function SearchInput({ options = [], value = '', onChange, onSelect, onFocus, openOnFocus = false, ...props }) {
   const id = useId();
   const [anchor, setAnchor] = useState(null);
   const [active, setActive] = useState(-1);
@@ -12,7 +12,9 @@ export default function SearchInput({ options = [], value = '', onChange, onSele
     return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
   }, []);
   const query = value.trim().toLocaleLowerCase();
-  const matches = query ? options.filter(option => `${option.label} ${option.keywords || ''}`.toLocaleLowerCase().includes(query)).slice(0, 20) : [];
+  const matches = query
+    ? options.filter(option => `${option.label} ${option.keywords || ''}`.toLocaleLowerCase().includes(query)).slice(0, 20)
+    : openOnFocus && anchor ? options.slice(0, 20) : [];
   const open = Boolean(anchor && matches.length);
   const choose = option => { onChange(option.label); onSelect?.(option); setAnchor(null); setActive(-1); };
   return <>
