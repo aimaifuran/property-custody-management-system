@@ -11,6 +11,7 @@ const { accountName } = require('./accountLinks');
 const reassign = require('./reassignAccountability');
 
 const fail = message => { throw Object.assign(new Error(message), { status: 409 }); };
+const { isDisposalReturn } = require('./returnPurpose');
 
 // A PRS-based PTR reissues returned stock into a new custody period. The old
 // accountability and its return receipts must remain intact.
@@ -26,6 +27,7 @@ module.exports = async function issueReturnedTransfer(report, actor, session) {
     if (prior) { entry.accountability = prior._id; changed = true; continue; }
     const slip = await PRS.findOne({ _id: entry.returnSlip, deleted: false, status: 'RETURNED', stockPosted: true }).session(session);
     const line = slip?.items.id(entry.returnSlipItem);
+    if (isDisposalReturn(slip)) fail(`${report.ptrNumber}: PRS items marked for disposal cannot be transferred`);
     if (!line || (line.condition || 'Serviceable') !== 'Serviceable') fail(`${report.ptrNumber}: only received serviceable PRS items can be transferred`);
     if (!report.fromUser) report.fromUser = slip.returnedBy?.user || slip.submittedBy;
     const source = line.accountability ? await Accountability.findById(line.accountability).session(session) : null;

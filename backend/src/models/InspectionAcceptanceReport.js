@@ -42,6 +42,7 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
     itemType: { type: String, enum: ['SUPPLY', 'ASSET'], default: 'ASSET' },
     stockNumber: String,
     stockPropertyNumber: String,
+    inventoryItemNo: { type: String, trim: true },
     propertyPlantAndEquipment: { type: String, trim: true },
     description: String,
     unit: String,

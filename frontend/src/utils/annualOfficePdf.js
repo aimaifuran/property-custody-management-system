@@ -1,3 +1,4 @@
+import { formNumber } from './formNumbers.js';
 ﻿import { embedFormFonts } from './formPdfFonts.js';
 import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_MARGIN } from './formPdfStyle.js';
 import { PDFDocument } from 'pdf-lib';
@@ -27,7 +28,7 @@ export async function buildAnnualOfficePdf(group, year, { onDraw } = {}) {
   };
   nextPage();
   for (const row of group.rows || []) {
-    const values = [row.office, row.description, row.quantity, row.unit, row.propertyNumber || row.stockNumber || '-', row.custodian || '-', row.documentNumber];
+    const values = [row.office, row.description, row.quantity, row.unit, formNumber(row.propertyNumber) || formNumber(row.stockNumber) || '-', row.custodian || '-', row.documentNumber];
     drawReportGridRow(layout, columns, values, regular, nextPage);
   }
   return pdf.save();

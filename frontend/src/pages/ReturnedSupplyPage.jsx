@@ -1,3 +1,6 @@
+import { formNumber } from '../utils/formNumbers';
+import FormNumberInput from '../components/FormNumberInput';
+import DateInput from '../components/DateInput';
 import { withCurrentDates } from '../utils/formDates';
 import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
@@ -143,7 +146,7 @@ export default function ReturnedSupplyPage() {
             <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <DateInput required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
@@ -176,7 +179,7 @@ export default function ReturnedSupplyPage() {
                             </div>
                             <div className="returned-supply-record-details mt-3 grid grid-cols-1 gap-x-6 gap-y-2 border-t border-slate-100 pt-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
                                 <div>Quantity: {record.quantity ?? 'N/A'} {record.unit || ''}</div>
-                                <div>Property No.: {record.propertyNumber || 'N/A'}</div>
+                                <div>Property No.: {formNumber(record.propertyNumber) || 'N/A'}</div>
                                 <div>M.R. No.: {record.mrNumber || 'N/A'}</div>
                                 <div>Unit Value: {Number(record.unitValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                                 <div>Total Value: {Number(record.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
@@ -233,7 +236,7 @@ export default function ReturnedSupplyPage() {
                                         <input required pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={form.description} onChange={(e) => update('description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Property Number" value={form.propertyNumber} onChange={(e) => update('propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <FormNumberInput aria-label="Property Number" value={form.propertyNumber} onChange={(e) => update('propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input required aria-label="M. R. No." value={form.mrNumber} onChange={(e) => update('mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />

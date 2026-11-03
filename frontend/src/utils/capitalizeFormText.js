@@ -2,6 +2,13 @@ export function capitalizeFirstLetter(value) {
   return value.replace(/^(\s*)(\p{L})/u, (_, space, letter) => space + letter.toLocaleUpperCase());
 }
 
+export function formatItemText(key, value) {
+  if (typeof value !== 'string') return value;
+  if (['serialNumber', 'unit', 'purpose'].includes(key)) return value.toUpperCase();
+  if (key === 'description') return value.replace(/(^|\s)(\p{L})/gu, (_, space, letter) => space + letter.toLocaleUpperCase());
+  return value;
+}
+
 export function shouldCapitalizeField({ type = 'text', hint = '', tagName = 'INPUT', disabled = false, readOnly = false }) {
   if (disabled || readOnly || !['INPUT', 'TEXTAREA'].includes(tagName)) return false;
   if (tagName === 'INPUT' && type !== 'text') return false;
@@ -16,8 +23,13 @@ export function capitalizeFormInput(event) {
   const heading = cell?.closest('table')?.querySelector('thead tr')?.children[cell.cellIndex]?.textContent || '';
   const hint = [field.name, field.id, field.getAttribute('aria-label'), field.placeholder,
     field.labels?.[0]?.textContent, heading].filter(Boolean).join(' ');
-  if (!shouldCapitalizeField({ type: field.type || 'text', hint, tagName: field.tagName, disabled: field.disabled, readOnly: field.readOnly })) return;
-  const value = capitalizeFirstLetter(field.value);
+  if (field.disabled || field.readOnly || !['INPUT', 'TEXTAREA'].includes(field.tagName) || (field.tagName === 'INPUT' && field.type !== 'text')) return;
+  if (/search|filter/i.test(hint)) return;
+  const itemKey = /serial|\bs\/n\b/i.test(hint) ? 'serialNumber'
+    : /\bunit\b/i.test(hint) && !/cost|price|value|government|entity/i.test(hint) ? 'unit'
+    : /description/i.test(hint) ? 'description' : null;
+  if (!itemKey && !shouldCapitalizeField({ type: field.type || 'text', hint, tagName: field.tagName })) return;
+  const value = itemKey ? formatItemText(itemKey, field.value) : capitalizeFirstLetter(field.value);
   if (value === field.value) return;
   const start = field.selectionStart;
   const end = field.selectionEnd;

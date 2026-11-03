@@ -1,3 +1,4 @@
+const { lineAmount } = require('./formAmounts');
 const normalize = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 module.exports = function stationPpeGroups(inventories, accounts, issuedGroups = []) {
@@ -16,7 +17,7 @@ module.exports = function stationPpeGroups(inventories, accounts, issuedGroups =
     const key = normalize(name);
     const group = groups.get(key) || { key, name, rows: [] };
     const owners = byInventory.get(String(inventory._id)) || [];
-    const base = { article: group.name, description: item.description, propertyNumber: inventory.propertyNumber || item.stockNumber || '', unitCost: '', totalCost: '' };
+    const base = { article: group.name, description: item.description, propertyNumber: inventory.propertyNumber || item.stockNumber || '', unitCost: inventory.unitCost ?? '', totalCost: '' };
     const inventorySerial = String(inventory.serialNumber || '').trim();
     for (const owner of owners) {
       const user = owner.user;
@@ -26,7 +27,7 @@ module.exports = function stationPpeGroups(inventories, accounts, issuedGroups =
       const condition = normalize(owner.condition || inventory.property?.condition);
       const remarks = condition === 'unserviceable' || inventory.status?.includes('UNSERVICEABLE') ? 'Unserviceable'
         : condition === 'new' ? 'New' : condition === 'serviceable' ? 'Serviceable' : 'New';
-      group.rows.push({ ...base, description, propertyNumber: owner.propertyNumber || base.propertyNumber, accountablePerson: name || owner.offlineRecipient?.name || owner.employee || '', remarks });
+      group.rows.push({ ...base, totalCost: base.unitCost === '' ? '' : lineAmount(Number(owner.quantity || 0) - Number(owner.returnedQuantity || 0), base.unitCost), description, propertyNumber: owner.propertyNumber || base.propertyNumber, accountablePerson: name || owner.offlineRecipient?.name || owner.employee || '', remarks });
     }
     if (group.rows.length) groups.set(key, group);
   }
@@ -39,7 +40,7 @@ module.exports = function stationPpeGroups(inventories, accounts, issuedGroups =
       const description = unit.description || issued.name;
       group.rows.push({ article: group.name, description: serial ? `${description}\nSerial No. ${serial}` : description,
         propertyNumber: unit.propertyNumber || unit.stockNumber || '', accountablePerson: holder.name,
-        unitCost: '', totalCost: '', remarks: 'New' });
+        unitCost: unit.unitCost ?? '', totalCost: unit.unitCost == null ? '' : lineAmount(unit.quantity, unit.unitCost), remarks: 'New' });
     }
     if (group.rows.length) groups.set(key, group);
   }

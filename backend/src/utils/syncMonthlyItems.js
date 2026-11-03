@@ -2,18 +2,15 @@ const PpeList = require('../models/PpeList');
 const Setting = require('../models/Setting');
 const { rowKey } = require('./monthlyAccounting');
 const { collectMonthlyItems, recapitulate, monthOf } = require('./monthlyItems');
-const models = {
-  iar: require('../models/InspectionAcceptanceReport'), ris: require('../models/RequisitionIssueSlip'),
-  ics: require('../models/InventoryCustodianSlip'), par: require('../models/PropertyAcknowledgementReceipt'),
-  cards: require('../models/PropertyCard'), inventory: require('../models/Inventory'),
-  ptr: require('../models/PropertyTransferReport'), prs: require('../models/PropertyReturnSlip'),
-  returned: require('../models/ReturnedSupply'), items: require('../models/Item'),
-  properties: require('../models/Property'),
-};
+const IAR = require('../models/InspectionAcceptanceReport');
+const RIS = require('../models/RequisitionIssueSlip');
 let queue = Promise.resolve();
 async function synchronize(selectedMonth) {
-  const entries = await Promise.all(Object.entries(models).map(async ([key, model]) => [key, await (key === 'inventory' ? model.find({ deleted: false }).populate('item') : model.find({ deleted: false })).lean()]));
-  const groups = collectMonthlyItems(Object.fromEntries(entries));
+  const [iar, ris] = await Promise.all([
+    IAR.find({ deleted: false }).lean(),
+    RIS.find({ deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } }).select('risNumber iar status items.inventory items.property items.stockNumber items.quantityIssued').lean(),
+  ]);
+  const groups = collectMonthlyItems({ iar, ris });
   const existing = await PpeList.find({ automatic: true }).select('month rows').lean();
   for (const record of existing) if (!groups.has(record.month)) groups.set(record.month, []);
   if (selectedMonth && !groups.has(selectedMonth)) groups.set(selectedMonth, []);
@@ -39,7 +36,7 @@ const syncMonthlyItems = selectedMonth => {
   return task;
 };
 const monthlyItemsMiddleware = (req, res, next) => {
-  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) || !/^\/api\/(iar|ris|ics|par|property-cards|inventory|items|ptr|prs|returned-supply|properties)(\/|$)/.test(req.path)) return next();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) || !/^\/api\/(iar|ris|property-cards)(\/|$)/.test(req.path)) return next();
   const send = res.json.bind(res);
   res.json = body => {
     if (res.statusCode >= 400 || body?.success === false) return send(body);

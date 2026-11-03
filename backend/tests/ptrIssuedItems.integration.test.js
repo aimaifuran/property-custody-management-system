@@ -199,6 +199,20 @@ test('admin PTR records can only include issued and accepted user accountabiliti
   assert.equal(drafts.body.data[0].item.description, 'Returned laptop');
 
   const returnItem = returnSlip.items[0];
+  for (const purpose of ['Disposal', 'DISPOSAL OF AN ITEM']) {
+    await PropertyReturnSlip.updateOne({ _id: returnSlip._id }, { $set: { purpose } });
+    const disposalDrafts = await requestRoute('/ptr/return-item-drafts');
+    assert.equal(disposalDrafts.status, 200);
+    assert.equal(disposalDrafts.body.data.length, 0, 'Disposal stays in PRS and is excluded even when serviceable');
+    const disposalTransfer = await request({
+      ...payload, toUser: receiver._id,
+      items: [{ returnSlip: returnSlip._id, returnSlipItem: returnItem._id, quantity: 1, dateAcquired: '2026-10-01', propertyNumber: 'PROP-001', description: 'Returned laptop', amount: 1000, condition: 'Serviceable' }],
+    });
+    assert.equal(disposalTransfer.status, 409, JSON.stringify(disposalTransfer.body));
+    assert.match(disposalTransfer.body.message, /disposal/i);
+    assert.ok(await PropertyReturnSlip.exists({ _id: returnSlip._id, purpose }), 'The PRS saved record is retained');
+  }
+  await PropertyReturnSlip.updateOne({ _id: returnSlip._id }, { $set: { purpose: 'Returned To Stock' } });
   await Item.updateOne({ _id: item._id }, { $set: { quantityOnHand: 1 } });
   const inventoryBeforePtr = await Inventory.findById(inventory._id).lean();
   const accountabilityBeforePtr = await Accountability.findById(accountability._id).lean();

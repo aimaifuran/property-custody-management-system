@@ -1,3 +1,4 @@
+import { formNumber } from './formNumbers.js';
 import { todayManila } from './formDates.js';
 import { createRisRow } from './risItemSelection.js';
 const inputDate = value => value ? String(value).slice(0, 10) : '';
@@ -7,14 +8,14 @@ export function iarFormData(report, type) {
   const date = inputDate(report.acceptanceDate || report.iarDate || report.poDate) || todayManila();
   const items = (report.items || []).filter(item => (item.acceptedQuantity ?? item.quantity) > 0).map(item => {
     const description = item.description || item.item || '';
-    const propertyNumber = item.propertyNumber || item.stockPropertyNumber || item.stockNumber || '';
+    const propertyNumber = formNumber(item.inventoryItemNo || item.propertyNumber || item.stockPropertyNumber || item.stockNumber || '');
     const quantity = item.acceptedQuantity ?? item.quantity ?? '';
     const unitCost = item.unitCost ?? '';
     const amount = Number(quantity || 0) * Number(unitCost || 0);
     const identity = { inventory: item.inventory, property: item.property, serialNumber: item.serialNumber || '' };
     const common = { ...identity, description: item.serialNumber ? `${description} (S/N: ${item.serialNumber})` : description, unit: item.unit || '', quantity, unitCost };
     if (type === 'inventory') return { ...identity, description, propertyNumber, serialNumber: item.serialNumber || '', date, referenceParNo: '', receiptQuantity: quantity, itdQuantity: '', itdOfficeOfficer: '', balanceQuantity: '', amount: unitCost === '' ? '' : amount, remarks: '' };
-    if (type === 'ris') return { inventory: item.inventory, property: item.property, serialNumber: item.serialNumber || '', stockNumber: item.stockNumber || item.stockPropertyNumber || '', unit: common.unit, description, quantityRequested: quantity, stockAvailable: '', isAvailable: null, quantityIssued: '', unitCost, totalCost: amount, remarks: '' };
+    if (type === 'ris') return { inventory: item.inventory, property: item.property, serialNumber: item.serialNumber || '', stockNumber: item.stockNumber || item.stockPropertyNumber || '', displayStockNumber: item.stockPropertyNumber || item.stockNumber || '', unit: common.unit, description, quantityRequested: quantity, stockAvailable: '', isAvailable: null, quantityIssued: '', unitCost, totalCost: amount, remarks: '' };
     if (type === 'ics') return { ...common, inventoryItemNo: propertyNumber, totalCost: amount, estimatedUsefulLife: item.estimatedUsefulLife || '' };
     if (type === 'par') return { ...common, propertyNumber, dateAcquired: date, amount };
     if (type === 'ptr') return {

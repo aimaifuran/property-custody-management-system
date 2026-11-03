@@ -1,3 +1,8 @@
+import { formNumberData } from '../utils/formNumbers';
+import { iarRequisitionRows, matchingIarDraftIds } from '../utils/iarRequisition';
+import { risStockNumber } from '../utils/risItemSelection';
+import DateInput from '../components/DateInput';
+import { formatItemText } from '../utils/capitalizeFormText';
 import SignatoryValue from '../components/SignatoryValue';
 import SearchInput from '../components/SearchInput';
 import useSourceDocument from '../utils/useSourceDocument';
@@ -23,7 +28,7 @@ import RecordActionButton from '../components/RecordActionButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { FileText, Printer, Save, RotateCcw, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
+import { Search, FileText, Printer, Save, RotateCcw, CheckCircle2, XCircle, Send, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ExcelJS from "exceljs";
 import PizZip from "pizzip";
@@ -457,6 +462,8 @@ export default function RisPage() {
   const [editingRis, setEditingRis] = useState(null);
   const [creatingRis, setCreatingRis] = useState(user?.role === 'admin' || !!offlineRequest);
   const [selectedIarDraftId, setSelectedIarDraftId] = useState('');
+  const [singleIssuance, setSingleIssuance] = useState(false);
+  const [checkedIarDraftIds, setCheckedIarDraftIds] = useState([]);
   const [issueErrors, setIssueErrors] = useState({});
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewDraft, setReviewDraft] = useState(null);
@@ -465,7 +472,7 @@ export default function RisPage() {
   const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
   const [iarDraftPage, setIarDraftPage] = useState(1);
-  const [iarDraftPerPage] = useState(5);
+  const [iarDraftPerPage, setIarDraftPerPage] = useState(5);
   const [approvedPage, setApprovedPage] = useState(1);
   const [approvedPerPage, setApprovedPerPage] = useState(5);
   const [approvedSearch, setApprovedSearch] = useState('');
@@ -481,14 +488,16 @@ export default function RisPage() {
       ];
     })
   ));
-  const filteredIarDrafts = iarDrafts.filter(row => {
+  const availableIarDrafts = iarDrafts.filter(row => {
     const stock = items.find(entry => entry.stockNumber === (row.stockNumber || row.stockPropertyNumber));
     const inventoryId = row.inventory?._id || row.inventory;
     const issued = inventoryId
       ? issuedIarDraftKeys.has(`${row.iarId}:inventory:${inventoryId}`)
       : issuedIarDraftKeys.has(`${row.iarId}:stock:${row.stockNumber || row.stockPropertyNumber || ''}`);
-    return !issued && stock && Number(stock.quantityOnHand) > 0 && `${row.iarNumber} ${row.propertyPlantAndEquipment || ''} ${row.stockNumber} ${row.description} ${row.item || ''} ${row.serialNumber || ''} ${(row.serialNumbers || []).join(' ')}`.toLowerCase().includes(search.toLowerCase());
+    return !issued && stock && Number(stock.quantityOnHand) > 0;
   });
+  const selectedIarDrafts = availableIarDrafts.filter(row => checkedIarDraftIds.includes(row._id));
+  const filteredIarDrafts = availableIarDrafts.filter(row => `${row.iarNumber} ${row.propertyPlantAndEquipment || ''} ${row.stockNumber} ${row.description} ${row.item || ''} ${row.serialNumber || ''} ${(row.serialNumbers || []).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
   const iarDraftPageCount = Math.max(1, Math.ceil(filteredIarDrafts.length / iarDraftPerPage));
   const visibleIarDrafts = filteredIarDrafts.slice((iarDraftPage - 1) * iarDraftPerPage, iarDraftPage * iarDraftPerPage);
   useEffect(() => { setIarDraftPage(current => Math.min(current, iarDraftPageCount)); }, [iarDraftPageCount]);
@@ -617,7 +626,7 @@ export default function RisPage() {
     }
   }, [inheritedCenter, editingRis?.status]);
 
-  const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+  const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch, ...(Object.hasOwn(patch, 'purpose') ? { purpose: formatItemText('purpose', patch.purpose) } : {}) }));
 
   const updateSignatory = (section, key, value) => setForm((prev) => {
     const signatory = { ...prev[section], [key]: value, ...(key === 'name' ? { user: undefined } : {}) };
@@ -625,6 +634,7 @@ export default function RisPage() {
   });
 
   const updateItem = (index, key, value) => {
+    value = formatItemText(key, value);
     setForm((prev) => {
       const nextItems = prev.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item;
@@ -638,6 +648,15 @@ export default function RisPage() {
     setForm((prev) => ({ ...prev, items: [...prev.items, createRow()] }));
   };
 
+  const selectRequestItem = (index, choice, name = '') => {
+    const selected = choice ? selectRisItem(form.items[index], choice) : { ...selectRisItem(form.items[index], null), itemName: name };
+    setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? selected : row) }));
+    if (user?.role === 'admin' && choice) {
+      const ids = matchingIarDraftIds(selected, availableIarDrafts);
+      setCheckedIarDraftIds(previous => [...new Set([...previous, ...ids])]);
+    }
+  };
+
   const deleteRow = (index) => {
     setForm((prev) => {
       const items = prev.items.filter((_, itemIndex) => itemIndex !== index);
@@ -646,9 +665,11 @@ export default function RisPage() {
   };
 
   const resetForm = () => {
+    setSingleIssuance(false);
     setForm(makeForm());
     setDecision('save'); setRejectionReason('');
     setSelectedIarDraftId('');
+    setCheckedIarDraftIds([]);
 
     setEditingRis(null);
     setCreatingRis(false);
@@ -668,11 +689,15 @@ export default function RisPage() {
     const { _id, createdAt, updatedAt, __v, ...formData } = form;
     const payload = {
       ...formData,
+      purpose: formatItemText('purpose', formData.purpose),
       ...(!editingRis ? { autoNumber: true } : {}),
       items: form.items
         .filter(item => hasRowData(item, createRow()))
         .map((item) => ({
           ...item,
+          serialNumber: formatItemText('serialNumber', item.serialNumber),
+          unit: formatItemText('unit', item.unit),
+          description: formatItemText('description', item.description),
           inventory: item.inventory?._id || item.inventory || undefined,
           quantityRequested: item.quantityRequested === '' ? 0 : Number(item.quantityRequested),
           stockAvailable: item.stockAvailable === '' ? 0 : Number(item.stockAvailable),
@@ -684,7 +709,7 @@ export default function RisPage() {
     setSavingRis(true);
     try {
       if (isUser) {
-        await axios.post('/ris/my-requests', { purpose: form.purpose, items: payload.items });
+        await axios.post('/ris/my-requests', { purpose: payload.purpose, items: payload.items });
         toast.success('RIS submitted for admin approval'); await load(); resetForm(); scrollToRecords(); return;
       }
       if (editingRis && decision === 'reject') {
@@ -835,6 +860,7 @@ export default function RisPage() {
   }
 
   async function generateExcel(data) {
+      data = formNumberData(data);
     console.log('Generating Excel for RIS:', data);
 
     // Load the template
@@ -858,7 +884,7 @@ export default function RisPage() {
     // Table data insertion
     const startRow = 12; // Starting row for table data
     data.items.forEach((item, index) => {
-      worksheet.getCell(`A${startRow + index}`).value = item.stockNumber;
+      worksheet.getCell(`A${startRow + index}`).value = risStockNumber(item);
       worksheet.getCell(`B${startRow + index}`).value = item.unit;
       worksheet.getCell(`C${startRow + index}`).value = item.description;
       worksheet.getCell(`D${startRow + index}`).value = item.quantityRequested;
@@ -932,13 +958,17 @@ export default function RisPage() {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
-  const editIarDraft = (draft) => {
-    const stock = items.find(entry => entry.stockNumber === (draft.stockNumber || draft.stockPropertyNumber));
-    const available = Number(stock?.quantityOnHand || 0);
-    const accepted = Number(draft.acceptedQuantity ?? draft.quantity ?? 0);
-    const requested = Math.min(accepted, available);
+  const openIarDrafts = drafts => {
+    if (!drafts.length) return;
+    let requisitionRows;
+    try { requisitionRows = iarRequisitionRows(drafts, items); }
+    catch (error) { toast.error(error.message); return; }
+    const first = drafts[0];
+    const sameIar = drafts.every(draft => draft.iarId === first.iarId);
     setRisView('requests');
-    setSelectedIarDraftId(draft._id);
+    setSelectedIarDraftId(first._id);
+    setSingleIssuance(drafts.length === 1);
+    setCheckedIarDraftIds(previous => [...new Set([...previous, ...drafts.map(draft => draft._id)])]);
     setEditingRis(null);
     setCreatingRis(true);
     setReviewTarget(null);
@@ -946,25 +976,12 @@ export default function RisPage() {
     setDecision('save');
     setForm({
       ...makeForm(),
-      iar: draft.iarId,
-      entityName: draft.entityName || '',
-      fundCluster: draft.fundCluster || stock?.fundCluster || '',
-      responsibilityCenterCode: draft.responsibilityCenterCode || stock?.responsibilityCenterCode || '',
-      date: toDateInputValue(draft.iarDate) || todayManila(),
-      items: [{
-        ...createRow(),
-        itemName: draft.propertyPlantAndEquipment || stock?.name || (stock?.category !== 'General' ? stock?.category : '') || draft.description || draft.item || '',
-        inventory: draft.inventory?._id || draft.inventory,
-        stockNumber: draft.stockNumber || draft.stockPropertyNumber || '',
-        description: draft.description || draft.item || stock?.description || '',
-        unit: draft.unit || stock?.unit || '',
-        quantityRequested: requested || '',
-        stockAvailable: available,
-        isAvailable: available > 0,
-        quantityIssued: requested || '',
-        unitCost: draft.unitCost ?? stock?.cost ?? '',
-        totalCost: Number(draft.unitCost ?? stock?.cost ?? 0) * requested,
-      }],
+      ...(sameIar ? { iar: first.iarId } : {}),
+      entityName: first.entityName || '',
+      fundCluster: requisitionRows.find(row => row.fundCluster)?.fundCluster || '',
+      responsibilityCenterCode: requisitionRows.find(row => row.responsibilityCenterCode)?.responsibilityCenterCode || '',
+      date: toDateInputValue(first.iarDate) || todayManila(),
+      items: requisitionRows,
     });
     refreshNumberPreview();
     requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -987,17 +1004,28 @@ export default function RisPage() {
   if (pageLoadError) return <div role="alert" className="minimal-surface p-4">{pageLoadError}<button type="button" onClick={load} className="ml-3 rounded-lg border px-3 py-2">Retry</button></div>;
  return (
     <div className="space-y-6">
-      {user?.role === 'admin' && <nav aria-label="RIS sections" className="flex flex-wrap gap-2">
+      {user?.role === 'admin' && <div className="flex flex-wrap items-center gap-3"><nav aria-label="RIS sections" className="flex flex-wrap gap-2">
         {[['requests', 'Requisition and Issue Slip'], ['approved', 'Issued Items']].map(([value, label]) => <button key={value} type="button" aria-pressed={risView === value} onClick={() => { setRisView(value); if (value === 'requests' && !editingRis && !creatingRis) { resetForm(); setCreatingRis(true); } }} className={`rounded-xl border px-4 py-2 font-semibold ${risView === value ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-teal-50'}`}>{label}</button>)}
-      </nav>}
+      </nav>
+      {risView === 'requests' && <div className="flex w-full flex-wrap items-center gap-3 lg:ml-auto lg:w-auto">
+        <label className="relative min-w-0 flex-1 lg:w-80 lg:flex-none">
+          <span className="sr-only">Search IAR, stock number, or item</span>
+          <Search size={18} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input type="search" placeholder="Search IAR, stock number, or item" value={search} onChange={event => { setSearch(event.target.value); setIarDraftPage(1); }} className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm" />
+        </label>
+      </div>}
+      </div>}
       <>
       {risView === 'requests' && user?.role === 'admin' && <section ref={iarDraftsRef} aria-label="Drafts" className="saved-records scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <SavedReportsHeader title="Items recorded from IAR" searchPlaceholder="Search IAR, stock number, or item" search={search} onSearch={value => { setSearch(value); setIarDraftPage(1); }} perPage={iarDraftPerPage} onPerPage={() => {}} options={[5]} />
+        <SavedReportsHeader title="Items recorded from IAR" actions={<>
+          <button type="button" disabled={selectedIarDrafts.length !== 1} title="Check one item for single issuance" onClick={() => openIarDrafts(selectedIarDrafts)} className="shrink-0 rounded-lg border border-white bg-white px-4 py-2 font-semibold text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50">Single Issuance</button>
+          <button type="button" disabled={selectedIarDrafts.length < 2} title="Check two or more items for multiple issuance" onClick={() => openIarDrafts(selectedIarDrafts)} className="shrink-0 rounded-lg border border-white bg-white px-4 py-2 font-semibold text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50">Multiple Issuance{selectedIarDrafts.length > 1 ? ` (${selectedIarDrafts.length})` : ''}</button>
+        </>} />
         {iarDraftError && <p role="alert" className="mt-3 text-sm text-rose-700">{iarDraftError}</p>}
         <div className="mt-4 space-y-3">
-          {visibleIarDrafts.map(row => { const serialNumber = row.serialNumber || (row.serialNumbers || []).join(', '); return <article key={row._id} className="saved-record flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">IAR No. {row.iarNumber || '—'}</div><div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-words font-medium text-slate-900"><span>{row.propertyPlantAndEquipment || row.description || row.item || 'Item'}</span>{serialNumber && <span className="text-sm font-normal text-slate-600">S/N: {serialNumber}</span>}</div></div><div className="iar-draft-actions flex shrink-0 items-center gap-2"><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Drafts</span><RecordActionButton action="edit" title={`Edit ${row.propertyPlantAndEquipment || row.description || row.item || 'IAR item'} in RIS form`} onClick={() => editIarDraft(row)} /></div></article>; })}
+          {visibleIarDrafts.map(row => { const serialNumber = row.serialNumber || (row.serialNumbers || []).join(', '); return <article key={row._id} data-iar-selected={checkedIarDraftIds.includes(row._id)} className="saved-record flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex min-w-0 items-center gap-3"><input type="checkbox" aria-label={`Select IAR ${row.iarNumber || ""}: ${row.propertyPlantAndEquipment || row.description || row.item || "Item"}`} checked={checkedIarDraftIds.includes(row._id)} onChange={event => setCheckedIarDraftIds(previous => event.target.checked ? [...new Set([...previous, row._id])] : previous.filter(id => id !== row._id))} className="h-5 w-5 shrink-0 accent-emerald-700" /><div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">IAR No. {row.iarNumber || '—'}</div><div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-words font-medium text-slate-900"><span>{row.propertyPlantAndEquipment || row.description || row.item || 'Item'}</span>{serialNumber && <span className="text-sm font-normal text-slate-600">S/N: {serialNumber}</span>}</div></div></div><div className="iar-draft-actions flex shrink-0 items-center gap-2"><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Drafts</span></div></article>; })}
         </div>
-        <Pagination page={iarDraftPage} pageCount={iarDraftPageCount} perPage={iarDraftPerPage} onPageChange={setIarDraftPage} />
+        <Pagination page={iarDraftPage} pageCount={iarDraftPageCount} perPage={iarDraftPerPage} onPageChange={setIarDraftPage} onPerPageChange={value => { setIarDraftPerPage(value); setIarDraftPage(1); }} />
         {!iarDraftError && !visibleIarDrafts.length && <p className="mt-4 text-slate-500">{iarDrafts.length ? 'No drafts with available stock.' : 'No items from IAR have been recorded in stock yet.'}</p>}
       </section>}
       {risView === 'requests' && (editingRis || ((!filteredIarDrafts.length || selectedIarDraftId) && creatingRis)) ? (<>
@@ -1059,16 +1087,16 @@ export default function RisPage() {
                     options={choices.map(choice => ({ value: choice.key, label: choice.name }))}
                     onChange={name => {
                       const choice = choices.find(option => option.name.toLowerCase() === name.trim().toLowerCase());
-                      setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? (choice ? selectRisItem(row, choice) : { ...selectRisItem(row, null), itemName: name }) : row) }));
+                      selectRequestItem(index, choice, name);
                     }}
                     onSelect={option => {
                       const choice = choices.find(choice => choice.key === option.value);
-                      setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? selectRisItem(row, choice) : row) }));
+                      selectRequestItem(index, choice);
                     }} className="w-full rounded-lg border bg-transparent px-2 py-2 text-sm" />
                   {unavailable && <span className="text-xs text-red-700" role="status">Select an available item again.</span>}
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input readOnly aria-label={`Stock Number, row ${index + 1}`} value={item.stockNumber ?? ''} className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none" />
+                  <input readOnly aria-label={`Stock Number, row ${index + 1}`} value={risStockNumber(selectedStock || item)} className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none" />
                 </div>
                 <div className="border-r border-slate-300 p-1">
                   <input required={hasRowData(item, createRow())}
@@ -1142,7 +1170,7 @@ export default function RisPage() {
           </TableScroll>
 
           <div className="mt-3 flex justify-end">
-            <AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" />
+            {!singleIssuance && <AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" />}
           </div>
 
           <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
@@ -1157,7 +1185,7 @@ export default function RisPage() {
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-semibold">Date</span>
-              <input required
+              <DateInput required
                 type="date"
                 value={form.date}
                 onChange={(e) => updateForm({ date: e.target.value })}
@@ -1195,7 +1223,7 @@ export default function RisPage() {
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
-                    <input required
+                    <DateInput required
                       type="date"
                       aria-label={`${label} date`} value={form[section].date}
                       onChange={(e) => updateSignatory(section, 'date', e.target.value)}
@@ -1399,7 +1427,7 @@ export default function RisPage() {
 
             {reviewDraft.items.map((item, index) => (
               <div key={`${reviewDraft._id}-review-${index}`} className="ris-table-grid border-b border-slate-300 last:border-b-0">
-                <div className="border-r border-slate-300 p-2 text-sm">{item.stockNumber}</div>
+                <div className="border-r border-slate-300 p-2 text-sm">{risStockNumber(selectedInventoryMap.get(item.stockNumber) || item)}</div>
                 <div className="border-r border-slate-300 p-2 text-sm">{item.unit}</div>
                 <div className="border-r border-slate-300 p-2 text-sm">{item.description}</div>
                 <div className="border-r border-slate-300 p-2 text-sm">{item.quantityRequested}</div>

@@ -13,6 +13,7 @@ const PROPERTY_CARD_SEARCH_FIELDS = [
 
 const mongoose = require('mongoose');
 const Item = require('../models/Item');
+const { issuedPropertyStockIds } = require('../utils/issuedPropertyCards');
 router.get('/stock-ledger', authenticate, authorize(['canViewRIS', 'canManageInventory', 'canViewDashboard']), async (req, res) => {
   const filter = { deleted: false };
   if (req.query.search) { const escaped = String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); filter.$or = ['stockNumber', 'name', 'description', 'category'].map(key => ({ [key]: new RegExp(escaped, 'i') })); }
@@ -23,8 +24,7 @@ router.get('/stock-ledger', authenticate, authorize(['canViewRIS', 'canManageInv
     if (card && (card.items || []).some(row => Number(row.itdQuantity) > 0)) { const inventory = await require('../models/Inventory').findOne({ _id: { $in: (card.items || []).map(row => row.inventory).filter(Boolean) } }).lean(); initialItemId = inventory?.item; }
   }
   // A Property Card becomes visible only after an issuance has been posted.
-  const issuedCards = await PropertyCard.find({ deleted: false, items: { $elemMatch: { itdQuantity: { $gt: 0 } } } }).select('stockItem').lean();
-  const issuedStockIds = issuedCards.map(card => card.stockItem).filter(Boolean);
+  const issuedStockIds = await issuedPropertyStockIds();
   filter._id = { $in: issuedStockIds };
   const items = await Item.find(filter).sort({ stockNumber: 1 }).lean();
   const state = item => Number(item.quantityOnHand) <= 0 ? 'Out of Stock' : item.reorderLevel != null && item.quantityOnHand <= item.reorderLevel ? 'Low Stock' : 'In Stock';

@@ -1,3 +1,4 @@
+import { risStockNumber } from '../utils/risItemSelection';
 import { useAuth } from '../contexts/AuthContext';
 import { userRecordItems, currentIssuedItems } from '../utils/userRecordItems';
 import Skeleton from '../components/Skeleton';
@@ -109,7 +110,7 @@ export default function MyIssuedItemsPage() {
         <table className="user-issued-items-table min-w-full text-left text-sm">
           <thead><tr className="border-b text-slate-500">{['Property / Item', 'Stock No.', 'Quantity Requested', 'Quantity Issued', 'RIS No.', 'ICS / PAR / PTR No.', 'Date Issued', 'Status'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead>
           <tbody>{items.map(item => <tr key={item.rowKey} className="border-b border-slate-100">
-            <td className="p-3 font-medium">{item.itemName || item.description || item.stockNumber || 'Item'}</td><td className="p-3">{item.stockNumber || '—'}</td><td className="p-3">{item.quantityRequested ?? '—'}</td><td className="p-3">{item.quantityIssued ?? '—'}</td><td className="p-3">{item.risNumber || '—'}</td><td className="p-3">{item.documentNumber ? `${item.transferNumber ? 'PTR' : item.formType || ''} ${item.documentNumber}` : '—'}</td><td className="p-3">{item.issuedAt ? new Date(item.issuedAt).toLocaleDateString() : '—'}</td><td className="issued-item-status p-3"><div className="issued-item-status-actions flex flex-col items-start gap-2">{(!item.issued || item.pendingReturn || item.quantityReturned > 0) && <ItemStatus item={item} />}
+            <td className="p-3 font-medium">{item.itemName || item.description || risStockNumber(item) || 'Item'}</td><td className="p-3">{item.stockNumber || '—'}</td><td className="p-3">{item.quantityRequested ?? '—'}</td><td className="p-3">{item.quantityIssued ?? '—'}</td><td className="p-3">{item.risNumber || '—'}</td><td className="p-3">{item.documentNumber ? `${item.transferNumber ? 'PTR' : item.formType || ''} ${item.documentNumber}` : '—'}</td><td className="p-3">{item.issuedAt ? new Date(item.issuedAt).toLocaleDateString() : '—'}</td><td className="issued-item-status p-3"><div className="issued-item-status-actions flex flex-col items-start gap-2">{(!item.issued || item.pendingReturn || item.quantityReturned > 0) && <ItemStatus item={item} />}
               {item.issued && !item.transferred && !item.historyOnly && Number(item.quantityRemaining) > 0 && !item.pendingReturn && <button type="button" onClick={() => { setReturnItem(item); setReturnError(''); setNotice(''); }} className="issued-item-return-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-teal-700 px-2 py-1 text-xs font-semibold leading-5 text-white hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><RotateCcw size={13} aria-hidden="true" />Request Return</button>}
             </div></td>
           </tr>)}</tbody>
@@ -117,7 +118,7 @@ export default function MyIssuedItemsPage() {
       </TableScroll>}
     </section>}
     {returnItem && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><form onSubmit={requestReturn} role="dialog" aria-modal="true" aria-labelledby="request-return-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-      <h2 id="request-return-title" className="text-lg font-semibold">Request Return</h2><p className="mt-2 text-sm text-slate-600">{returnItem.itemName || returnItem.description || returnItem.stockNumber}</p>
+      <h2 id="request-return-title" className="text-lg font-semibold">Request Return</h2><p className="mt-2 text-sm text-slate-600">{returnItem.itemName || returnItem.description || risStockNumber(returnItem)}</p>
 
       <p className="mt-3 text-sm text-slate-500">This item stays under your account until the admin confirms receipt.</p>
       {returnError && <p role="alert" className="mt-3 text-sm text-red-700">{returnError}</p>}

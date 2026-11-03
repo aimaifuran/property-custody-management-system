@@ -1,3 +1,4 @@
+import { formNumber } from '../utils/formNumbers';
 import { PageSkeleton } from '../components/Skeleton';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -61,10 +62,10 @@ export default function AccountabilitiesPage({ title, description, formType }) {
                 </div>
               </div>
               <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-                <div>Inventory: {record.inventory?.item?.stockNumber || 'N/A'}</div>
+                <div>Inventory: {formNumber(record.inventory?.item?.displayStockNumber || record.inventory?.item?.stockNumber) || 'N/A'}</div>
                 <div>Status: {record.active ? 'Active' : 'Closed'}</div>
                 <div>Issue Date: {record.issueDate ? new Date(record.issueDate).toLocaleDateString() : 'N/A'}</div>
-                <div>Property No.: {record.propertyNumber || 'N/A'}</div>
+                <div>Property No.: {formNumber(record.propertyNumber) || 'N/A'}</div>
               </div>
             </div>
           ))}

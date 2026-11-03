@@ -81,9 +81,10 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canRevie
   const accountIds = records.flatMap(record => [record.requestedBy?.user, record.receivedBy?.user]).filter(Boolean);
   const accounts = await User.find({ _id: { $in: accountIds } }).select('username firstName middleName lastName').lean();
   const accountLabels = new Map(accounts.map(account => [String(account._id), [account.username, account.firstName, account.middleName, account.lastName].filter(Boolean).join(' ')]));
-  const stocks = await Item.find({ stockNumber: { $in: records.flatMap(record => record.items.map(row => row.stockNumber).filter(Boolean)) } }).select('stockNumber name category').lean();
+  const stocks = await Item.find({ stockNumber: { $in: records.flatMap(record => record.items.map(row => row.stockNumber).filter(Boolean)) } }).select('stockNumber displayStockNumber name category').lean();
+  const displayNumbers = new Map(stocks.map(stock => [stock.stockNumber, stock.displayStockNumber || stock.stockNumber]));
   const names = new Map(stocks.map(stock => [stock.stockNumber, stock.name || (stock.category !== 'General' ? stock.category : '')]));
-  const reports = records.map(record => ({ ...record.toObject(), recipientAccounts: [record.requestedBy?.user, record.receivedBy?.user].map(id => accountLabels.get(String(id))).filter(Boolean), itemNames: [...new Map(record.items.map(row => row.itemName || names.get(row.stockNumber) || row.description || '').filter(Boolean).map(name => [name.toLowerCase(), name])).values()] }));
+  const reports = records.map(record => ({ ...record.toObject(), items: record.items.map(row => ({ ...row.toObject(), displayStockNumber: displayNumbers.get(row.stockNumber) || row.stockNumber })), recipientAccounts: [record.requestedBy?.user, record.receivedBy?.user].map(id => accountLabels.get(String(id))).filter(Boolean), itemNames: [...new Map(record.items.map(row => row.itemName || names.get(row.stockNumber) || row.description || '').filter(Boolean).map(name => [name.toLowerCase(), name])).values()] }));
   return successResponse(res, 'RIS retrieved', Array.isArray(ris) ? reports : { ...ris, items: reports });
 });
 
@@ -147,7 +148,7 @@ router.get('/returnable-items', authenticate, authorize('canManageInventory'), a
 });
 
 router.get('/request-items', authenticate, authorize('canViewRIS'), async (req, res) => {
-  const items = await Item.find({ deleted: false, quantityOnHand: { $gt: 0 } }).select('stockNumber description name category unit itemType quantityOnHand cost').sort({ name: 1, stockNumber: 1 });
+  const items = await Item.find({ deleted: false, quantityOnHand: { $gt: 0 } }).select('stockNumber displayStockNumber description name category unit itemType quantityOnHand cost').sort({ name: 1, stockNumber: 1 });
   const units = await Inventory.find({ deleted: false, item: { $in: items.map(item => item._id) }, $or: [{ serialNumber: { $type: 'string', $nin: ['', null] } }, { property: { $ne: null } }] }).select('item property propertyNumber serialNumber unitCost inspectionAcceptanceReport status').lean();
   const receiptIds = units.map(unit => unit.inspectionAcceptanceReport).filter(Boolean);
   const receipts = await require('../models/InspectionAcceptanceReport').find({ deleted: false, $or: [{ _id: { $in: receiptIds } }, { 'items.stockNumber': { $in: items.map(item => item.stockNumber) } }, { 'items.stockPropertyNumber': { $in: items.map(item => item.stockNumber) } }] }).select('fundCluster responsibilityCenterCode items.stockNumber items.stockPropertyNumber').sort({ createdAt: -1, _id: -1 }).lean();

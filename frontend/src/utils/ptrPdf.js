@@ -1,3 +1,5 @@
+import { formNumberData } from './formNumbers.js';
+import { displayDate } from './dateInput.js';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { embedFormFonts } from './formPdfFonts.js';
 import { FORM_PDF_A4_PORTRAIT, FORM_PDF_FONT_SIZE, FORM_PDF_MARGIN } from './formPdfStyle.js';
@@ -7,12 +9,13 @@ const PAGE = FORM_PDF_A4_PORTRAIT;
 const MARGIN = FORM_PDF_MARGIN;
 const WIDTH = PAGE[0] - MARGIN * 2;
 const text = value => value == null ? '' : typeof value === 'object' ? value.name || '' : String(value);
-const dateText = value => !value || Number.isNaN(new Date(value).getTime()) ? '' : new Date(value).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' });
+const dateText = displayDate;
 const amountText = value => value == null || value === '' ? '' : Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // The original template's captions use font-dependent tab offsets. Explicit
 // measured cells keep the same official sections readable at the shared size.
 export async function buildPtrPdf(data = {}, { onDraw } = {}) {
+  data = formNumberData(data);
   const document = await PDFDocument.create();
   const { regular, bold } = await embedFormFonts(document, ['regular', 'bold']);
   const size = FORM_PDF_FONT_SIZE;

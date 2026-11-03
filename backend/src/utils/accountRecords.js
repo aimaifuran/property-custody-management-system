@@ -1,11 +1,14 @@
 const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
 const PropertyReturnSlip = require('../models/PropertyReturnSlip');
 const ReturnedSupply = require('../models/ReturnedSupply');
+const Item = require('../models/Item');
 const Accountability = require('../models/PropertyAccountability');
 const { ownerFilter } = require('./accountLinks');
 
 async function accountRecords(user, includeRequests = false) {
   const records = await RequisitionIssueSlip.find({ deleted: false, ...ownerFilter(user._id, user.offlineRecord), ...(!includeRequests ? { status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } } : {}) }).sort({ createdAt: -1 });
+  const stocks = await Item.find({ stockNumber: { $in: records.flatMap(record => record.items.map(item => item.stockNumber).filter(Boolean)) } }).select('stockNumber displayStockNumber').lean();
+  const displayNumbers = new Map(stocks.map(stock => [stock.stockNumber, stock.displayStockNumber || stock.stockNumber]));
   const slips = await PropertyReturnSlip.find({ deleted: false, 'items.ris': { $in: records.map(record => record._id) } }).sort({ createdAt: -1 });
   const directReturns = await ReturnedSupply.find({ deleted: false, prs: null, ris: { $in: records.map(record => record._id) } });
   const custody = await Accountability.find({ deleted: false, ris: { $in: records.map(record => record._id) } }).lean();
@@ -22,7 +25,7 @@ async function accountRecords(user, includeRequests = false) {
     const quantityReturned = returns.filter(entry => entry.status === 'RETURNED').reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
     const pendingReturn = returns.some(entry => entry.status === 'PENDING');
     const requestStatuses = { DRAFT: 'Recorded request', PENDING_REVIEW: 'Pending admin review', PENDING_APPROVAL: 'Pending approval', REVIEWED: 'Reviewed — awaiting issuance', APPROVED: 'Approved — awaiting issuance', REJECTED: 'Request rejected' };
-    return { risId: ris._id, itemId: item._id, accountability: asset?._id, risNumber: ris.risNumber, requestStatus: ris.status, recordedAt: ris.createdAt, quantityRequested: item.quantityRequested, issued, formType: item.formType, documentNumber: item.documentNumber, formId: item.issuanceForm, unitCost: item.unitCost, itemName: item.itemName || '', description: item.description, unit: item.unit, stockNumber: item.stockNumber, quantityIssued: issued ? item.quantityIssued : 0, issuedAt: issued ? ris.issuedAt : null, quantityReturned, pendingReturn: pendingReturn || !!asset?.pendingMovement, transferred, acceptedAt: asset?.acceptedAt, quantityRemaining: issued && !transferred ? Math.max(0, item.quantityIssued - quantityReturned) : 0, status: transferred ? 'Transferred to another custodian' : !issued ? requestStatuses[ris.status] || 'Recorded request' : pendingReturn ? 'Awaiting admin confirmation' : quantityReturned >= item.quantityIssued && item.quantityIssued > 0 ? 'Successfully returned' : quantityReturned > 0 ? 'Partially returned' : item.quantityIssued > 0 ? 'Not returned' : 'Not issued', returns };
+    return { risId: ris._id, itemId: item._id, accountability: asset?._id, risNumber: ris.risNumber, requestStatus: ris.status, recordedAt: ris.createdAt, quantityRequested: item.quantityRequested, issued, formType: item.formType, documentNumber: item.documentNumber, formId: item.issuanceForm, unitCost: item.unitCost, itemName: item.itemName || '', description: item.description, unit: item.unit, stockNumber: item.stockNumber, displayStockNumber: displayNumbers.get(item.stockNumber) || item.displayStockNumber || String(item.stockNumber || '').replace(/~[a-f0-9]{24}$/i, ''), quantityIssued: issued ? item.quantityIssued : 0, issuedAt: issued ? ris.issuedAt : null, quantityReturned, pendingReturn: pendingReturn || !!asset?.pendingMovement, transferred, acceptedAt: asset?.acceptedAt, quantityRemaining: issued && !transferred ? Math.max(0, item.quantityIssued - quantityReturned) : 0, status: transferred ? 'Transferred to another custodian' : !issued ? requestStatuses[ris.status] || 'Recorded request' : pendingReturn ? 'Awaiting admin confirmation' : quantityReturned >= item.quantityIssued && item.quantityIssued > 0 ? 'Successfully returned' : quantityReturned > 0 ? 'Partially returned' : item.quantityIssued > 0 ? 'Not returned' : 'Not issued', returns };
   })).filter(Boolean);
   return items;
 }

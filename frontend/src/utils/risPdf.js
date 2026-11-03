@@ -1,3 +1,6 @@
+import { formNumberData } from './formNumbers.js';
+import { risStockNumber } from './risItemSelection.js';
+import { displayDate } from './dateInput.js';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { embedFormFonts } from './formPdfFonts.js';
 import { FORM_PDF_A4_PORTRAIT, FORM_PDF_FONT_SIZE, FORM_PDF_MARGIN } from './formPdfStyle.js';
@@ -7,14 +10,15 @@ const PAGE = FORM_PDF_A4_PORTRAIT;
 const MARGIN = FORM_PDF_MARGIN;
 const WIDTH = PAGE[0] - MARGIN * 2;
 const asText = value => value == null ? '' : typeof value === 'object' ? value.name || '' : String(value);
-const dateText = value => !value || Number.isNaN(new Date(value).getTime()) ? '' : new Date(value).toLocaleDateString('en-PH');
+const dateText = displayDate;
 
 export async function buildRisPdf(data, { onDraw } = {}) {
+  data = formNumberData(data);
   const document = await PDFDocument.create();
   const { regular, bold } = await embedFormFonts(document, ['regular', 'bold']);
   const size = FORM_PDF_FONT_SIZE, leading = 12, padding = 4;
   const items = Array.isArray(data.items) ? data.items : [];
-  const valuesFor = item => [item.stockNumber ?? item.stock_number ?? '', item.unit, item.description ?? item.item, item.quantityRequested, item.isAvailable == null ? '' : item.isAvailable ? '/' : '', item.isAvailable === false ? '/' : '', Number(item.quantityIssued) > 0 ? item.quantityIssued : '', item.remarks];
+  const valuesFor = item => [risStockNumber(item), item.unit, item.description ?? item.item, item.quantityRequested, item.isAvailable == null ? '' : item.isAvailable ? '/' : '', item.isAvailable === false ? '/' : '', Number(item.quantityIssued) > 0 ? item.quantityIssued : '', item.remarks];
   const measuredWidth = (index, minimum, maximum) => Math.min(maximum, Math.max(minimum, ...items.map(item => regular.widthOfTextAtSize(asText(valuesFor(item)[index]), size) + padding * 2)));
   const stockWidth = measuredWidth(0, 48, 95), unitWidth = measuredWidth(1, 34, 50);
   const requestedWidth = measuredWidth(3, 49, 65), issuedWidth = measuredWidth(6, 57, 65);

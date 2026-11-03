@@ -5,56 +5,39 @@ const monthOf = value => {
 const id = value => String(value?._id || value || '');
 const number = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
 
+const stockNumberOf = item => String(item.stockPropertyNumber || item.stockNumber || '').replace(/~[a-f0-9]{24}$/i, '');
+const iarRows = rows => rows.filter(row => row.source === 'IAR').map(row => ({ ...row, stockNumber: stockNumberOf(row) }));
+
 function collectMonthlyItems(sources) {
   const groups = new Map();
-  const iars = new Set((sources.iar || []).filter(record => !record.deleted).map(record => id(record._id)));
-  const returns = new Set((sources.prs || []).filter(record => !record.deleted).map(record => id(record._id)));
-  const stocks = new Set();
-  const inventoryItemIds = new Set((sources.inventory || []).map(record => id(record.item)));
-  const append = (type, record, items, normalize) => {
-    if (record.deleted || record.status === 'REJECTED') return;
-    const month = monthOf(record.createdAt || record.date || record.iarDate);
-    if (!month) return;
+  const issued = (sources.ris || []).filter(record => !record.deleted && ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status));
+  for (const record of sources.iar || []) {
+    if (record.deleted || record.status === 'REJECTED') continue;
+    const month = monthOf(record.createdAt || record.iarDate);
+    if (!month) continue;
     const rows = groups.get(month) || [];
-    items.forEach((item, index) => {
-      const row = normalize(item);
-      if (!row.item?.trim()) return;
-      rows.push({ ...row, quantity: number(row.quantity) ?? 0, unitCost: null, totalCost: null, source: type, sourceId: id(record._id), sourceRow: index, sourceNumber: record.iarNumber || record.risNumber || record.parNumber || record.icsNumber || record.ptrNumber || record.prsNumber || record.mrNumber || '' });
-      if (row.stockNumber) stocks.add(row.stockNumber);
+    (record.items || []).forEach((item, index) => {
+      const description = item.description || item.item || '';
+      if (!description.trim()) return;
+      const inventories = new Set([item.inventory, ...(item.inventories || [])].map(id).filter(Boolean));
+      const references = issued.filter(ris => (ris.items || []).some(line => {
+        if (!(Number(line.quantityIssued) > 0)) return false;
+        // Match the physical receipt first. Visible stock numbers can repeat.
+        if (line.inventory && inventories.size) return inventories.has(id(line.inventory));
+        if (line.property && item.property) return id(line.property) === id(item.property);
+        if (line.inventory || line.property) return false;
+        return id(ris.iar) === id(record._id) && Boolean(line.stockNumber)
+          && line.stockNumber === (item.stockNumber || item.stockPropertyNumber);
+      }));
+      const risNumber = [...new Set(references.map(ris => ris.risNumber).filter(Boolean))].join(', ');
+      rows.push({
+        risNumber, responsibilityCenter: record.responsibilityCenterCode || '',
+        stockNumber: stockNumberOf(item), item: description, unit: item.unit || '',
+        quantity: number(item.quantity) ?? 0, unitCost: null, totalCost: null,
+        source: 'IAR', sourceId: id(record._id), sourceRow: index, sourceNumber: record.iarNumber || '',
+      });
     });
     if (rows.length) groups.set(month, rows);
-  };
-  const normalize = (record, item) => {
-    const quantity = number(item.quantity ?? item.quantityIssued ?? item.quantityRequested ?? item.receiptQuantity) ?? (item.description ? 1 : 0);
-    return { risNumber: record.risNumber || '', responsibilityCenter: record.responsibilityCenterCode || record.office || '', stockNumber: item.stockNumber || item.stockPropertyNumber || item.inventoryItemNo || item.propertyNumber || '', item: item.description || item.item || '', unit: item.unit || '', quantity, unitCost: null };
-  };
-  for (const record of sources.iar || []) {
-    const linkedRis = (sources.ris || []).find(ris => !ris.deleted && ris.status !== 'REJECTED' && id(ris.iar) === id(record._id));
-    append('IAR', record, record.items || [], item => ({ ...normalize(record, item), risNumber: linkedRis?.risNumber || '', responsibilityCenter: linkedRis?.responsibilityCenterCode || linkedRis?.office || record.responsibilityCenterCode || '' }));
-  }
-  for (const type of ['ris', 'ics', 'par', 'cards']) {
-    for (const record of sources[type] || []) {
-      if (record.iar && iars.has(id(record.iar))) continue;
-      append(type.toUpperCase(), record, record.items?.length ? record.items : record.entries?.length ? record.entries.map(entry => ({ ...entry, description: record.description })) : [record], item => normalize(record, item));
-    }
-  }
-  for (const record of sources.inventory || []) {
-    if (record.inspectionAcceptanceReport && iars.has(id(record.inspectionAcceptanceReport))) continue;
-    append('INVENTORY', record, [record], item => ({ ...normalize(record, item), item: record.item?.description || '', stockNumber: record.item?.stockNumber || record.propertyNumber || '', unit: record.item?.unit || '' }));
-  }
-  for (const type of ['ptr', 'prs', 'returned']) {
-    for (const record of sources[type] || []) {
-      if (type === 'returned' && record.prs && returns.has(id(record.prs))) continue;
-      append(type.toUpperCase(), record, record.items || [record], item => normalize(record, item));
-    }
-  }
-  for (const record of sources.items || []) {
-    if (inventoryItemIds.has(id(record._id)) || stocks.has(record.stockNumber)) continue;
-    append('ITEM', record, [record], item => ({ ...normalize(record, item), quantity: record.quantityOnHand || 0, unitCost: null }));
-  }
-  for (const record of sources.properties || []) {
-    if (stocks.has(record.propertyCode)) continue;
-    append('PROPERTY', record, [record], item => ({ ...normalize(record, item), stockNumber: record.propertyCode || '', item: record.description || record.propertyName || '', quantity: record.quantity || 1, unit: record.unit || 'UNIT', unitCost: null, responsibilityCenter: record.currentCustodian?.office || '' }));
   }
   return groups;
 }
@@ -69,4 +52,4 @@ function recapitulate(rows) {
   }
   return [...groups.values()].sort((a, b) => a.item.localeCompare(b.item));
 }
-module.exports = { monthOf, collectMonthlyItems, recapitulate };
+module.exports = { monthOf, collectMonthlyItems, recapitulate, iarRows };

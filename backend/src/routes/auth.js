@@ -48,7 +48,7 @@ const cookieOptions = () => ({
 });
 
 router.post('/login', loginLimiter, [
-  body('identifier').notEmpty().withMessage('Username or email is required'),
+  body('identifier').isString().bail().trim().notEmpty().withMessage('Username or email is required'),
   body('password').isString().notEmpty().withMessage('Password is required'),
 ], async (req, res) => {
   try {
@@ -56,8 +56,10 @@ router.post('/login', loginLimiter, [
     if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
 
     const { identifier, password, rememberMe } = req.body;
-    await lockInactiveUsers({ $or: [{ email: identifier }, { username: identifier }] });
-    const user = await User.findOne({ deleted: false, $or: [{ email: identifier }, { username: identifier }] });
+    const escapedIdentifier = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const accountFilter = { $or: [{ username: identifier }, { email: new RegExp(`^${escapedIdentifier}$`, 'i') }] };
+    await lockInactiveUsers(accountFilter);
+    const user = await User.findOne({ deleted: false, ...accountFilter });
     if (!user) return errorResponse(res, 'Invalid credentials', [], 401);
     if (user.locked) return errorResponse(res, 'This account is locked. Contact your administrator to unlock it.', [], 423);
 

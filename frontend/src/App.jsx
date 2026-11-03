@@ -23,7 +23,6 @@ import HistoricalRecordsPage from './pages/HistoricalRecordsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
-import AboutPage from './pages/AboutPage';
 import RegisterPage from './pages/RegisterPage';
 import UserManualPage from './pages/UserManualPage';
 
@@ -79,7 +78,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route path="/about" element={<AboutPage />} />
+          <Route path="/about" element={<Navigate to="/user-manual" replace />} />
           <Route path="/my-ris" element={<Navigate to="/ris" replace />} />
           <Route path="/issued-items" element={<Navigate to="/ris?view=issued" replace />} />
           <Route path="/my-requests" element={<Navigate to="/ris" replace />} />

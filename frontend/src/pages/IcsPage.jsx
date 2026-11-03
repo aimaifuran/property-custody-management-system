@@ -1,3 +1,6 @@
+import { formNumber, formNumberData } from '../utils/formNumbers';
+import FormNumberInput from '../components/FormNumberInput';
+import DateInput from '../components/DateInput';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
@@ -193,7 +196,7 @@ export default function IcsPage() {
     const field = (label, key, type = 'text') => key === 'office' ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><OfficeSelect required aria-label={label} value={form.office} onChange={event => update('office', event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input required aria-label={label} readOnly={key === 'icsNumber' && (!editingId || linkedIssuance)} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <DateInput required aria-label={label} readOnly={key === 'icsNumber' && (!editingId || linkedIssuance)} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -211,7 +214,7 @@ export default function IcsPage() {
                     <span className="mt-1 text-sm text-slate-600">Position/Office</span>
                 </label>
                 <label className="flex flex-col text-center">
-                    <input required type="date" aria-label={`${label} date`} value={form[section].date} onChange={event => updateSignatory(section, 'date', event.target.value)} className="w-full text-center" />
+                    <DateInput required type="date" aria-label={`${label} date`} value={form[section].date} onChange={event => updateSignatory(section, 'date', event.target.value)} className="w-full text-center" />
                     <span className="mt-1 text-sm text-slate-600">Date</span>
                 </label>
             </div>
@@ -233,6 +236,7 @@ export default function IcsPage() {
     };
 
     async function generateExcel(data) {
+      data = formNumberData(data);
         console.log('Generating Excel for ICS:', data);
 
         // Load the template
@@ -258,7 +262,7 @@ export default function IcsPage() {
             worksheet.getCell(`C${startRow + index}`).value = formatAmount(item.unitCost);
             worksheet.getCell(`D${startRow + index}`).value = formatAmount(item.totalCost);
             worksheet.getCell(`E${startRow + index}`).value = item.description;
-            worksheet.getCell(`H${startRow + index}`).value = item.inventoryItemNo;
+            worksheet.getCell(`H${startRow + index}`).value = formNumber(item.inventoryItemNo);
             worksheet.getCell(`I${startRow + index}`).value = item.estimatedUsefulLife;
         });
 
@@ -288,6 +292,7 @@ export default function IcsPage() {
     };
 
     async function generateDoc(data) {
+      data = formNumberData(data);
         const response = await fetch("/forms/templates/iar-template.docx");
         const content = await response.arrayBuffer();
 
@@ -398,7 +403,7 @@ export default function IcsPage() {
                                             <input required={hasRowData(item, emptyItem())} readOnly={viewOnly} pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance || viewOnly} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <FormNumberInput required={hasRowData(item, emptyItem())} readOnly={linkedIssuance || viewOnly} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
                                             <input required={hasRowData(item, emptyItem())} aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />

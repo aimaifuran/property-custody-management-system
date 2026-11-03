@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { BookOpen, CircleHelp, ClipboardCheck, FileCheck2, FileText, KeyRound, LifeBuoy, PackageCheck, Printer, RotateCcw, Search, ShieldCheck, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import AboutPage from './AboutPage';
 
 const Section = ({ id, title, icon: Icon, children }) => (
   <section id={id} className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -30,7 +31,7 @@ export default function UserManualPage() {
       <div className="flex flex-wrap gap-2 text-sm">
         {[
           ['navigation', 'Navigation'], ['buttons', 'Buttons and records'], ['forms', 'Forms and workflows'],
-          ['reports', 'Reports'], ['troubleshooting', 'Troubleshooting'], ['password', 'Forgot password'],
+          ['reports', 'Reports'], ['troubleshooting', 'Troubleshooting'], ['password', 'Forgot password'], ['about-system', 'About PAMS'],
         ].map(([id, label]) => <a key={id} href={`#${id}`} className="rounded-lg border border-emerald-200 px-3 py-1.5 font-medium text-emerald-800 hover:bg-emerald-50">{label}</a>)}
       </div>
     </nav>
@@ -152,5 +153,8 @@ export default function UserManualPage() {
       <span><CircleHelp size={16} className="mr-2 inline text-emerald-700" aria-hidden="true" />Still need help? Contact your system administrator and include the page name and exact error message.</span>
       <Link to={user?.role === 'admin' ? '/dashboard' : '/my-issued-items'} className="font-semibold text-emerald-800 hover:underline">{user?.role === 'admin' ? 'Back to dashboard' : 'Back to issued items'}</Link>
     </footer>
+    <section id="about-system" aria-label="About PAMS" className="scroll-mt-6">
+      <AboutPage />
+    </section>
   </div>;
 }

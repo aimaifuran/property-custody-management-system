@@ -1,3 +1,4 @@
+import { formNumber, formNumberValue } from '../utils/formNumbers';
 import FormRecordTabs from '../components/FormRecordTabs';
 import SearchInput from '../components/SearchInput';
 import SignatoryValue from '../components/SignatoryValue';
@@ -18,7 +19,7 @@ import { Eye, Save, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import RecordActionButton from '../components/RecordActionButton';
 import Pagination from '../components/Pagination';
-import { buildStationPpePdf, STATION_PPE_COLUMNS, stationDate } from '../utils/ppeStationPdf';
+import { buildStationPpePdf, STATION_PPE_COLUMNS, stationDate, stationMoney } from '../utils/ppeStationPdf';
 import { createFormPdfCache } from '../utils/formPdfCache';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -90,14 +91,14 @@ export default function PpeStationReportPage() {
     return task;
   };
   const edit = record => {
-    setEditorOpen(true); setEditingId(record._id); setForm({ ...record, rows: record.rows.map(row => ({ ...row, unitCost: '', totalCost: '' })) });
+    setEditorOpen(true); setEditingId(record._id); setForm({ ...record, rows: record.rows.map(row => ({ ...row })) });
     editor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const save = async event => {
     event.preventDefault(); setSaving(true); setRecentlySavedId(null);
     try {
       await remember();
-      const payload = { ...form, rows: form.rows.filter(row => hasRowData(row, blankRow())).map(row => ({ ...row, unitCost: null, totalCost: null })) };
+      const payload = { ...form, rows: form.rows.filter(row => hasRowData(row, blankRow())).map(row => ({ ...row, unitCost: row.unitCost === '' ? null : row.unitCost, totalCost: row.totalCost === '' ? null : row.totalCost })) };
       const { data } = editingId ? await axios.put(`/ppe-station-reports/${editingId}`, payload) : await axios.post('/ppe-station-reports', payload);
       setRecords(previous => [data.data, ...previous.filter(record => record._id !== data.data._id)]);
       setRecentlySavedId(data.data._id);
@@ -141,7 +142,7 @@ export default function PpeStationReportPage() {
       <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm"><span className="mb-1 block font-semibold">PPE Account Group <span className="text-red-600" aria-hidden="true">*</span></span><SearchInput aria-label="PPE Account Group" required disabled={groupsLoading || !!groupsError} maxLength={200} value={form.accountGroup} options={itemGroups.map(group => ({ value: group.key, label: group.name }))} onChange={selectAccountGroup} placeholder={groupsLoading ? 'Loading item groups…' : 'Search an item, e.g. Printer'} className="w-full border px-2 py-1" /></label>{field('date', 'Date', 'date', true)}</div>
       {groupsError && <p role="alert" className="mt-2 text-sm text-rose-700">{groupsError}</p>}
       {form.accountGroup.trim() && <p role="status" className="mt-2 text-sm text-slate-600">{form.rows.length ? `${form.rows.length} records in this PPE group.` : 'No matching equipment records found.'}</p>}
-      <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{STATION_PPE_COLUMNS.map(([key]) => <col key={key} style={{ width: `${inputColumnWidths[key] * 0.95}%` }} />)}<col style={{ width: '5%' }} /></colgroup><thead><tr>{STATION_PPE_COLUMNS.map(([key, label]) => <th key={key}>{label} {!['remarks', 'unitCost', 'totalCost'].includes(key) && <span className="required-marker text-red-600" aria-hidden="true">*</span>}</th>)}<th><span className="sr-only">Row actions</span></th></tr></thead><tbody>{form.rows.map((row, index) => <tr key={index}>{STATION_PPE_COLUMNS.map(([key, label]) => <td key={key}>{['unitCost', 'totalCost'].includes(key) ? null : <textarea aria-label={`${label}, row ${index + 1}`} required={hasRowData(row, blankRow()) && (key !== 'remarks')} maxLength={{ article: 100, description: 1500, propertyNumber: 300, accountablePerson: 200, remarks: 300 }[key]} value={row[key] || ''} rows={2} onChange={event => setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry) }))} />}</td>)}<td><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, rows: previous.rows.filter((_, rowIndex) => rowIndex !== index) }))} /></td></tr>)}</tbody></table></TableScroll>
+      <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{STATION_PPE_COLUMNS.map(([key]) => <col key={key} style={{ width: `${inputColumnWidths[key] * 0.95}%` }} />)}<col style={{ width: '5%' }} /></colgroup><thead><tr>{STATION_PPE_COLUMNS.map(([key, label]) => <th key={key}>{label} {!['remarks', 'unitCost', 'totalCost'].includes(key) && <span className="required-marker text-red-600" aria-hidden="true">*</span>}</th>)}<th><span className="sr-only">Row actions</span></th></tr></thead><tbody>{form.rows.map((row, index) => <tr key={index}>{STATION_PPE_COLUMNS.map(([key, label]) => <td key={key}>{['unitCost', 'totalCost'].includes(key) ? <input aria-label={`${label}, row ${index + 1}`} readOnly value={stationMoney(row[key])} className="w-full bg-transparent px-2 py-1 text-center" /> : <textarea aria-label={`${label}, row ${index + 1}`} required={hasRowData(row, blankRow()) && key !== 'remarks' && !(key === 'propertyNumber' && row[key] && !formNumber(row[key]))} maxLength={{ article: 100, description: 1500, propertyNumber: 300, accountablePerson: 200, remarks: 300 }[key]} value={formNumberValue(key, row[key]) || ''} rows={2} onChange={event => setForm(previous => ({ ...previous, rows: previous.rows.map((entry, rowIndex) => rowIndex === index ? { ...entry, [key]: event.target.value } : entry) }))} />}</td>)}<td><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, rows: previous.rows.filter((_, rowIndex) => rowIndex !== index) }))} /></td></tr>)}</tbody></table></TableScroll>
       <div className="mt-3 flex justify-end"><AddRowButton disabled={form.rows.length >= 500} onClick={() => setForm(previous => ({ ...previous, rows: [...previous.rows, blankRow()] }))} /></div>
       <div className="mt-5 grid gap-5 border border-slate-400 p-4 md:grid-cols-[3fr_2fr]"><section><p className="mb-3 font-semibold">Prepared by:</p>{field('preparedBy', 'Name')}{field('preparedDesignation', 'Designation')}<p className="mt-3 text-xs">Date: {stationDate(form.date)}</p></section><section><p className="mb-3 font-semibold">Reviewed by:</p>{field('reviewedBy', 'Name')}{field('reviewedDesignation', 'Designation')}</section></div>
       <p className="mt-2 text-xs text-slate-500">Signatories are managed in System Settings.</p>

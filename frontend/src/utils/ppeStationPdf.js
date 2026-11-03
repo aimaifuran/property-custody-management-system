@@ -1,3 +1,4 @@
+import { formNumberData } from './formNumbers.js';
 ﻿import { embedFormFonts } from './formPdfFonts.js';
 import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_MARGIN } from './formPdfStyle.js';
 import { signatoryText } from './formPdfSignatories.js';
@@ -13,6 +14,7 @@ export const stationMoney = value => value == null || value === '' ? '' : Number
 export const stationDate = value => value ? new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase() : '';
 
 export async function buildStationPpePdf(record, { onDraw } = {}) {
+  record = formNumberData(record);
   const pdf = await PDFDocument.create();
   const { regular, bold } = await embedFormFonts(pdf);
   const [width, height] = FORM_PDF_A4_LANDSCAPE;
@@ -33,7 +35,7 @@ export async function buildStationPpePdf(record, { onDraw } = {}) {
   };
   nextPage();
   for (const row of record.rows || []) {
-    const values = STATION_PPE_COLUMNS.map(([key]) => ['unitCost', 'totalCost'].includes(key) ? '' : row[key]);
+    const values = STATION_PPE_COLUMNS.map(([key]) => ['unitCost', 'totalCost'].includes(key) ? stationMoney(row[key]) : row[key]);
     drawReportGridRow(layout, columns, values, regular, nextPage, 30);
   }
   const blocks = [

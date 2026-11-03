@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRisRow, risDraftRows, risItemChoices, selectRisItem, setRisRequestedQuantity } from './risItemSelection.js';
+import { risStockNumber, createRisRow, risDraftRows, risItemChoices, selectRisItem, setRisRequestedQuantity } from './risItemSelection.js';
 import { iarFormData } from './iarFormData.js';
 
 const stock = { _id: 'paper', name: 'Bondpaper', stockNumber: 'PAPER', unit: 'ream', description: 'A4 white', quantityOnHand: 2, hasTrackedUnits: true, units: [{ _id: 'unit1', serialNumber: '45241-1', unitCost: 200 }, { _id: 'unit2', serialNumber: '45241-2', unitCost: 200 }] };
@@ -87,4 +87,13 @@ test('selected items inherit their exact IAR fund and other rows cannot mix fund
   assert.deepEqual(risSelectedFunds(rows, [general]), ['General Fund']);
   assert.deepEqual(risItemChoices([broom], rows, 1), [], 'Different fund is excluded from the next row');
   assert.equal(risItemChoices([broom], [createRisRow()], 0)[0].name, 'Broom');
+});
+
+test('RIS shows the entered stock number without the generated catalog suffix', () => {
+  const generated = { ...stock, stockNumber: '001~6ae999c2501a123456789abc', displayStockNumber: '001' };
+  const selected = selectRisItem(createRisRow(), risItemChoices([generated], [createRisRow()], 0)[0]);
+  assert.equal(selected.stockNumber, generated.stockNumber);
+  assert.equal(risStockNumber(selected), '001');
+  assert.equal(risStockNumber({ stockNumber: generated.stockNumber }), '001');
+  assert.equal(risStockNumber({ stockNumber: 'STOCK-001' }), 'STOCK-001');
 });

@@ -25,14 +25,12 @@ test('PPE groups combine matching equipment across receipts and retain each acco
     { inventory: 'inv2', employee: 'Old offline name', offlineRecipient: { name: 'Cherie Francisco' }, quantity: 1, returnedQuantity: 0 },
     { inventory: 'inv3', employee: 'Returned holder', quantity: 1, returnedQuantity: 1 },
   ]);
-  assert.equal(groups.length, 3);
-  assert.equal(groups.find(group => group.key === 'laptop').rows[0].accountablePerson, '');
-  assert.equal(groups.find(group => group.key === 'paper').rows[0].accountablePerson, '');
+  assert.equal(groups.length, 1);
   const printers = groups.find(group => group.key === 'printer');
   assert.equal(printers.rows.length, 2);
   assert.deepEqual(printers.rows.map(row => row.accountablePerson), ['Catherine Lagera', 'Cherie Francisco']);
-  assert.deepEqual(printers.rows.map(row => row.unitCost), ['', '']);
-  assert.deepEqual(printers.rows.map(row => row.totalCost), ['', '']);
+  assert.deepEqual(printers.rows.map(row => row.unitCost), [10000, 12000]);
+  assert.deepEqual(printers.rows.map(row => row.totalCost), [10000, 12000]);
   assert.deepEqual(printers.rows.map(row => row.propertyNumber), ['P-1', 'P-2']);
 });
 test('descriptions include serials only when present and remarks identify recorded condition', () => {
@@ -48,4 +46,17 @@ test('descriptions include serials only when present and remarks identify record
   assert.equal(rows[1].description, 'Black TV');
   assert.equal(rows[2].description, 'Black TV');
   assert.deepEqual(rows.map(row => row.remarks), ['New', 'Serviceable', 'Unserviceable']);
+});
+
+test('PPE costs use receipt prices, remaining quantities, currency rounding and preserve zero', () => {
+  const item = { name: 'Equipment', cost: 99999 };
+  const inventories = [
+    { _id: 'a', item, unitCost: 12.345 },
+    { _id: 'b', item, unitCost: 0 },
+    { _id: 'c', item },
+  ];
+  const accounts = ['a', 'b', 'c'].map(inventory => ({ inventory, quantity: 3, returnedQuantity: 1, employee: 'Holder' }));
+  const rows = groupItems(inventories, accounts)[0].rows;
+  assert.deepEqual(rows.map(row => row.unitCost), [12.345, 0, '']);
+  assert.deepEqual(rows.map(row => row.totalCost), [24.69, 0, '']);
 });

@@ -60,6 +60,7 @@ const requisitionIssueSlipSchema = new mongoose.Schema({
     fundCluster: { type: String, trim: true },
     responsibilityCenterCode: { type: String, trim: true },
     stockNumber: { type: String, default: null },
+    displayStockNumber: String,
     unit: String,
     description: String,
     quantityRequested: Number,

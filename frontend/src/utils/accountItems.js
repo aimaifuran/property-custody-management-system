@@ -64,7 +64,7 @@ export function mergeAccountItems({ risRows = [], assets = [], returnSlips = [],
       risNumber: base.risNumber || asset.ris?.risNumber || '',
       itemName: base.itemName || stockItemName(stock) || base.description || asset.propertyNumber || 'Property',
       description: stock.description || stock.name || base.description || asset.propertyNumber || 'Property',
-      stockNumber: stock.stockNumber || base.stockNumber || '', unit: stock.unit || base.unit,
+      stockNumber: stock.stockNumber || base.stockNumber || '', displayStockNumber: stock.displayStockNumber || base.displayStockNumber || '', unit: stock.unit || base.unit,
       formType: asset.formType, documentNumber: asset.documentNumber, formId: asset.issuanceForm,
       unitCost: asset.inventory?.unitCost ?? base.unitCost,
       // Prior custodians' returns stay in the global accountability counter.

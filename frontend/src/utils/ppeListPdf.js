@@ -1,3 +1,4 @@
+import { formNumberData } from './formNumbers.js';
 ﻿import { embedFormFonts } from './formPdfFonts.js';
 import { FORM_PDF_A4_PORTRAIT, FORM_PDF_MARGIN } from './formPdfStyle.js';
 import { signatoryText } from './formPdfSignatories.js';
@@ -27,6 +28,7 @@ export const ppePeriod = record => {
 };
 
 export async function buildPpePdf(record, { onDraw } = {}) {
+  record = formNumberData(record);
   const pdf = await PDFDocument.create();
   const { regular, bold, italic } = await embedFormFonts(pdf);
   const [width, height] = FORM_PDF_A4_PORTRAIT;

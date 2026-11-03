@@ -1,3 +1,6 @@
+import { formNumber, formNumberData } from '../utils/formNumbers';
+import FormNumberInput from '../components/FormNumberInput';
+import DateInput from '../components/DateInput';
 import SearchInput from '../components/SearchInput';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
@@ -209,7 +212,7 @@ export default function PtrPage() {
                 const itemName = getIssuedItemName(asset);
                 return {
                     value: asset._id,
-                    label: `${itemName} · ${asset.propertyNumber || asset.inventory?.propertyNumber || stockItem?.stockNumber || 'No property number'} · ${ownerName}`,
+                    label: `${itemName} · ${formNumber(asset.propertyNumber || asset.inventory?.propertyNumber) || formNumber(stockItem?.displayStockNumber || stockItem?.stockNumber)} · ${ownerName}`,
                     keywords: `${stockItem?.description || ''} ${stockItem?.stockNumber || ''} ${asset.documentNumber || ''}`,
                 };
             });
@@ -470,7 +473,7 @@ export default function PtrPage() {
     ) : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer') || (returnDraftItem && key === 'date')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <DateInput required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer') || (returnDraftItem && key === 'date')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -491,7 +494,7 @@ export default function PtrPage() {
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <DateInput required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
             </div>
         </div>
@@ -512,6 +515,7 @@ export default function PtrPage() {
     };
 
     async function generateExcel(data) {
+      data = formNumberData(data);
         console.log('Generating Excel for PTR:', data);
 
         // Load the template
@@ -541,7 +545,7 @@ export default function PtrPage() {
         const startRow = 18; // Starting row for table data
         data.items.forEach((item, index) => {
             worksheet.getCell(`A${startRow + index}`).value = item.dateAcquired;
-            worksheet.getCell(`B${startRow + index}`).value = item.propertyNumber;
+            worksheet.getCell(`B${startRow + index}`).value = formNumber(item.propertyNumber);
             worksheet.getCell(`D${startRow + index}`).value = item.description;
             worksheet.getCell(`I${startRow + index}`).value = formatAmount(item.amount);
             worksheet.getCell(`J${startRow + index}`).value = item.condition;
@@ -578,6 +582,7 @@ export default function PtrPage() {
     };
 
     async function generateDoc(data) {
+      data = formNumberData(data);
         const response = await fetch("/forms/templates/iar-template.docx");
         const content = await response.arrayBuffer();
 
@@ -658,7 +663,6 @@ export default function PtrPage() {
                                 <span>PRS {draft.prsNumber || 'N/A'}</span>
                                 <span>{draft.fromAccountableOfficer || 'N/A'}</span>
                                 <span>Qty {draft.item?.quantity ?? 'N/A'}</span>
-                                <span>Property No. {draft.item?.propertyNumber || 'N/A'}</span>
                                 <span>{draft.item?.condition || 'Serviceable'}</span>
                             </div>
                         </div>
@@ -726,10 +730,10 @@ export default function PtrPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Date Acquired" type="date" value={item.dateAcquired || todayManila()} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <DateInput required={hasRowData(item, emptyItem())} aria-label="Date Acquired" type="date" value={item.dateAcquired || todayManila()} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = transferableAssets.find(row => row._id === event.target.value); const stockItem = asset?.inventory?.item; setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || todayManila(), propertyNumber: asset.propertyNumber || stockItem?.stockNumber || '', itemName: getIssuedItemName(asset), description: stockItem?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select an issued item</option>{transferableAssets.map(asset => <option key={asset._id} value={asset._id}>{getIssuedItemName(asset)} - {asset.documentNumber}</option>)}</select> : <input required={hasRowData(item, emptyItem())} aria-label="Property Number" readOnly={Boolean(returnDraftItem)} value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = transferableAssets.find(row => row._id === event.target.value); const stockItem = asset?.inventory?.item; setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || todayManila(), propertyNumber: asset.propertyNumber || stockItem?.stockNumber || '', itemName: getIssuedItemName(asset), description: stockItem?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select an issued item</option>{transferableAssets.map(asset => <option key={asset._id} value={asset._id}>{getIssuedItemName(asset)} - {asset.documentNumber}</option>)}</select> : <FormNumberInput required={hasRowData(item, emptyItem())} aria-label="Property Number" readOnly={Boolean(returnDraftItem)} value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
                                         {!isUser && !editingId && !returnDraftItem ? <SearchInput required aria-label="Item Name" placeholder="Search an accountable item" value={item.itemName || ''} options={adminSourceItemOptions(index)} onChange={value => updateAdminSourceSearch(index, value)} onSelect={option => selectAdminSourceItem(index, option)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> : <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Item Name" value={item.itemName} onChange={(e) => updateItem(index, 'itemName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}

@@ -11,7 +11,7 @@ const features = [
 export default function AboutPage() {
   return <div className="user-management-page space-y-6">
     <header className="user-management-header">
-      <div className="user-management-heading"><span className="user-management-eyebrow"><Info size={14} aria-hidden="true" />ABOUT THE SYSTEM</span><h1>About PAMS</h1><p>Property Accountability Management System</p></div>
+      <div className="user-management-heading"><span className="user-management-eyebrow"><Info size={14} aria-hidden="true" />ABOUT THE SYSTEM</span><h2 className="text-3xl font-bold">About PAMS</h2><p>Property Accountability Management System</p></div>
     </header>
     <section className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm" aria-labelledby="about-overview">
       <h2 id="about-overview" className="text-xl font-semibold text-emerald-950">What is PAMS?</h2>

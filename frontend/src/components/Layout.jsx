@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Info, Settings, BookOpen, X } from 'lucide-react';
+import { LayoutDashboard, FileText, ClipboardList, ClipboardCheck, FileCheck2, ArrowLeftRight, RotateCcw, Users, LogOut, MoreVertical, Menu, Archive, ChevronDown, ChevronRight, BarChart3, CalendarDays, History, Settings, BookOpen, X } from 'lucide-react';
 import useRecordActivity from '../utils/useRecordActivity';
 import { useAuth } from '../contexts/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -33,7 +33,6 @@ const navItems = [
   { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
-  { to: '/user-manual', label: 'User Manual', icon: BookOpen, permissions: [], adminOnly: true },
 ];
 
 const canAccessNavItem = (user, item) => {
@@ -287,7 +286,7 @@ export default function Layout() {
         </nav>
         </div>
         <nav className="mt-3 shrink-0 border-t border-white/15 pt-3" aria-label="System information">
-          {user?.role === 'admin' && <NavLink to="/about" onClick={closeMobileSidebar} className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}><Info size={18} aria-hidden="true" />About</NavLink>}
+          {user?.role === 'admin' && <NavLink to="/user-manual" onClick={closeMobileSidebar} className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}><BookOpen size={18} aria-hidden="true" />User Manual</NavLink>}
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">

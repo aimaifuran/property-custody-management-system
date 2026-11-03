@@ -1,3 +1,6 @@
+import { formNumber, formNumberData } from '../utils/formNumbers';
+import FormNumberInput from '../components/FormNumberInput';
+import DateInput from '../components/DateInput';
 import { pendingUserReturns } from '../utils/usePendingReturns';
 import { issuedReturnOptions, availableReturnOptions, groupUnserializedReturns, expandReturnRows } from '../utils/issuedReturnOptions';
 import SignatoryValue from '../components/SignatoryValue';
@@ -346,7 +349,7 @@ export default function PrsPage() {
             <div className="grid gap-3 md:grid-cols-3">
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input required aria-label={`${label} Date`} type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <DateInput required aria-label={`${label} Date`} type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
@@ -398,6 +401,7 @@ export default function PrsPage() {
     }
 
     async function generateExcel(data) {
+      data = formNumberData(data);
         console.log('Generating Excel for PRS:', data);
 
         // Load the template
@@ -425,7 +429,7 @@ export default function PrsPage() {
             worksheet.getCell(`A${startRow + index}`).value = item.quantity;
             worksheet.getCell(`C${startRow + index}`).value = item.unit;
             worksheet.getCell(`E${startRow + index}`).value = item.description;
-            worksheet.getCell(`M${startRow + index}`).value = item.propertyNumber;
+            worksheet.getCell(`M${startRow + index}`).value = formNumber(item.propertyNumber);
             worksheet.getCell(`O${startRow + index}`).value = item.mrNumber;
             worksheet.getCell(`Q${startRow + index}`).value = data.returnedTo.name;
             worksheet.getCell(`S${startRow + index}`).value = formatAmount(item.unitValue);
@@ -460,6 +464,7 @@ export default function PrsPage() {
     };
 
     async function generateDoc(data) {
+      data = formNumberData(data);
         const response = await fetch("/forms/templates/iar-template.docx");
         const content = await response.arrayBuffer();
 
@@ -526,7 +531,7 @@ export default function PrsPage() {
                                 })()}</span>
                                 <span className="font-semibold">{item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</span>
                             </div>
-                            <div className="mt-1 text-sm text-slate-600">{(item.items || []).map((entry, index) => <div key={entry._id || index}>{entry.itemName || entry.description || entry.propertyNumber || 'Item'} - Qty {entry.quantity ?? 0}</div>)}</div>
+                            <div className="mt-1 text-sm text-slate-600">{(item.items || []).map((entry, index) => <div key={entry._id || index}>{entry.itemName || entry.description || formNumber(entry.propertyNumber) || 'Item'} - Qty {entry.quantity ?? 0}</div>)}</div>
                         </div>
                         <div className="flex gap-2">
                             {requestView ? <button type="button" onClick={() => startEdit(item)} className="prs-review-request rounded-xl px-4 py-2 text-sm font-semibold text-white">Review Request</button> : <>
@@ -626,7 +631,7 @@ export default function PrsPage() {
                                         <input required={hasRowData(item, emptyItem())} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <FormNumberInput aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} aria-label="Material Record No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />

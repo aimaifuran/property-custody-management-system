@@ -1,3 +1,6 @@
+import { formNumber, formNumberValue, formNumberData } from '../utils/formNumbers';
+import DateInput from '../components/DateInput';
+import { formatItemText } from '../utils/capitalizeFormText';
 import SignatoryValue from '../components/SignatoryValue';
 import SearchInput from '../components/SearchInput';
 import { stockItemOption, stockItemNames, selectIarStockItem } from '../utils/iarItemSelection';
@@ -43,6 +46,7 @@ const emptyItem = () => ({
     serialNumber: '',
     propertyNumber: '',
     stockPropertyNumber: '',
+    inventoryItemNo: '',
     propertyPlantAndEquipment: '',
     description: '',
     unit: '',
@@ -122,6 +126,7 @@ const toForm = (record) => ({
         serialNumbers: item.serialNumbers || [],
         propertyNumber: item.propertyNumber || '',
         stockPropertyNumber: item.stockPropertyNumber || item.stockNumber || '',
+        inventoryItemNo: item.inventoryItemNo || '',
         stockNumber: item.stockNumber || item.stockPropertyNumber || '',
         propertyPlantAndEquipment: item.propertyPlantAndEquipment || '',
         description: item.description || item.item || '',
@@ -165,7 +170,8 @@ export default function IarPage() {
     };
     const updateItem = (index, key, value) => {
       setSaveError('');
-      if (['propertyPlantAndEquipment', 'description', 'unit'].includes(key)) value = capitalizeInitialLetter(value);
+      value = formatItemText(key, value);
+      if (key === 'propertyPlantAndEquipment') value = capitalizeInitialLetter(value);
       setForm((prev) => {
         const items = prev.items.map((item, i) => i === index ? {
             ...item,
@@ -189,7 +195,7 @@ export default function IarPage() {
     const selectStock = (index, value) => {
       const selected = stockItems.find(item => stockItemOption(item) === value);
       if (!selected) { updateItem(index, 'propertyPlantAndEquipment', value); return; }
-      setForm(previous => ({ ...previous, items: previous.items.map((row, rowIndex) => rowIndex === index ? selectIarStockItem(row, selected) : row) }));
+      setForm(previous => ({ ...previous, items: previous.items.map((row, rowIndex) => rowIndex === index ? { ...selectIarStockItem(row, selected), unit: formatItemText('unit', row.unit || selected.unit) } : row) }));
     };
     useEffect(() => {
       const controller = new AbortController();
@@ -265,6 +271,9 @@ export default function IarPage() {
                 const { unitCost, ...receivedItem } = item;
                 return {
                     ...receivedItem,
+                    serialNumber: formatItemText('serialNumber', item.serialNumber),
+                    unit: formatItemText('unit', item.unit),
+                    description: formatItemText('description', item.description),
                     quantity: Number(item.quantity || 0),
                     ...(unitCost !== '' && unitCost != null ? { unitCost: Number(unitCost) } : {})
                 };
@@ -329,7 +338,7 @@ export default function IarPage() {
             title: 'Enter a 3 or 4 digit IAR number',
             autoComplete: 'off'
         } : {};
-        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR number' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR number' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
     };
 
     function formatDate(date) {
@@ -347,6 +356,7 @@ export default function IarPage() {
     };
 
     async function generateExcel(data) {
+      data = formNumberData(data);
       console.log('Generating Excel for IAR:', data);
 
       // Load the template
@@ -374,7 +384,7 @@ export default function IarPage() {
       // Table data insertion
       const startRow = 14; // Starting row for table data
       data.items.forEach((item, index) => {
-        worksheet.getCell(`A${startRow + index}`).value = item.stockNumber;
+        worksheet.getCell(`A${startRow + index}`).value = formNumber(item.stockNumber);
         worksheet.getCell(`B${startRow + index}`).value = item.description;
         worksheet.getCell(`E${startRow + index}`).value = item.unit;
         worksheet.getCell(`F${startRow + index}`).value = item.quantity;
@@ -398,6 +408,7 @@ export default function IarPage() {
     };
 
     async function generateDoc(data) {
+      data = formNumberData(data);
       const response = await fetch("/forms/templates/iar-template.docx");
       const content = await response.arrayBuffer();
 
@@ -487,6 +498,7 @@ export default function IarPage() {
                 <thead>
                     <tr className="bg-slate-50 text-left">
                     <th className="min-w-[230px] p-2"><span className="whitespace-nowrap">Stock/Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></span></th>
+                    <th className="min-w-[200px] p-2">Inventory Item No.</th>
                     <th className="min-w-[230px] p-2">Property, Plant and Equipment</th>
                     <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                     <th className="min-w-[180px] p-2">Serial Number</th>
@@ -502,10 +514,10 @@ export default function IarPage() {
                   {form.items.map((item, index) => {
                     const hasSerialNumber = Boolean(String(item.serialNumber || '').trim());
                     return <tr key={index}>
-                      {['stockPropertyNumber', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
+                      {['stockPropertyNumber', 'inventoryItemNo', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
-                          {key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={item[key] ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
-                            <input required={key !== 'serialNumber' && hasRowData(item, emptyItem())} aria-label={key === 'serialNumber' ? 'Serial Number' : key} value={item[key] ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                          {key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={formNumberValue(key, item[key]) ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
+                            <input required={!['serialNumber', 'inventoryItemNo'].includes(key) && hasRowData(item, emptyItem())} aria-label={key === 'inventoryItemNo' ? 'Inventory Item No.' : key === 'serialNumber' ? 'Serial Number' : key} value={formNumberValue(key, item[key]) ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                           {key === 'serialNumber' && Number(item.quantity) <= 1 && item.serialNumbers?.length > 0 && <p className="mt-1 break-words text-xs text-slate-500">Assigned: {item.serialNumbers[0]}</p>}
                         </td>
                       )}
@@ -523,7 +535,7 @@ export default function IarPage() {
                 </tbody>
               </table>
             </TableScroll>
-            <p className="mt-2 text-sm text-slate-600">Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
+            <p className="mt-2 text-sm text-slate-600">Inventory Item No. is used automatically in ICS, PAR, and the List of PPEs under New Property No. Assigned. Enter one unit per row when supplying this number; it is locked after saving. Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
             <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
             <div className="mt-3 flex justify-end"><AddRowButton onClick={() => {
               setSaveError('');

@@ -69,8 +69,8 @@ router.put('/:id', authenticate, validateAdminForm('iar'), authorize('canManageI
   }
   delete payload.autoNumber;
   if (existing.status === 'LOGGED_TO_STOCKS' && payload.items) {
-    const stockFields = rows => rows.map(row => [row.stockPropertyNumber || row.stockNumber, Number(row.quantity), Number(row.unitCost || 0), row.itemType || 'ASSET', row.serialNumber || '', row.acceptedQuantity ?? row.quantity]);
-    if (JSON.stringify(stockFields(existing.items)) !== JSON.stringify(stockFields(payload.items.map((entry, index) => ({ ...entry, acceptedQuantity: entry.acceptedQuantity ?? existing.items[index]?.acceptedQuantity ?? entry.quantity }))))) return errorResponse(res, 'Received stock numbers, quantities, costs and item types are locked. Record additional receipts with a new IAR.', [], 409);
+    const stockFields = rows => rows.map(row => [row.stockPropertyNumber || row.stockNumber, Number(row.quantity), Number(row.unitCost || 0), row.itemType || 'ASSET', row.serialNumber || '', row.acceptedQuantity ?? row.quantity, String(row.inventoryItemNo || '').trim()]);
+    if (JSON.stringify(stockFields(existing.items)) !== JSON.stringify(stockFields(payload.items.map((entry, index) => ({ ...entry, acceptedQuantity: entry.acceptedQuantity ?? existing.items[index]?.acceptedQuantity ?? entry.quantity }))))) return errorResponse(res, 'Received stock numbers, inventory item numbers, quantities, costs and item types are locked. Record additional receipts with a new IAR.', [], 409);
   }
   for (const field of ['status', 'propertyCards', 'requisition', 'inventoryCustodianSlip', 'propertyAcknowledgementReceipt']) delete payload[field];
   if (payload.items) {
@@ -205,7 +205,8 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
         const unitCount = individuallyTracked ? acceptedQuantity : 1;
         const serialNumbers = await require('../utils/allocateUnitSerials')(entry.serialNumber, acceptedQuantity, session);
         entry.serialNumbers = serialNumbers;
-        const requestedPropertyNumber = entry.propertyNumber;
+        const requestedPropertyNumber = String(entry.inventoryItemNo || entry.propertyNumber || '').trim() || undefined;
+        if (entry.inventoryItemNo && Number(entry.quantity) !== 1) throw new Error('Enter each item with an Inventory Item No. on a separate row with quantity 1');
         for (let unitIndex = 0; unitIndex < unitCount; unitIndex++) {
         const receiptQuantity = individuallyTracked ? 1 : acceptedQuantity;
         const unitSerial = serialNumbers[unitIndex] || undefined;
@@ -226,7 +227,7 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
           if (entry.itemType === 'ASSET') {
             if (unitCount === 1 && requestedPropertyNumber && await Inventory.exists({ _id: { $ne: inventory._id }, propertyNumber: requestedPropertyNumber }).session(session)) throw new Error('Each asset must have a unique property number');
             const [property] = await require('../models/Property').create([{
-              propertyCode: `P-${inventory._id}`, inventory: inventory._id, iar: report._id,
+              propertyCode: requestedPropertyNumber || `P-${inventory._id}`, inventory: inventory._id, iar: report._id,
               propertyName: entry.propertyPlantAndEquipment || entry.description,
               description: entry.description, category: entry.propertyPlantAndEquipment || 'Other Property',
               serialNumber: unitSerial, quantity: receiptQuantity,

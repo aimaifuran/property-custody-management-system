@@ -2197,6 +2197,11 @@ body { font-size: var(--app-text-size); }
 .app-shell main .saved-records > .saved-record:nth-of-type(even) {
   background: #eef0f2 !important;
 }
+.app-shell main .saved-records .saved-record[data-iar-selected="true"] {
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
+  box-shadow: inset 4px 0 0 #15803d;
+}
 .monthly-report-month-controls { display: flex; align-items: center; gap: 10px; }
 .monthly-report-month-controls label { position: relative; }
 .monthly-report-month-controls label > span { position: absolute; left: 0; bottom: calc(100% + 6px); }

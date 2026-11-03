@@ -1,4 +1,6 @@
 const express = require('express');
+const Item = require('../models/Item');
+const { issuedPropertyStockIds } = require('../utils/issuedPropertyCards');
 const Supplier = require('../models/Supplier');
 const Inventory = require('../models/Inventory');
 const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
@@ -201,7 +203,7 @@ router.get(['/', '/summary'], authenticate, authorize('canViewDashboard'), async
     InspectionAcceptanceReport.countDocuments({ deleted: false }),
     RequisitionIssueSlip.countDocuments({ deleted: false }),
     Inventory.countDocuments({ deleted: false }),
-    PropertyCard.countDocuments({ deleted: false }),
+    issuedPropertyStockIds().then(ids => Item.countDocuments({ deleted: false, _id: { $in: ids } })),
     InventoryCustodianSlip.countDocuments({ deleted: false }),
     PropertyAcknowledgementReceipt.countDocuments({ deleted: false }),
     PropertyTransferReport.countDocuments({ deleted: false }),

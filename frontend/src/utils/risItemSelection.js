@@ -1,3 +1,4 @@
+export const risStockNumber = row => String(row?.displayStockNumber || row?.stockPropertyNumber || row?.stockNumber || row?.stock_number || '').replace(/~[a-f0-9]{24}$/i, '');
 export const createRisRow = () => ({ stockNumber: '', unit: '', description: '', quantityRequested: '', isAvailable: null, stockAvailable: '', quantityIssued: '', remarks: '', totalCost: null });
 const idOf = value => String(value?._id || value || '');
 export function risDraftRows(record) {
@@ -40,7 +41,7 @@ export function risItemChoices(stocks, rows, index) {
 export function selectRisItem(row, choice) {
   if (!choice) return { ...createRisRow(), remarks: row.remarks || '' };
   const { stock, unit, tracked, available } = choice.candidates[0];
-  return { ...row, fundCluster: unit?.fundCluster || stock.fundCluster || '', responsibilityCenterCode: unit?.responsibilityCenterCode || stock.responsibilityCenterCode || '', stockNumber: stock.stockNumber, inventory: unit?._id || '', property: unit?.property,
+  return { ...row, fundCluster: unit?.fundCluster || stock.fundCluster || '', responsibilityCenterCode: unit?.responsibilityCenterCode || stock.responsibilityCenterCode || '', stockNumber: stock.stockNumber, displayStockNumber: risStockNumber(stock), inventory: unit?._id || '', property: unit?.property,
     serialNumber: unit?.serialNumber || '', itemName: choice.name, unit: stock.unit || '',
     description: stock.description || choice.name, quantityRequested: '',
     quantityIssued: '', stockAvailable: available, isAvailable: true,

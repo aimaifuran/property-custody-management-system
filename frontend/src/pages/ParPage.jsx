@@ -1,3 +1,6 @@
+import { formNumber, formNumberData } from '../utils/formNumbers';
+import FormNumberInput from '../components/FormNumberInput';
+import DateInput from '../components/DateInput';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
@@ -196,7 +199,7 @@ export default function ParPage() {
     const field = (label, key, type = 'text') => key === 'office' ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><OfficeSelect required aria-label={label} value={form.office} onChange={event => update('office', event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
         <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <input required aria-label={label} readOnly={key === 'parNumber' && !editingId} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'parNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <DateInput required aria-label={label} readOnly={key === 'parNumber' && !editingId} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'parNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </label>
     );
 
@@ -215,7 +218,7 @@ export default function ParPage() {
                 </label>
                 <label className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <input required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <DateInput required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </label>
             </div>
         </div>
@@ -236,6 +239,7 @@ export default function ParPage() {
     };
 
     async function generateExcel(data) {
+      data = formNumberData(data);
         console.log('Generating Excel for PAR:', data);
 
         // Load the template
@@ -259,7 +263,7 @@ export default function ParPage() {
             worksheet.getCell(`A${startRow + index}`).value = item.quantity;
             worksheet.getCell(`B${startRow + index}`).value = item.unit;
             worksheet.getCell(`D${startRow + index}`).value = item.description;
-            worksheet.getCell(`F${startRow + index}`).value = item.propertyNumber;
+            worksheet.getCell(`F${startRow + index}`).value = formNumber(item.propertyNumber);
             worksheet.getCell(`H${startRow + index}`).value = formatDate(item.dateAcquired);
             worksheet.getCell(`I${startRow + index}`).value = formatAmount(item.amount);
         });
@@ -290,6 +294,7 @@ export default function ParPage() {
     };
 
     async function generateDoc(data) {
+      data = formNumberData(data);
         const response = await fetch("/forms/templates/iar-template.docx");
         const content = await response.arrayBuffer();
 
@@ -392,10 +397,10 @@ export default function ParPage() {
                                             <input required={hasRowData(item, emptyItem())} pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <FormNumberInput required={hasRowData(item, emptyItem())} aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <DateInput required={hasRowData(item, emptyItem())} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
                                         <td className="p-2">
                                             <input required={hasRowData(item, emptyItem())} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />

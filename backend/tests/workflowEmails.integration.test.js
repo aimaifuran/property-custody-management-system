@@ -31,7 +31,7 @@ test('workflow emails target online owners, commit before sending, deduplicate, 
   await deliverWorkflowEmails();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, user.email);
-  assert.match(sent[0].text, /Printer: 3 unit/);
+  assert.match(sent[0].text, /Quantity: 3 unit/);
 
   await assert.rejects(mongoose.connection.transaction(async session => {
     await queueWorkflowEmail('ISSUED', ris, session);
@@ -43,7 +43,7 @@ test('workflow emails target online owners, commit before sending, deduplicate, 
   await Promise.all([deliverWorkflowEmails(), deliverWorkflowEmails()]);
   assert.equal(sent.length, 2);
   assert.match(sent[1].subject, /approved and issued/);
-  assert.match(sent[1].text, /Printer: 2 unit/);
+  assert.match(sent[1].text, /Quantity: 2 unit/);
   await queueWorkflowEmail('ISSUED', ris);
   await deliverWorkflowEmails();
   assert.equal(sent.length, 2);
@@ -63,7 +63,7 @@ test('workflow emails target online owners, commit before sending, deduplicate, 
   await Email.updateOne({ _id: failed._id }, { $set: { nextAttemptAt: new Date(0) } });
   await deliverWorkflowEmails();
   assert.equal(sent.length, 3);
-  assert.match(sent[2].text, /Printer: 1 unit \(Unserviceable\)/);
+  assert.match(sent[2].text, /Remarks: Unserviceable/);
   assert.equal((await Email.findById(failed._id)).status, 'SENT');
   delete process.env.SMTP_HOST;
   await queueWorkflowEmail('RETURNED', { ...report, _id: new mongoose.Types.ObjectId() });

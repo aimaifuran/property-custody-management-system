@@ -1,3 +1,5 @@
+import { formNumberData, formNumberValue } from './formNumbers.js';
+import { displayDate } from './dateInput.js';
 import { buildRisPdf } from './risPdf.js';
 import { buildPtrPdf } from './ptrPdf.js';
 import { buildStationPpePdf } from './ppeStationPdf.js';
@@ -9,11 +11,7 @@ import { appendTemplateInformation, drawStandardFormHeaders, drawTemplateRows, d
 import { PDFDocument } from 'pdf-lib';
 
 export const FORM_TEMPLATES = { IAR: 'iar', 'PROPERTY CARD': 'pc', RIS: 'ris', ICS: 'ics', PAR: 'par', PTR: 'ptr', PRS: 'prs', 'RETURNED SUPPLY': 'prs' };
-const dateText = value => {
-  if (!value) return '';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-PH');
-};
+const dateText = displayDate;
 const text = value => value == null ? '' : typeof value === 'object' ? value.name || '' : String(value);
 const amountFields = new Set(['amount', 'unitCost', 'totalCost', 'totalAmount', 'unitValue', 'totalValue']);
 
@@ -51,7 +49,7 @@ export function templateFieldValue(name, data, items) {
   if (key === 'totalAmount' && value == null && data.items?.length) value = data.items.reduce((sum, item) => sum + Number(item.totalCost ?? item.totalValue ?? item.amount ?? 0), 0);
   if (key.toLowerCase().includes('date') || key === 'month') return dateText(value);
   if (amountFields.has(key) && value != null && value !== '') return Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return text(value);
+  return text(formNumberValue(key, value));
 }
 
 // Draw the official sections once per page in one document. Reopening, flattening
@@ -63,7 +61,7 @@ export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}
   if (record.type === 'PTR') return buildPtrPdf(record.details || {}, options);
   const template = FORM_TEMPLATES[record.type];
   if (!template) throw new Error('No PDF template is available for this record type');
-  const data = { ...(record.details || {}), _template: template };
+  const data = { ...formNumberData(record.details || {}), _template: template };
   const items = Array.isArray(data.items) ? data.items : record.type === 'RETURNED SUPPLY' ? [data] : [];
   const output = await PDFDocument.create();
   const fonts = await embedFormFonts(output, template === 'pc' ? ['regular', 'bold', 'italic'] : ['regular', 'bold']);

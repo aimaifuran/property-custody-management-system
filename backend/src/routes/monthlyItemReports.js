@@ -5,7 +5,7 @@ const PpeList = require('../models/PpeList');
 const { authenticate, adminOnly } = require('../middlewares/auth');
 const { successResponse, errorResponse } = require('../utils/response');
 const { syncMonthlyItems } = require('../utils/syncMonthlyItems');
-const { monthOf } = require('../utils/monthlyItems');
+const { monthOf, iarRows, recapitulate } = require('../utils/monthlyItems');
 const { SAVED_REPORT_SORT, sortSavedReports } = require('../utils/savedReportOrder');
 const { manualRows, applyAccounting } = require('../utils/monthlyAccounting');
 const router = express.Router();
@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2000 || Number(month.slice(0, 4)) > 2100) return errorResponse(res, 'Select a valid month between 2000 and 2100', [], 400);
   const records = await syncMonthlyItems(month);
   const manual = await PpeList.find({ automatic: false }).sort(SAVED_REPORT_SORT).lean();
-  return successResponse(res, 'Monthly item reports synchronized', { report: records.find(record => record.month === month), records: sortSavedReports([...manual.map(record => ({ ...record, rows: manualRows(record.rows) })), ...records.filter(record => record.rows.length > 0)]) });
+  return successResponse(res, 'Monthly item reports synchronized', { report: records.find(record => record.month === month), records: sortSavedReports([...manual.map(record => ({ ...record, rows: manualRows(iarRows(record.rows)), recapitulation: recapitulate(iarRows(record.rows)) })), ...records.filter(record => record.rows.length > 0)]) });
 });
 router.post('/', validateAdminForm('monthly-item-reports'), async (req, res) => {
   const month = String(req.body.month || '');
@@ -44,7 +44,8 @@ router.put('/:id', validateAdminForm('monthly-item-reports'), async (req, res) =
   try {
     const existing = await PpeList.findById(req.params.id).lean();
     if (!existing) return errorResponse(res, 'Monthly report not found', [], 404);
-    payload.rows = applyAccounting(existing.rows, req.body.accountingRows);
+    payload.rows = applyAccounting(iarRows(existing.rows), req.body.accountingRows);
+    payload.recapitulation = recapitulate(payload.rows);
     const report = await PpeList.findOneAndUpdate({ _id: req.params.id }, { $set: { ...payload, lastEditedAt: new Date() } }, { new: true, runValidators: true });
     if (!report) return errorResponse(res, 'Monthly report not found', [], 404);
     return successResponse(res, 'Monthly report details saved', report);
