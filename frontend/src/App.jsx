@@ -1,4 +1,4 @@
-import HourglassLoader from './components/HourglassLoader';
+import FormLoader from './components/FormLoader';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -33,7 +33,7 @@ function ProtectedRoute({ children, permission }) {
   const { user, loading, authReady } = useAuth();
   const location = useLocation();
   const { pathname } = location;
-  if (!authReady || loading) return <div className="auth-loading-screen" role="status" aria-label="Checking session"><HourglassLoader /><span className="sr-only">Checking session...</span></div>;
+  if (!authReady || loading) return <FormLoader fullScreen label="Checking session..." />;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   if (user.role !== 'admin' && !userRoutes.has(pathname)) return <Navigate to="/my-issued-items" replace />;
   if (permission === 'adminOnly' && user.role !== 'admin') return <Navigate to="/my-issued-items" replace />;

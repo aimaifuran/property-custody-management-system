@@ -127,7 +127,7 @@ export default function DashboardPage() {
         <div className="dashboard-charts grid gap-4 xl:col-span-2">
           <div className="dashboard-breakdowns grid h-fit items-start gap-4 sm:grid-cols-2">
             <div className="dashboard-return-summary dashboard-return-slip minimal-surface h-fit p-4">
-              <h2 className="text-sm font-semibold">Returned Slip</h2>
+              <div className="dashboard-section-heading"><h2 className="text-sm font-semibold">Returned Slip</h2></div>
               {returnSlipData.length ? <div className="dashboard-return-chart mt-2">
                 <div className="dashboard-return-pie">
                   <ResponsiveContainer width="100%" height="100%">
@@ -151,7 +151,7 @@ export default function DashboardPage() {
               </div> : <p className="dashboard-return-empty mt-2 text-xs text-slate-500">No returns recorded yet.</p>}
             </div>
             <div className="dashboard-monthly minimal-surface p-4">
-              <h2 className="text-sm font-semibold">Monthly Reports</h2>
+              <div className="dashboard-section-heading"><h2 className="text-sm font-semibold">Monthly Reports</h2></div>
               <p className="text-xs text-slate-500">Issued reports this year</p>
               <div className="monthly-report-chart mt-2"><ResponsiveContainer width="100%" height="100%"><LineChart data={monthlyReportData} margin={{ top: 12, right: 12, bottom: 8, left: 4 }}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 9 }} height={26} minTickGap={8} padding={{ left: 6, right: 6 }} /><YAxis allowDecimals={false} tick={{ fontSize: 9 }} width={28} /><Tooltip /><Line type="monotone" dataKey="reports" name="Reports" stroke="#2f6f68" strokeWidth={2} dot={{ r: 2 }} /></LineChart></ResponsiveContainer></div>
             </div>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
 
         <div className="dashboard-activity-column grid gap-4 xl:col-span-1">
           <div className="dashboard-activity dashboard-panel flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
+            <div className="dashboard-section-heading flex items-center justify-between">
               <h2 className="text-base font-semibold">Recent Activity</h2>
               <div className="rounded-md bg-sky-50 p-1.5 text-sky-700"><Clock size={18} /></div>
             </div>

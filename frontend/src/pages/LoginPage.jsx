@@ -1,7 +1,7 @@
 import AuthField from '../components/AuthField';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import ValidatedForm from '../components/ValidatedForm';
-import HourglassLoader from '../components/HourglassLoader';
+import SpeedLoader from '../components/SpeedLoader';
 import FormLoader from '../components/FormLoader';
 import { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff, UserRound } from 'lucide-react';
@@ -234,7 +234,7 @@ export default function LoginPage() {
 
             </label>
 
-            <button type="submit" disabled={signingIn || countdown > 0} aria-label="Sign in" aria-busy={signingIn} className="login-button login-submit min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base"><span className="login-submit__label" style={{ visibility: signingIn ? 'hidden' : 'visible' }}>Sign in</span>{signingIn && <span className="login-button-content login-submit__loading"><HourglassLoader /><span>{loginDestination ? 'Opening your account...' : 'Signing in...'}</span></span>}</button>
+            <button type="submit" disabled={signingIn || countdown > 0} aria-label={signingIn ? 'Signing in' : 'Sign in'} aria-busy={signingIn} className="login-button login-submit min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base"><span className="login-submit__label" style={{ visibility: signingIn ? 'hidden' : 'visible' }}>Sign in</span>{signingIn && <span className="login-button-content login-submit__loading"><SpeedLoader /></span>}</button>
 
             {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
           </ValidatedForm>

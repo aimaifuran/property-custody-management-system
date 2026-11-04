@@ -3713,6 +3713,25 @@ body { font-size: var(--app-text-size); }
 .dashboard-page.dashboard-compact .other-summary__panel::before { border-radius: 14px; clip-path: polygon(0 0, 100% 0, 100% 100%, 14% 100%); }
 .dashboard-page.dashboard-compact .other-summary__caption { margin-top: 3px; }
 .dashboard-page.dashboard-compact .other-summary__count { font-size: 25px; left: 12px; bottom: 12px; }
+.dashboard-page.dashboard-compact :is(.dashboard-return-summary, .dashboard-monthly, .dashboard-activity) > .dashboard-section-heading {
+  flex-shrink: 0;
+  min-height: 42px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  margin: -12px -12px 10px;
+  padding: 10px 14px;
+  border-radius: 12px 12px 0 0;
+  background: #154734;
+  color: #fff;
+}
+.dashboard-page.dashboard-compact .dashboard-section-heading h2 { margin: 0; color: #fff !important; }
+.dashboard-page.dashboard-compact .dashboard-activity .dashboard-row {
+  border: 0;
+  box-shadow: none;
+}
+.dashboard-page.dashboard-compact .dashboard-activity { padding: 12px; }
+.dashboard-page.dashboard-compact .dashboard-section-heading > .rounded-md { background: rgb(255 255 255 / 12%); color: #dcfce7; padding: 4px; }
 @media (min-width: 1101px) and (min-height: 500px) {
   .app-shell main.dashboard-main { overflow-y: auto; }
   .dashboard-main .dashboard-container { height: 100%; min-height: 0; }
