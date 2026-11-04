@@ -1900,6 +1900,13 @@ body { font-size: var(--app-text-size); }
 
 /* Adapt to the actual workspace width, including tablets with an open sidebar. */
 .app-shell { height: 100dvh; }
+.app-shell .sidebar-shell {
+  height: 100dvh;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .app-shell .sidebar-shell { padding-bottom: 12px; }
+}
 .app-shell main { container: workspace / inline-size; min-width: 0; }
 .app-shell main > div, .form-document, .form-document fieldset { min-width: 0; max-width: 100%; }
 .table-scroll { container: item-table / inline-size; overflow: visible; }
