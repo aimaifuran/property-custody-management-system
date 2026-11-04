@@ -330,7 +330,7 @@ export default function Layout() {
           </div>
         </header>
         <main className={`min-h-0 flex-1 overflow-y-auto p-6 ${location.pathname === '/dashboard' ? 'dashboard-main' : ''}`}>
-          <motion.div className={location.pathname === '/dashboard' ? 'dashboard-container' : undefined} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div className={`route-content ${location.pathname === '/dashboard' ? 'dashboard-container' : ''}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <Outlet />
           </motion.div>
         </main>
