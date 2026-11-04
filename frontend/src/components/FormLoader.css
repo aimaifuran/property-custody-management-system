@@ -3,7 +3,20 @@
 .form-loader--full-screen { min-height: 100dvh; }
 .form-loader--overlay { position: fixed; inset: 0; z-index: 2000; background: rgb(243 249 241 / 94%); backdrop-filter: blur(3px); }
 .form-loader--login-transition { min-height: 0; }
-.app-shell main:has(> .route-content > .form-loader) { display: flex; flex-direction: column; }
+.login-page.sign-in-page.mobile-signin-loading {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-signin-loading > .form-loader { position: relative; z-index: 1; height: 100%; min-height: 0; }
+.app-shell:has(main > .route-content > .form-loader) { height: 100dvh; }
+.app-shell main:has(> .route-content > .form-loader) { display: flex; flex-direction: column; padding: 0; }
 .app-shell main > .route-content:has(> .form-loader) {
   display: flex;
   flex: 1 1 0;
@@ -18,6 +31,11 @@
 .device-loader > div { position: absolute; top: 50%; left: 50%; width: 160px; height: 100px; margin-left: -80px; margin-top: -50px; border-radius: 5px; background: #14532d; animation: device-shell 3s cubic-bezier(.55,.3,.24,.99) infinite; }
 .device-loader > div:nth-child(2) { width: 150px; height: 90px; margin-top: -45px; margin-left: -75px; border-radius: 3px; background: #22a06b; animation-name: device-screen; }
 .device-loader > div:nth-child(3) { width: 40px; height: 20px; margin-top: 50px; margin-left: -20px; border-radius: 0 0 5px 5px; background: #86efac; animation-name: device-stand; }
+@media (max-width: 640px), (max-height: 450px) {
+  .form-loader { padding: 12px; }
+  .device-loader { transform: scale(.75); transform-origin: center; }
+  .form-loader--login-transition .device-loader { transform: scale(.6); }
+}
 @keyframes device-shell {
   0%,3%,97%,100% { width: 160px; height: 100px; margin-top: -50px; margin-left: -80px; }
   30%,36% { width: 80px; height: 120px; margin-top: -60px; margin-left: -40px; }

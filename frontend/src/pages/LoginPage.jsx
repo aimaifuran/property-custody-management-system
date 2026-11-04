@@ -133,6 +133,13 @@ export default function LoginPage() {
 
 
 
+  if (!wideLayout && signingIn) {
+    return <div className="login-page sign-in-page mobile-signin-loading">
+      <div className="login-page__wash" aria-hidden="true" />
+      <FormLoader fullScreen label="Signing in..." />
+    </div>;
+  }
+
   return (
 
     <div className="login-page sign-in-page flex min-h-screen items-center justify-center px-3 py-4 md:px-4 md:py-10 text-white">
