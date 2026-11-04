@@ -1,3 +1,4 @@
+import FormField from '../components/FormField';
 import { formNumber, formNumberData } from '../utils/formNumbers';
 import FormNumberInput from '../components/FormNumberInput';
 import DateInput from '../components/DateInput';
@@ -193,15 +194,15 @@ export default function IcsPage() {
         } finally { setSaving(false); }
     };
 
-    const field = (label, key, type = 'text') => key === 'office' ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><OfficeSelect required aria-label={label} value={form.office} onChange={event => update('office', event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
-        <label className="block">
+    const field = (label, key, type = 'text') => key === 'office' ? <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><OfficeSelect required aria-label={label} value={form.office} onChange={event => update('office', event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></FormField> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : (
+        <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <DateInput required aria-label={label} readOnly={key === 'icsNumber' && (!editingId || linkedIssuance)} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'icsNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-        </label>
+        </FormField>
     );
 
     const signatoryFields = (label, section) => (
-        <div className="ics-signatory-panel p-4">
+        <div className="form-signatory-panel ics-signatory-panel p-4">
             <h3 className="mb-5 font-semibold text-slate-700">{label}</h3>
             <div className="mx-auto grid max-w-sm gap-4">
                 {section === 'receivedBy' && !editingId && <UserAccountSelect person={form[section]} onChange={person => setForm(previous => ({ ...previous, [section]: { ...previous[section], ...person, position: person.designation || person.office || '' } }))} />}

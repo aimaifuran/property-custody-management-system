@@ -1,4 +1,3 @@
-import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
@@ -98,7 +97,7 @@ export default function DashboardPage() {
 
   if (loading) return <PageSkeleton dashboard />;
  return (
-    <div className="dashboard-page space-y-6">
+    <div className="dashboard-page dashboard-compact space-y-6">
       {error && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
       )}
@@ -109,12 +108,15 @@ export default function DashboardPage() {
           {primaryCards.map((card, index) => {
             const Icon = card.icon;
               return (
-              <motion.div key={card.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="minimal-surface flex flex-col justify-between p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="dashboard-card-label text-sm leading-snug text-slate-500">{card.title}</div>
-                  <div className={`shrink-0 rounded-md bg-gradient-to-br ${card.color} p-2.5 text-white`}><Icon size={20} /></div>
+              <motion.div key={card.key} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className={`document-summary document-summary--${card.key}`}>
+                <div className="document-summary__tab" aria-hidden="true"><Icon size={22} /></div>
+                <div className="document-summary__panel">
+                  <div className="dashboard-card-label document-summary__title">{card.title}</div>
+                  <div className="document-summary__stats">
+                    <div className="document-summary__total">{counts?.[card.key] ?? 0}</div>
+                    <div className="document-summary__caption">Total records</div>
+                  </div>
                 </div>
-                <div className="mt-4 text-3xl font-semibold text-slate-900">{loading ? <Skeleton className="h-4 w-20" /> : (counts?.[card.key] ?? 0)}</div>
               </motion.div>
             );
           })}
@@ -162,13 +164,14 @@ export default function DashboardPage() {
           {secondaryCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.key} className="minimal-surface flex items-start justify-between gap-3 p-4">
-                <div>
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <span className={`shrink-0 rounded-md p-1.5 ${card.iconBg} ${card.iconColor}`}><Icon size={16} /></span>
-                    <span className="dashboard-card-label text-xs font-semibold uppercase tracking-wide leading-snug">{card.title}</span>
+              <div key={card.key} className={`other-summary other-summary--${card.key}`}>
+                <div className="other-summary__count"><Icon size={23} aria-hidden="true" /></div>
+                <div className="other-summary__panel">
+                  <div className="other-summary__number">{counts?.[card.key] ?? 0}</div>
+                  <div className="other-summary__copy">
+                    <div className="dashboard-card-label other-summary__title">{card.title}</div>
+                    <div className="other-summary__caption">Total records</div>
                   </div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{loading ? <Skeleton className="h-4 w-20" /> : (counts?.[card.key] ?? 0)}</div>
                 </div>
               </div>
             );

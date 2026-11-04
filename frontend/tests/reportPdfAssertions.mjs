@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { PDFArray, PDFDocument, PDFName, decodePDFRawStream } from 'pdf-lib';
-import { embedFormFonts } from '../src/utils/formPdfFonts.js';
+import { embedFormFonts, embedSignatureFonts } from '../src/utils/formPdfFonts.js';
 import { FORM_PDF_FONT_SIZE, FORM_PDF_MARGIN } from '../src/utils/formPdfStyle.js';
 import { REPORT_CELL_PADDING } from '../src/utils/reportPdfLayout.js';
 
 const streamText = stream => Buffer.from(decodePDFRawStream(stream).decode()).toString('latin1');
 let metrics;
 export async function inspectReportPdf(document, dimensions) {
-  metrics ||= PDFDocument.create().then(embedFormFonts);
+  metrics ||= PDFDocument.create().then(async document => ({ ...await embedFormFonts(document), ...await embedSignatureFonts(document) }));
   const fonts = await metrics;
   const result = [];
   for (const page of document.getPages()) {
@@ -20,16 +20,17 @@ export async function inspectReportPdf(document, dimensions) {
     const characterMaps = new Map();
     for (const [name, reference] of resources.entries()) {
       const dictionary = document.context.lookup(reference);
-      const cmap = streamText(dictionary.lookup(PDFName.of('ToUnicode')));
-      const characters = new Map(Array.from(cmap.matchAll(/<([0-9A-Fa-f]{4})>\s+<([0-9A-Fa-f]+)>/g), match => [match[1].toUpperCase(), String.fromCodePoint(parseInt(match[2], 16))]));
+      const unicode = dictionary.lookup(PDFName.of('ToUnicode'));
+      const cmap = unicode ? streamText(unicode) : '';
+      const characters = unicode ? new Map(Array.from(cmap.matchAll(/<([0-9A-Fa-f]{4})>\s+<([0-9A-Fa-f]+)>/g), match => [match[1].toUpperCase(), String.fromCodePoint(parseInt(match[2], 16))])) : null;
       const family = dictionary.get(PDFName.of('BaseFont')).toString();
-      characterMaps.set(name.toString().slice(1), { characters, font: family.includes('Bold') ? fonts.bold : family.includes('Italic') ? fonts.italic : fonts.regular });
+      characterMaps.set(name.toString().slice(1), { characters, font: family.includes('Helvetica') ? family.includes('Bold') ? fonts.signatureBold : fonts.signatureRegular : family.includes('Bold') ? fonts.bold : family.includes('Italic') ? fonts.italic : fonts.regular });
     }
     const texts = Array.from(drawing.matchAll(/\/([^\s]+) ([\d.]+) Tf\s+[\d.]+ TL\s+1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm\s+<([0-9A-F]*)> Tj/g), match => {
       const { characters, font } = characterMaps.get(match[1]);
-      const text = (match[5].match(/.{4}/g) || []).map(value => characters.get(value) || '?').join('');
+      const text = characters ? (match[5].match(/.{4}/g) || []).map(value => characters.get(value) || '?').join('') : new TextDecoder('windows-1252').decode(Buffer.from(match[5], 'hex'));
       const fontSize = Number(match[2]), x = Number(match[3]), y = Number(match[4]);
-      assert.equal(fontSize, FORM_PDF_FONT_SIZE, 'reports retain a readable fixed font size');
+      assert.ok(fontSize === FORM_PDF_FONT_SIZE || fontSize > FORM_PDF_FONT_SIZE && fontSize <= 16, 'body font stays fixed and titles are enlarged');
       assert.ok(x >= FORM_PDF_MARGIN - .001, `${text}: left print margin`);
       assert.ok(x + font.widthOfTextAtSize(text, fontSize) <= size.width - FORM_PDF_MARGIN + .001, `${text}: right print margin`);
       assert.ok(y >= FORM_PDF_MARGIN, `${text}: bottom print margin`);

@@ -1,3 +1,4 @@
+import FormField from '../components/FormField';
 import { formNumberData } from '../utils/formNumbers';
 import { iarRequisitionRows, matchingIarDraftIds } from '../utils/iarRequisition';
 import { risStockNumber } from '../utils/risItemSelection';
@@ -1008,11 +1009,11 @@ export default function RisPage() {
         {[['requests', 'Requisition and Issue Slip'], ['approved', 'Issued Items']].map(([value, label]) => <button key={value} type="button" aria-pressed={risView === value} onClick={() => { setRisView(value); if (value === 'requests' && !editingRis && !creatingRis) { resetForm(); setCreatingRis(true); } }} className={`rounded-xl border px-4 py-2 font-semibold ${risView === value ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-teal-50'}`}>{label}</button>)}
       </nav>
       {risView === 'requests' && <div className="flex w-full flex-wrap items-center gap-3 lg:ml-auto lg:w-auto">
-        <label className="relative min-w-0 flex-1 lg:w-80 lg:flex-none">
+        <FormField className="relative min-w-0 flex-1 lg:w-80 lg:flex-none">
           <span className="sr-only">Search IAR, stock number, or item</span>
           <Search size={18} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input type="search" placeholder="Search IAR, stock number, or item" value={search} onChange={event => { setSearch(event.target.value); setIarDraftPage(1); }} className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm" />
-        </label>
+        </FormField>
       </div>}
       </div>}
       <>
@@ -1043,13 +1044,13 @@ export default function RisPage() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <EntityNameField value={form.entityName} onChange={entityName => updateForm({ entityName })} isNew={!editingRis} />
-            <label className="block min-w-0 font-semibold"><span className="mb-1 block">Fund Cluster:</span>
+            <FormField className="block min-w-0 font-semibold"><span className="mb-1 block">Fund Cluster:</span>
               <input readOnly aria-label="Fund Cluster" value={form.fundCluster || ''} className="w-full rounded-lg border px-2 py-2 font-normal" />
-            </label>
+            </FormField>
           </div>
 
           <div className="ris-header-fields mt-4 grid gap-3 sm:grid-cols-2">
-            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <label key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span>{key === 'office' ? <OfficeSelect aria-label={label} readOnly={isUser} value={form.office} onChange={event => updateForm({ office: event.target.value })} className="w-full rounded-lg border px-2 py-2" /> : <input required={key !== 'division'} type="text" aria-label={label} readOnly={isUser || key === 'responsibilityCenterCode' || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" />}</label>)}
+            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <FormField key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span>{key === 'office' ? <OfficeSelect aria-label={label} readOnly={isUser} value={form.office} onChange={event => updateForm({ office: event.target.value })} className="w-full rounded-lg border px-2 py-2" /> : <input required={key !== 'division'} type="text" aria-label={label} readOnly={isUser || key === 'responsibilityCenterCode' || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" />}</FormField>)}
           </div>
 
           <TableScroll showHint={false} className="mt-4 overflow-x-auto border border-slate-700">
@@ -1174,7 +1175,7 @@ export default function RisPage() {
           </div>
 
           <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">
-            <label className="block">
+            <FormField className="block">
               <span className="mb-2 block text-sm font-semibold">Purpose</span>
               <input
                 value={form.purpose}
@@ -1182,8 +1183,8 @@ export default function RisPage() {
                 className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
                 placeholder="Purpose of requisition"
               />
-            </label>
-            <label className="block">
+            </FormField>
+            <FormField className="block">
               <span className="mb-2 block text-sm font-semibold">Date</span>
               <DateInput required
                 type="date"
@@ -1191,7 +1192,7 @@ export default function RisPage() {
                 onChange={(e) => updateForm({ date: e.target.value })}
                 className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-2 outline-none"
               />
-            </label>
+            </FormField>
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -1201,27 +1202,27 @@ export default function RisPage() {
               ['Issued by', 'issuedBy'],
               ['Received by', 'receivedBy'],
             ].map(([label, section]) => (
-              <fieldset disabled={isUser} key={section} className="min-w-0 rounded-xl border border-slate-700 p-4">
+              <fieldset disabled={isUser} key={section} className="form-signatory-panel min-w-0 rounded-xl border border-slate-700 p-4">
                 <h3 className="mb-3 text-sm font-semibold">{label}</h3>
                 {user?.role === 'admin' && ['requestedBy', 'receivedBy'].includes(section) && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, ...(section === 'requestedBy' ? { office: person.office || person.designation || prev.office, receivedBy: { ...prev.receivedBy, user: person.user, offlineRecipient: person.offlineRecipient, name: person.name, designation: person.designation } } : {}) }))} />}
                 <div className="grid gap-3 md:grid-cols-3">
-                  <label className="block">
+                  <FormField className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>
                     <SignatoryValue
                       aria-label={`${label} name`} value={form[section].name}
                       onChange={(e) => updateSignatory(section, 'name', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
                     formType="ris" role={section} field="name" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
-                  </label>
-                  <label className="block">
+                  </FormField>
+                  <FormField className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Designation</span>
                     <SignatoryValue
                       aria-label={`${label} designation`} value={form[section].designation}
                       onChange={(e) => updateSignatory(section, 'designation', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
                     formType="ris" role={section} field="designation" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
-                  </label>
-                  <label className="block">
+                  </FormField>
+                  <FormField className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
                     <DateInput required
                       type="date"
@@ -1229,7 +1230,7 @@ export default function RisPage() {
                       onChange={(e) => updateSignatory(section, 'date', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
                     />
-                  </label>
+                  </FormField>
                 </div>
               </fieldset>
             ))}

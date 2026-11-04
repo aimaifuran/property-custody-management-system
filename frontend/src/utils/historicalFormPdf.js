@@ -6,7 +6,7 @@ import { buildStationPpePdf } from './ppeStationPdf.js';
 import { buildPpePdf } from './ppeListPdf.js';
 export { FORM_PDF_FONT_SIZE } from './formPdfStyle.js';
 import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_A4_PORTRAIT } from './formPdfStyle.js';
-import { embedFormFonts } from './formPdfFonts.js';
+import { embedPrintFonts as embedFormFonts, embedSignatureFonts } from './formPdfFonts.js';
 import { appendTemplateInformation, drawStandardFormHeaders, drawTemplateRows, drawTemplateTableFrame, paginateTemplateItems, templateRowLayout } from './templatePdfLayout.js';
 import { PDFDocument } from 'pdf-lib';
 
@@ -47,7 +47,8 @@ export function templateFieldValue(name, data, items) {
   if (key === 'acceptedBy') value ??= data.custodian ?? data.receivedBy;
   if (key === 'totalAmount' && value == null && data.totalValue != null) value = data.totalValue;
   if (key === 'totalAmount' && value == null && data.items?.length) value = data.items.reduce((sum, item) => sum + Number(item.totalCost ?? item.totalValue ?? item.amount ?? 0), 0);
-  if (key.toLowerCase().includes('date') || key === 'month') return dateText(value);
+  if (key === 'month') return text(value);
+  if (key.toLowerCase().includes('date')) return dateText(value);
   if (amountFields.has(key) && value != null && value !== '') return Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return text(formNumberValue(key, value));
 }
@@ -65,7 +66,8 @@ export async function buildHistoricalFormPdf(record, _loadTemplate, options = {}
   const items = Array.isArray(data.items) ? data.items : record.type === 'RETURNED SUPPLY' ? [data] : [];
   const output = await PDFDocument.create();
   const fonts = await embedFormFonts(output, template === 'pc' ? ['regular', 'bold', 'italic'] : ['regular', 'bold']);
-  options = { ...options, ...(template === 'pc' ? { fontSize: 11 } : {}), certificationDates: [templateFieldValue('returnedToDate', data, []), templateFieldValue('returnedByDate', data, [])] };
+  if (template !== 'pc') Object.assign(fonts, await embedSignatureFonts(output));
+  options = { ...options, signatureFont: fonts.signatureRegular, ...(template === 'pc' ? { fontSize: 11 } : {}), certificationDates: [templateFieldValue('returnedToDate', data, []), templateFieldValue('returnedByDate', data, [])] };
   const layout = templateRowLayout(template, fonts.bold, options.fontSize);
   const itemOverflow = [];
   const paginateItems = (pageItems) => paginateTemplateItems(pageItems, layout, fonts.regular, (key, item) => templateFieldValue(`${key}1`, data, [item]), { onOverflow: entry => itemOverflow.push(entry) });

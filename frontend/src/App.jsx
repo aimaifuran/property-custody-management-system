@@ -25,6 +25,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
 import UserManualPage from './pages/UserManualPage';
+import AuthPageTransition from './components/AuthPageTransition';
 
 const userRoutes = new Set(['/my-issued-items', '/my-returns', '/profile']);
 
@@ -73,10 +74,12 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route element={<AuthPageTransition />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+        </Route>
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/about" element={<Navigate to="/user-manual" replace />} />
           <Route path="/my-ris" element={<Navigate to="/ris" replace />} />

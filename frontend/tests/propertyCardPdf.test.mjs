@@ -21,8 +21,11 @@ test('Property Card PDF and print use the supplied bordered Appendix 69 template
   assert.equal(title.bounds.x, 28);
   assert.equal(title.bounds.width, FORM_PDF_A4_LANDSCAPE[0] - 56);
   for (const key of ['entityName', 'fundCluster', 'propertyPlantAndEquipment', 'description', 'propertyNumber']) assert.ok(runs.some(run => run.section === key), key);
-  for (const key of ['month', 'poNumber', 'serialNumber']) assert.ok(!runs.some(run => run.section === `${key} caption`), `No extra ${key} field in the supplied template`);
-  assert.ok(runs.some(run => run.section === 'description' && run.text.includes('S/N: 45241-1')), 'Serial identity stays in property details');
+  for (const key of ['month', 'poNumber', 'serialNumber']) assert.ok(runs.some(run => run.section === `${key} caption`), `${key} field matches the supplied template`);
+  assert.ok(runs.some(run => run.section === 'serialNumber' && run.text === '45241-1'), 'Serial has its own S/N cell');
+  assert.equal(runs.find(run => run.section === 'description caption').y, runs.find(run => run.section === 'serialNumber caption').y);
+  assert.equal(runs.find(run => run.section === 'propertyPlantAndEquipment caption').y, runs.find(run => run.section === 'propertyNumber caption').y);
+  assert.equal(runs.find(run => run.section === 'month caption').y, runs.find(run => run.section === 'poNumber caption').y);
   assert.equal(runs.find(run => run.section === 'entityName caption').y, runs.find(run => run.section === 'fundCluster caption').y);
   assert.ok(runs.find(run => run.section === 'description caption').y < runs.find(run => run.section === 'propertyPlantAndEquipment caption').y);
   for (const text of ['Receipt', 'Issue/Transfer/Disposal', 'Balance']) assert.ok(runs.some(run => run.section === 'table group caption' && run.text === text), text);

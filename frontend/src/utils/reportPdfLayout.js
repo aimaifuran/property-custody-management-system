@@ -1,5 +1,14 @@
 import { rgb } from 'pdf-lib';
-import { FORM_PDF_FONT_SIZE } from './formPdfStyle.js';
+import { FORM_PDF_FONT_SIZE, FORM_PDF_TITLE_SIZE } from './formPdfStyle.js';
+
+export function drawReportTitle(page, value, x, top, width, font) {
+  const text = cleanReportText(value);
+  const size = Math.min(FORM_PDF_TITLE_SIZE, (width - 8) / Math.max(1, font.widthOfTextAtSize(text, 1)));
+  const height = FORM_PDF_TITLE_SIZE + 12;
+  const ascent = font.heightAtSize(size, { descender: false });
+  page.drawText(text, { x: x + (width - font.widthOfTextAtSize(text, size)) / 2, y: top - (height - font.heightAtSize(size)) / 2 - ascent, font, size });
+  return height;
+}
 
 export const REPORT_LINE_HEIGHT = FORM_PDF_FONT_SIZE + 3;
 export const REPORT_CELL_PADDING = 6;

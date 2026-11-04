@@ -25,7 +25,7 @@ function subscribe(listener) {
   };
 }
 const getSnapshot = () => snapshot;
-export default function SignatoryValue({ formType, role, field = 'name', value = '', onChange, managed = false, className = '', 'aria-label': label }) {
+export default function SignatoryValue({ formType, role, field = 'name', value = '', onChange, managed = false, 'aria-label': label }) {
   const state = useSyncExternalStore(subscribe, getSnapshot);
   const change = useRef(onChange); change.current = onChange;
   const configured = state.data?.[formType]?.[role]?.[field === 'position' ? 'designation' : field];
@@ -33,7 +33,7 @@ export default function SignatoryValue({ formType, role, field = 'name', value =
     if (managed && configured !== undefined && value !== configured) change.current?.({ target: { value: configured } });
   }, [managed, configured, value]);
   return <div className="min-w-0">
-    <p aria-label={label} className={`signatory-value min-h-9 whitespace-pre-wrap break-words border-b border-slate-300 px-1 py-2 text-sm ${className.includes('text-center') ? 'text-center' : ''}`}>{value || ''}</p>
+    <p aria-label={label} className="signatory-value min-h-9 whitespace-pre-wrap break-words px-1 py-2 text-left text-sm">{value || ''}</p>
     {managed && state.error && <p role="alert" className="mt-1 text-xs text-red-700">{state.error}</p>}
   </div>;
 }

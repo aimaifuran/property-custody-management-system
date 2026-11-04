@@ -1,12 +1,12 @@
 import { formNumber } from './formNumbers.js';
-﻿import { embedFormFonts } from './formPdfFonts.js';
+﻿import { embedPrintFonts as embedFormFonts } from './formPdfFonts.js';
 import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_MARGIN } from './formPdfStyle.js';
 import { PDFDocument } from 'pdf-lib';
-import { drawReportGridHeader, drawReportGridRow, drawReportLines, reportColumns, wrapReportText } from './reportPdfLayout.js';
+import { drawReportTitle, drawReportGridHeader, drawReportGridRow, drawReportLines, reportColumns, wrapReportText } from './reportPdfLayout.js';
 
 export async function buildAnnualOfficePdf(group, year, { onDraw } = {}) {
   const pdf = await PDFDocument.create();
-  const { regular, bold } = await embedFormFonts(pdf);
+  const { regular, bold, titleBold, titleRegular } = await embedFormFonts(pdf);
   const [width, height] = FORM_PDF_A4_LANDSCAPE;
   const margin = FORM_PDF_MARGIN, tableWidth = width - margin * 2;
   const definitions = [
@@ -19,8 +19,8 @@ export async function buildAnnualOfficePdf(group, year, { onDraw } = {}) {
   const nextPage = () => {
     layout.page = pdf.addPage(FORM_PDF_A4_LANDSCAPE);
     layout.y = height - margin;
-    for (const label of [`Annual Office Items - ${year}`, `${group.itemType || ''} | Total quantity: ${group.quantity ?? ''}`]) {
-      layout.y -= drawReportLines(layout.page, wrapReportText(label, tableWidth - 8, bold), margin, layout.y, tableWidth, bold) + 4;
+    for (const [index, label] of [`Annual Office Items - ${year}`, `${group.itemType || ''} | Total quantity: ${group.quantity ?? ''}`].entries()) {
+      layout.y -= (index === 0 ? drawReportTitle(layout.page, label, margin, layout.y, tableWidth, titleBold) : drawReportLines(layout.page, wrapReportText(label, tableWidth - 8, bold), margin, layout.y, tableWidth, bold)) + 4;
     }
     drawReportGridHeader(layout, columns, bold);
     layout.rowCapacity = layout.y - layout.bottom;

@@ -1,3 +1,4 @@
+import FormField from '../components/FormField';
 import { formNumber, formNumberValue, formNumberData } from '../utils/formNumbers';
 import DateInput from '../components/DateInput';
 import { formatItemText } from '../utils/capitalizeFormText';
@@ -322,11 +323,11 @@ export default function IarPage() {
     };
     const field = (label, key, type = 'text') => {
         if (key === 'entityName') return <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} />;
-        if (['inspectedBy', 'custodian'].includes(key)) return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><SignatoryValue formType="iar" role={key} value={form[key]} managed={!editingId} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} aria-label={label} /></label>;
+        if (['inspectedBy', 'custodian'].includes(key)) return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><SignatoryValue formType="iar" role={key} value={form[key]} managed={!editingId} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} aria-label={label} /></FormField>;
         if (key === 'supplierName') {
             const names = key === 'supplierName' ? iar.map(record => record[key]) : [...people.map(person => [person.firstName, person.middleName, person.lastName].filter(Boolean).join(' ')), ...iar.flatMap(record => [record.inspectedBy, record.custodian])];
             const options = [...new Set(names.filter(Boolean))].map(name => ({ value: name, label: name }));
-            return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><SearchInput required aria-label={label} value={form[key] || ''} options={options} onChange={value => update(key, value)} placeholder={`Search or enter ${label.toLowerCase()}`} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+            return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><SearchInput required aria-label={label} value={form[key] || ''} options={options} onChange={value => update(key, value)} placeholder={`Search or enter ${label.toLowerCase()}`} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></FormField>;
         }
         // Already issued document numbers remain intact until explicitly changed.
         const legacyNumber = key === 'iarNumber' && editingId && !/^[0-9]{3,4}$/.test(form.iarNumber) && iar.some(record => record._id === editingId && record.iarNumber === form.iarNumber);
@@ -338,7 +339,7 @@ export default function IarPage() {
             title: 'Enter a 3 or 4 digit IAR number',
             autoComplete: 'off'
         } : {};
-        return <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR number' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></label>;
+        return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR number' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></FormField>;
     };
 
     function formatDate(date) {
@@ -550,13 +551,13 @@ export default function IarPage() {
               {field('Inspection Officer/Committee', 'inspectedBy')}
               <h2 className="md:col-span-3 mt-3 text-lg font-semibold">ACCEPTANCE</h2>
               {field('Date Received', 'acceptanceDate', 'date')}
-              <label>
+              <FormField>
                 <span className="mb-1 block text-sm font-semibold text-slate-700">Acceptance</span>
                 <select value={form.acceptanceStatus} onChange={(e) => update('acceptanceStatus', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2">
                   <option value="Complete">Complete</option>
                   <option value="Partial">Partial</option>
                 </select>
-              </label>
+              </FormField>
               {form.acceptanceStatus === 'Partial' && <div><span className="mb-1 block text-sm font-semibold">Total Accepted Quantity</span><p>{form.items.reduce((sum, item) => sum + Number(item.acceptedQuantity || 0), 0)}</p></div>}
               {field('Supply/Property Custodian', 'custodian')}
             </div>

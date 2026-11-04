@@ -1,5 +1,5 @@
 import { rgb } from 'pdf-lib';
-import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_A4_PORTRAIT, FORM_PDF_FONT_SIZE, FORM_PDF_MARGIN } from './formPdfStyle.js';
+import { FORM_PDF_A4_LANDSCAPE, FORM_PDF_A4_PORTRAIT, FORM_PDF_FONT_SIZE, FORM_PDF_MARGIN, FORM_PDF_TITLE_SIZE } from './formPdfStyle.js';
 import { isFormSignatoryField, signatoryText } from './formPdfSignatories.js';
 
 const columns = {
@@ -23,9 +23,9 @@ export const TEMPLATE_ROW_LINE_HEIGHT = 12;
 const minimumRowHeight = 22;
 const tableDefinitions = {
   iar: { left: 90, right: 522, top: 612, bottom: 273, widths: [82, 221, 63, 66], labels: ['Stock / Property No.', 'Description', 'Unit', 'Quantity'] },
-  pc: { left: 75, right: 766, top: 380, bottom: 80, widths: [74, 99, 74, 74, 235, 74, 119, 140], labels: ['Date', 'Reference/\nPAR No.', 'Qty.', 'Qty.', 'Office/Officer', 'Qty.', 'Amount', 'Remarks'], groups: [{ start: 2, count: 1, label: 'Receipt' }, { start: 3, count: 2, label: 'Issue/Transfer/Disposal' }, { start: 5, count: 1, label: 'Balance' }] },
+  pc: { left: 75, right: 766, top: 380, bottom: 80, widths: [13, 12, 7, 7, 28, 8, 11, 14], labels: ['Date', 'Reference PAR\nNo.', 'Qty', 'Qty', 'Office/Officer', 'Qty', 'Amount', 'Remarks'], groups: [{ start: 2, count: 1, label: 'Receipt' }, { start: 3, count: 2, label: 'Issue/Transfer/Disposal' }, { start: 5, count: 1, label: 'Balance' }] },
   ics: { left: 90, right: 523, top: 680, bottom: 319, widths: [46, 37, 60, 65, 95, 72, 58], labels: ['Quantity', 'Unit', 'Unit Cost', 'Total Cost', 'Description', 'Inventory Item No.', 'Estimated Useful Life'], groups: [{ start: 2, count: 2, label: 'Amount' }], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 2, count: 2, separateColumns: true }, { key: 'remarks', label: 'REMARKS:', start: 1, count: 6 }] },
-  par: { left: 92, right: 520, top: 677, bottom: 318, widths: [46, 37, 140, 71, 62, 72], labels: ['Quantity', 'Unit', 'Description', 'Property Number', 'Date Acquired', 'Amount'], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 5, count: 1 }, { key: 'remarks', label: 'Remarks:', start: 1, count: 5 }] },
+  par: { left: 92, right: 520, top: 677, bottom: 318, widths: [10, 8, 44, 11, 12, 15], labels: ['Quantity', 'Unit', 'Description', 'Property Number', 'Date Acquired', 'Amount'], footers: [{ key: 'totalAmount', label: 'TOTAL', start: 5, count: 1 }, { key: 'remarks', label: 'Remarks:', start: 1, count: 5 }] },
   prs: { left: 51, right: 531, top: 671, bottom: 346, widths: [35, 35, 89, 65, 66, 70, 60, 60], labels: ['Qty.', 'Unit', 'Description', 'Property Number', 'M.R. No.', 'Name of End User', 'Unit Value', 'Total Value'], footers: [{ key: 'note', label: 'NOTE:', start: 2, count: 6 }, { key: 'totalAmount', label: 'TOTAL', start: 7, count: 1 }, { label: 'CERTIFICATION' }] },
 };
 
@@ -94,7 +94,12 @@ function signatureLayout(template, table) {
   if (!['iar', 'ics', 'par', 'prs'].includes(template)) return null;
   const panelWidth = (table.right - table.left) / 2;
   const bottom = FORM_PDF_MARGIN;
-  const panels = [table.left, table.left + panelWidth].map(x => ({ x, y: bottom, width: panelWidth, height: table.bottom - bottom }));
+  const panels = template === 'par'
+    ? [
+      { x: table.left, y: bottom, width: (table.right - table.left) * .64, height: table.bottom - bottom },
+      { x: table.left + (table.right - table.left) * .64, y: bottom, width: (table.right - table.left) * .36, height: table.bottom - bottom },
+    ]
+    : [table.left, table.left + panelWidth].map(x => ({ x, y: bottom, width: panelWidth, height: table.bottom - bottom }));
   const fields = [];
   const rules = [];
   const add = (key, panel, y, inset = 20) => {
@@ -248,6 +253,7 @@ export function drawTemplateTableFrame(page, fonts, rows, layout, options = {}) 
 
 function drawSignaturePanels(page, fonts, layout, options) {
   if (!layout.signatures) return;
+  fonts = { ...fonts, regular: fonts.signatureRegular || fonts.regular, bold: fonts.signatureBold || fonts.bold };
   const { panels, rules } = layout.signatures;
   for (const panel of panels) tableCell(page, panel);
   for (const rule of rules) page.drawLine({ start: { x: rule.x, y: rule.y }, end: { x: rule.x + rule.width, y: rule.y }, thickness: .65 });
@@ -255,9 +261,13 @@ function drawSignaturePanels(page, fonts, layout, options) {
     const isIcs = layout.template === 'ics';
     panels.forEach((panel, index) => {
       const label = isIcs ? index ? 'Received by:' : 'Received from:' : index ? 'Issued by:' : 'Received by:';
-      tableLines(page, fonts.bold, [label.toUpperCase()], { x: panel.x, y: layout.bottom - 20, width: panel.width, height: 20 }, { ...options, section: 'signatory caption' }, 'center');
-      const captions = isIcs ? [['Signature Over Printed Name', layout.bottom - 67], ['Position / Office', layout.bottom - 107], ['Date', layout.bottom - 141]] : [['Signature over Printed Name', layout.bottom - 67], [index ? 'of Property Custodian' : 'of End User', layout.bottom - 79], ['Position / Office', layout.bottom - 107], ['Date', layout.bottom - 141]];
-      for (const [text, y] of captions) drawValue(page, fonts.regular, text.toUpperCase(), { x: panel.x + 10, y, width: panel.width - 20, height: 12 }, { ...options, section: !isIcs && index && y >= layout.bottom - 79 ? 'property custodian caption' : 'signature field caption' }, 'center');
+      tableLines(page, fonts.signatureBold || fonts.bold, [label], { x: panel.x, y: layout.bottom - 20, width: panel.width, height: 20 }, { ...options, section: 'signatory caption' }, 'left');
+      const captions = isIcs ? [['Signature over Printed name', layout.bottom - 67], ['Position/Office', layout.bottom - 107], ['Date', layout.bottom - 141]] : [
+        [index ? 'Signature over Printed Name' : 'Signature over Printed Name of End User', layout.bottom - 67],
+        ...(index ? [['Property Custodian', layout.bottom - 79]] : []),
+        ['Position/Office', layout.bottom - 107], ['Date', layout.bottom - 141],
+      ];
+      for (const [text, y] of captions) drawValue(page, fonts.signatureRegular || fonts.regular, text, { x: panel.x + 10, y, width: panel.width - 20, height: 12 }, { ...options, section: !isIcs && index && y >= layout.bottom - 79 ? 'property custodian caption' : 'signature field caption' }, 'center');
     });
     return;
   }
@@ -316,7 +326,7 @@ export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, opt
   const titles = { iar: 'INSPECTION AND ACCEPTANCE REPORT', pc: 'PROPERTY CARD', ics: 'INVENTORY CUSTODIAN SLIP', par: 'PROPERTY ACKNOWLEDGMENT RECEIPT', prs: 'PROPERTY RETURN SLIP' };
   const appendices = { iar: '62', pc: '69', ics: '59', par: '71' };
   if (appendices[template]) drawValue(page, fonts.regular, `Appendix ${appendices[template]}`, { x: left, y: top - 12, width, height: 12 }, { ...options, section: 'appendix' }, 'right');
-  drawValue(page, fonts.bold, titles[template], { x: left, y: top - 47, width, height: 22 }, { ...options, section: 'form title' }, 'center');
+  drawValue(page, fonts.titleBold || fonts.bold, titles[template], { x: left, y: top - 47, width, height: 22 }, { ...options, fontSize: FORM_PDF_TITLE_SIZE, section: 'form title' }, 'center');
   const fields = [];
   const add = (label, key, x, y, fieldWidth) => {
     const labelWidth = fonts.bold.widthOfTextAtSize(label, options.fontSize ?? FORM_PDF_FONT_SIZE) + 3;
@@ -330,11 +340,24 @@ export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, opt
     add(`${second[0]}:`, second[1], left + half, y, half);
   };
   if (template === 'iar') {
-    pair(754, ['Entity Name', 'entityName'], ['Fund Cluster', 'fundCluster']);
-    pair(730, ['Supplier', 'supplierName'], ['PO No. / Date', 'poNumber']);
-    add('Responsibility Center Code:', 'rcc', left, 706, width);
-    pair(682, ['IAR No.', 'iarNumber'], ['IAR Date', 'iarDate']);
-    pair(658, ['Invoice No.', 'invoiceNumber'], ['Invoice Date', 'invoiceDate']);
+    // Appendix 62 has a connected metadata box above the item table. Its
+    // divider continues the boundary between Description and Unit below.
+    const divider = layout.columns[2].x;
+    const metadataTop = 736;
+    const inset = 5;
+    add('Entity Name:', 'entityName', left, 746, divider - left - 10);
+    add('Fund Cluster:', 'fundCluster', divider, 746, right - divider);
+    page.drawRectangle({ x: left, y: layout.top, width, height: metadataTop - layout.top, borderWidth: .65, borderColor: rgb(0, 0, 0) });
+    page.drawLine({ start: { x: divider, y: layout.top }, end: { x: divider, y: metadataTop }, thickness: .65 });
+    const leftWidth = divider - left - inset * 2;
+    const rightWidth = right - divider - inset * 2;
+    add('Supplier:', 'supplierName', left + inset, 716, leftWidth);
+    add('PO/JO No./Date:', 'poNumber', left + inset, 684, leftWidth);
+    add('Responsibility Center Code:', 'rcc', left + inset, 640, leftWidth);
+    add('IAR No.:', 'iarNumber', divider + inset, 716, rightWidth);
+    add('Date:', 'iarDate', divider + inset, 692, rightWidth);
+    add('Invoice No.:', 'invoiceNumber', divider + inset, 668, rightWidth);
+    add('Date:', 'invoiceDate', divider + inset, 644, rightWidth);
     // The original PO heading combines its number and date in one field.
     const originalValueFor = valueFor;
     valueFor = key => key === 'poNumber' ? [originalValueFor(key), originalValueFor('poDate') || originalValueFor('purchaseDate')].filter(Boolean).join(' / ') : originalValueFor(key);
@@ -368,18 +391,19 @@ function drawPropertyCardHeaders(page, fonts, layout, valueFor, data, options) {
   const { left, right, top, columns } = layout;
   const width = right - left;
   const split = columns[6].x;
-  const detailsTop = top + 58;
-  const entityTop = detailsTop + 39;
+  const detailsTop = top + 44;
+  const entityTop = detailsTop + 60;
   const titleTop = entityTop + 35;
   const title = { x: left, y: entityTop, width, height: 35 };
   page.drawRectangle({ ...title, color: rgb(1, 1, 0), borderColor: rgb(0, 0, 0), borderWidth: 1 });
   options.onDecoration?.({ section: 'title background', color: [1, 1, 0], bounds: title, page: options.page });
   drawValue(page, fonts.italic || fonts.regular, 'Appendix 69', { x: left, y: titleTop + 8, width, height: 14 }, { ...options, section: 'appendix' }, 'right');
-  drawValue(page, fonts.bold, 'PROPERTY CARD', title, { ...options, section: 'form title' }, 'center');
-  tableCell(page, { x: left, y: detailsTop, width: split - left, height: 39 });
-  tableCell(page, { x: split, y: detailsTop, width: right - split, height: 39 });
-  tableCell(page, { x: left, y: top, width: split - left, height: 58 });
-  tableCell(page, { x: split, y: top, width: right - split, height: 58 });
+  drawValue(page, fonts.titleBold || fonts.bold, 'PROPERTY CARD', title, { ...options, fontSize: FORM_PDF_TITLE_SIZE, section: 'form title' }, 'center');
+  tableCell(page, { x: left, y: detailsTop, width, height: 60 });
+  for (const y of [top, top + 22]) {
+    tableCell(page, { x: left, y, width: split - left, height: 22 });
+    tableCell(page, { x: split, y, width: right - split, height: 22 });
+  }
   const fields = [];
   const field = (label, key, x, y, fieldWidth, height = 14, underline = false) => {
     const labelWidth = fonts.bold.widthOfTextAtSize(label, options.fontSize) + 4;
@@ -388,14 +412,15 @@ function drawPropertyCardHeaders(page, fonts, layout, valueFor, data, options) {
     fields.push({ key, rectangle });
     if (underline) page.drawLine({ start: { x: rectangle.x, y: y - 1 }, end: { x: x + fieldWidth, y: y - 1 }, thickness: .5 });
   };
-  field('Entity Name :', 'entityName', left + 3, detailsTop + 7, split - left - 10, 14, true);
-  field('Fund Cluster:', 'fundCluster', split + 3, detailsTop + 7, right - split - 13, 14, true);
-  field('Property, Plant and Equipment :', 'propertyPlantAndEquipment', left + 3, top + 34, split - left - 10);
-  field('Description :', 'description', left + 3, top + 7, split - left - 10);
-  field('Property Number:', 'propertyNumber', split + 3, top + 24, right - split - 13, 14, true);
-  // Appendix 69 has no separate S/N field; keep unit identity in its description.
-  const description = [valueFor('description'), valueFor('serialNumber') ? `S/N: ${valueFor('serialNumber')}` : ''].filter(Boolean).join(' | ');
-  return drawTemplateHeaders(page, fonts.regular, 'pc', key => key === 'description' ? description : valueFor(key), options, fields);
+  field('Month:', 'month', left + 3, entityTop - 20, width * .13 - 6);
+  field('PO #:', 'poNumber', left + width * .13, entityTop - 20, width * .55);
+  field('Entity Name:', 'entityName', left + 3, detailsTop + 12, width * .6, 14, true);
+  field('Fund Cluster:', 'fundCluster', split + 3, detailsTop + 12, right - split - 13, 14, true);
+  field('Property, Plant and Equipment:', 'propertyPlantAndEquipment', left + 3, top + 27, split - left - 10);
+  field('Description:', 'description', left + 3, top + 5, split - left - 10);
+  field('Property Number:', 'propertyNumber', split + 3, top + 27, right - split - 13);
+  field('S/N:', 'serialNumber', split + 3, top + 5, right - split - 13);
+  return drawTemplateHeaders(page, fonts.regular, 'pc', valueFor, options, fields);
 }
 
 function fieldCaption(key) {
@@ -414,16 +439,17 @@ export function drawTemplateHeaders(page, font, template, valueFor, options = {}
     const value = signature ? signatoryText(valueFor(key)) : valueFor(key);
     if (!value) continue;
     const inset = 1;
-    const extraHeight = Math.max(0, font.heightAtSize(options.fontSize ?? FORM_PDF_FONT_SIZE) - rectangle.height);
+    const fieldFont = signature ? options.signatureFont || font : font;
+    const extraHeight = Math.max(0, fieldFont.heightAtSize(options.fontSize ?? FORM_PDF_FONT_SIZE) - rectangle.height);
     const bounds = { ...rectangle, x: rectangle.x + inset, width: rectangle.width - inset - 1, y: rectangle.y - extraHeight / 2, height: rectangle.height + extraHeight };
-    const lines = wrapTemplateText(value, font, bounds.width, options.fontSize ?? FORM_PDF_FONT_SIZE);
+    const lines = wrapTemplateText(value, fieldFont, bounds.width, options.fontSize ?? FORM_PDF_FONT_SIZE);
     let printed = lines[0];
     if (lines.length > 1) {
       overflow.push({ key, caption: fieldCaption(key), value });
-      while (printed && font.widthOfTextAtSize(`${printed}…`, (options.fontSize ?? FORM_PDF_FONT_SIZE)) > bounds.width) printed = printed.slice(0, -1);
+      while (printed && fieldFont.widthOfTextAtSize(`${printed}…`, (options.fontSize ?? FORM_PDF_FONT_SIZE)) > bounds.width) printed = printed.slice(0, -1);
       printed += '…';
     }
-    drawValue(page, font, printed, bounds, { ...options, cellBounds, section: key }, cellBounds || signature ? 'center' : monetary.has(key) ? 'right' : 'left');
+    drawValue(page, fieldFont, printed, bounds, { ...options, cellBounds, section: key }, cellBounds || signature ? 'center' : monetary.has(key) ? 'right' : 'left');
   }
   return overflow;
 }

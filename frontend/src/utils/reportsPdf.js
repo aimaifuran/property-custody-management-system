@@ -1,8 +1,8 @@
 import { PDFDocument, rgb } from 'pdf-lib';
-import { embedFormFonts } from './formPdfFonts.js';
+import { embedPrintFonts as embedFormFonts, embedSignatureFonts } from './formPdfFonts.js';
 import { signatoryText } from './formPdfSignatories.js';
 import { FORM_PDF_A4_PORTRAIT, FORM_PDF_MARGIN } from './formPdfStyle.js';
-import { drawReportGridHeader, drawReportGridRow, drawReportLines, reportColumns, REPORT_CELL_PADDING, REPORT_LINE_HEIGHT, wrapReportText } from './reportPdfLayout.js';
+import { drawReportTitle, drawReportGridHeader, drawReportGridRow, drawReportLines, reportColumns, REPORT_CELL_PADDING, REPORT_LINE_HEIGHT, wrapReportText } from './reportPdfLayout.js';
 
 const green = rgb(.10, .38, .27), lightGreen = rgb(.91, .96, .93), ink = rgb(.12, .17, .15);
 const dateLabel = value => {
@@ -12,11 +12,12 @@ const dateLabel = value => {
 
 export async function buildReportsPdf({ annual, title, periodLabel, year, monthName, records, forms, selectedForm = 'ALL', onDraw }, loadLogo = async () => fetch('/lgu-logo.png').then(response => response.arrayBuffer())) {
   const pdf = await PDFDocument.create();
-  const { regular, bold } = await embedFormFonts(pdf);
+  const { regular, bold, titleBold, titleRegular } = await embedFormFonts(pdf);
+  const { signatureRegular, signatureBold } = await embedSignatureFonts(pdf);
   const [width, height] = FORM_PDF_A4_PORTRAIT;
   const margin = FORM_PDF_MARGIN, usable = width - margin * 2;
   const layout = { page: null, y: 0, bottom: margin, rowCapacity: 0, onDraw };
-  const paragraph = (value, x, top, w, font = regular, align = 'left', color = ink) => drawReportLines(layout.page, wrapReportText(value, w - 8, font), x, top, w, font, { align, color });
+  const paragraph = (value, x, top, w, font = regular, align = 'left', color = ink) => font === titleBold ? drawReportTitle(layout.page, value, x, top, w, font) : drawReportLines(layout.page, wrapReportText(value, w - 8, font), x, top, w, font, { align, color });
   if (annual) {
     const columns = reportColumns([
       ['type', 'Report', 17], ['documentNumber', 'Document number', 23],
@@ -26,7 +27,7 @@ export async function buildReportsPdf({ annual, title, periodLabel, year, monthN
       layout.page = pdf.addPage(FORM_PDF_A4_PORTRAIT);
       layout.y = height - margin;
       layout.y -= paragraph('Property Accountability Management System', margin, layout.y, usable, bold, 'left', green) + 4;
-      layout.y -= paragraph(`${title} - ${periodLabel}`, margin, layout.y, usable, bold) + 4;
+      layout.y -= paragraph(`${title} - ${periodLabel}`, margin, layout.y, usable, titleBold) + 4;
       layout.y -= paragraph(`Issued reports recorded: ${records.length}`, margin, layout.y, usable) + 8;
       drawReportGridHeader(layout, columns, bold);
       layout.rowCapacity = layout.y - layout.bottom;
@@ -140,9 +141,9 @@ export async function buildReportsPdf({ annual, title, periodLabel, year, monthN
   ['Prepared by:', 'Reviewed by:', 'Approved by:'].map(signatoryText).forEach((label, index) => {
     const x = margin + index * signatureWidth;
     layout.page.drawLine({ start: { x: x + 18, y: layout.y - 10 }, end: { x: x + signatureWidth - 18, y: layout.y - 10 }, thickness: .7, color: rgb(.38, .47, .42) });
-    const lines = wrapReportText(label, signatureWidth - 8, regular);
+    const lines = wrapReportText(label, signatureWidth - 8, signatureRegular);
     const bounds = { x, y: layout.y - 14 - (lines.length * REPORT_LINE_HEIGHT + 8), width: signatureWidth, height: lines.length * REPORT_LINE_HEIGHT + 8 };
-    drawReportLines(layout.page, lines, x, layout.y - 14, signatureWidth, regular, {
+    drawReportLines(layout.page, lines, x, layout.y - 14, signatureWidth, signatureRegular, {
       align: 'center', onDraw: text => onDraw?.({ kind: 'signature', ...text, bounds, value: label }),
     });
   });

@@ -1,3 +1,4 @@
+import FormField from '../components/FormField';
 import { formNumber } from '../utils/formNumbers';
 import FormNumberInput from '../components/FormNumberInput';
 import DateInput from '../components/DateInput';
@@ -141,21 +142,21 @@ export default function ReturnedSupplyPage() {
     };
 
     const signatoryFields = (label, section) => (
-        <div className="rounded-xl border border-slate-200 p-4">
+        <div className="form-signatory-panel rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
-                <label className="block">
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
                     <DateInput required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                </label>
-                <label className="block">
+                </FormField>
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
                     <input required value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                </label>
-                <label className="block">
+                </FormField>
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
                     <input required value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                </label>
+                </FormField>
             </div>
         </div>
     );
@@ -193,21 +194,21 @@ export default function ReturnedSupplyPage() {
             {form && (
                 <ValidatedForm ref={editorRef} onSubmit={save} inert={saving ? true : undefined} aria-busy={saving} className="form-document form-frame scroll-mt-6 p-6">
                     <FormEditorHeader title="Returned Supply" description="Each item on a saved Property Return Slip is logged here individually." onClose={cancelEdit} />
-                    <label className="mb-4 block"><span className="mb-1 block font-semibold">Issued item to return</span><select aria-label="Issued item to return" value={form.ris && form.risItem ? `${form.ris}:${form.risItem}` : ''} onChange={event => {
+                    <FormField className="mb-4 block"><span className="mb-1 block font-semibold">Issued item to return</span><select aria-label="Issued item to return" value={form.ris && form.risItem ? `${form.ris}:${form.risItem}` : ''} onChange={event => {
                         const [risId, itemId] = event.target.value.split(':');
                         const record = issuedRecords.find(entry => entry._id === risId);
                         const item = record?.items.find(entry => entry._id === itemId);
                         setForm(prev => ({ ...prev, ris: risId || '', risItem: itemId || '', ...(item ? { description: item.description, unit: item.unit, mrNumber: record.risNumber, returnedBy: { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name } } : {}) }));
-                    }} className="w-full rounded-lg border px-2 py-2"><option value="">Match typed item and RIS number to the selected account</option>{issuedRecords.filter(record => form.returnedBy.offlineRecipient ? String(record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient) === String(form.returnedBy.offlineRecipient) : !form.returnedBy.user || String(record.requestedBy?.user || record.receivedBy?.user) === String(form.returnedBy.user)).flatMap(record => record.items.filter(item => item.quantityIssued > 0).map(item => <option key={`${record._id}:${item._id}`} value={`${record._id}:${item._id}`}>{record.requestedBy?.name || record.receivedBy?.name} ? {record.risNumber} ? {item.description}</option>))}</select></label>
+                    }} className="w-full rounded-lg border px-2 py-2"><option value="">Match typed item and RIS number to the selected account</option>{issuedRecords.filter(record => form.returnedBy.offlineRecipient ? String(record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient) === String(form.returnedBy.offlineRecipient) : !form.returnedBy.user || String(record.requestedBy?.user || record.receivedBy?.user) === String(form.returnedBy.user)).flatMap(record => record.items.filter(item => item.quantityIssued > 0).map(item => <option key={`${record._id}:${item._id}`} value={`${record._id}:${item._id}`}>{record.requestedBy?.name || record.receivedBy?.name} ? {record.risNumber} ? {item.description}</option>))}</select></FormField>
                     <div className="grid gap-3 md:grid-cols-3">
-                        <label className="block">
+                        <FormField className="block">
                             <span className="mb-1 block text-sm font-semibold text-slate-700">Name of LGU</span>
                             <input required value={form.lguName} onChange={(e) => update('lguName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                        </label>
-                        <label className="block">
+                        </FormField>
+                        <FormField className="block">
                             <span className="mb-1 block text-sm font-semibold text-slate-700">Purpose</span>
                             <input required value={form.purpose} onChange={(e) => update('purpose', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                        </label>
+                        </FormField>
                     </div>
 
                     <TableScroll className="mt-6 overflow-x-auto">
@@ -254,10 +255,10 @@ export default function ReturnedSupplyPage() {
                     </TableScroll>
 
                     <div className="mt-4">
-                        <label className="block">
+                        <FormField className="block">
                             <span className="mb-1 block text-sm font-semibold text-slate-700">Note (optional)</span>
                             <textarea value={form.note} onChange={(e) => update('note', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
-                        </label>
+                        </FormField>
                     </div>
 
                     <div className="mt-6 grid gap-4 md:grid-cols-2">

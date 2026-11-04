@@ -11,8 +11,12 @@ are archived in `sample_record_archives`. User accounts, profile photos,
 settings, suppliers, offline recipients, and identity counters were preserved.
 The reset verified zero active records and unchanged protected collections.
 
-The deployed app at https://pams-lgu-carigara.vercel.app has NOT been reset.
-Its database connection is not available in the workspace.
+The deployed database for https://pams-lgu-carigara.vercel.app was reset on
+October 30, 2026 (Asia/Manila). Archive batch: `6ae4b178555be7879092be98`.
+Backup: `backend/backups/record-reset-1793372535565.json` (private, ignored by Git).
+All active reset targets were verified empty; protected accounts and settings
+were verified unchanged. MongoDB service discovery used DNS over HTTPS because
+the system DNS resolver refused the Atlas SRV lookup. No credentials were changed.
 
 ## Maintenance command
 

@@ -1,3 +1,4 @@
+import AuthField from '../components/AuthField';
 import ValidatedForm from '../components/ValidatedForm';
 import { useState } from 'react';
 import axios from 'axios';
@@ -6,7 +7,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, KeyRound, LoaderCircle, Mail, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-export default function ForgotPasswordPage() {
+export default function ForgotPasswordPage({ embedded = false, onBack }) {
   const [email, setEmail] = useState('');
   const navigate = useNavigate();
   const [code, setCode] = useState('');
@@ -38,29 +39,29 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       const { data } = await axios.post('/auth/reset-password-code', { email: email.trim(), code, password });
-      toast.success(data.message); navigate('/login');
+      toast.success(data.message); if (onBack) onBack(); else navigate('/login');
     } catch (error) { toast.error(error.response?.data?.message || 'Unable to reset password'); }
     finally { setLoading(false); }
   };
 
-  return <main className="login-page forgot-password-page">
-    <div className="login-page__wash" aria-hidden="true" />
-    <motion.section initial={{ opacity: 0, y: reduceMotion ? 0 : 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduceMotion ? 0 : 0.25 }} className="login-card recovery-card" aria-labelledby="recovery-title">
+  return <main className={embedded ? "forgot-password-page recovery-embedded" : "login-page forgot-password-page"}>
+    {!embedded && <div className="login-page__wash" aria-hidden="true" />}
+    <motion.section initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduceMotion ? 0 : 0.25 }} className={embedded ? "recovery-card" : "login-card recovery-card auth-light-card"} aria-labelledby="recovery-title">
       <div className="recovery-brand"><img src="/lgu-logo.png" alt="Municipality of Carigara official seal" width="52" height="52" /><div><div className="recovery-brand__name">PAMS</div><p>Property Accountability<br />Management System</p></div></div>
       <div className="recovery-heading"><div className="recovery-icon" aria-hidden="true"><KeyRound size={24} /></div><p className="recovery-eyebrow">Account recovery</p><h1 id="recovery-title">{submitted ? 'Reset your password' : 'Forgot your password?'}</h1><p id="recovery-description">{submitted ? `Enter the six-digit code sent to ${email} and choose a new password. The code expires in 10 minutes.` : 'Enter the email address registered to your user or administrator account.'}</p></div>
       {submitted ? <ValidatedForm onSubmit={resetPassword} className="recovery-form">
-        <label className="block"><span className="recovery-label">Verification code</span><input className="login-input recovery-input" aria-label="Verification code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={event => setCode(event.target.value)} disabled={loading} /></label>
-        <label className="block"><span className="recovery-label">New password</span><input className="login-input recovery-input" aria-label="New password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={event => setPassword(event.target.value)} disabled={loading} /></label>
-        <label className="block"><span className="recovery-label">Confirm new password</span><input className="login-input recovery-input" aria-label="Confirm new password" type="password" autoComplete="new-password" minLength={8} required value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={loading} /></label>
+        <AuthField className="block"><span className="recovery-label">Verification code</span><input className="login-input recovery-input" aria-label="Verification code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={event => setCode(event.target.value)} disabled={loading} /></AuthField>
+        <AuthField className="block"><span className="recovery-label">New password</span><input className="login-input recovery-input" aria-label="New password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={event => setPassword(event.target.value)} disabled={loading} /></AuthField>
+        <AuthField className="block"><span className="recovery-label">Confirm new password</span><input className="login-input recovery-input" aria-label="Confirm new password" type="password" autoComplete="new-password" minLength={8} required value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={loading} /></AuthField>
         <button type="submit" disabled={loading} aria-busy={loading} className="login-button recovery-submit">{loading ? <><LoaderCircle className="recovery-spinner" size={18} aria-hidden="true" /> Updating...</> : 'Verify Code and Update Password'}</button>
         <button type="button" disabled={loading} onClick={handleSubmit} className="recovery-back">Send a new code</button>
         <button type="button" disabled={loading} onClick={() => { setSubmitted(false); setCode(''); setPassword(''); setConfirmation(''); }} className="recovery-back">Use a different email</button>
       </ValidatedForm> : <ValidatedForm onSubmit={handleSubmit} className="recovery-form">
-        <label htmlFor="forgot-email" className="block"><span className="recovery-label">Account email</span><div className="recovery-input-wrap"><Mail size={18} aria-hidden="true" /><input id="forgot-email" type="email" value={email} onChange={event => setEmail(event.target.value)} className="login-input recovery-input" placeholder="Enter your registered email" autoComplete="email" autoCapitalize="none" spellCheck={false} aria-describedby="recovery-description" disabled={loading} required /></div></label>
+        <AuthField htmlFor="forgot-email" className="block"><span className="recovery-label">Account email</span><div className="recovery-input-wrap"><Mail size={18} aria-hidden="true" /><input id="forgot-email" type="email" value={email} onChange={event => setEmail(event.target.value)} className="login-input recovery-input" placeholder="Enter your registered email" autoComplete="email" autoCapitalize="none" spellCheck={false} aria-describedby="recovery-description" disabled={loading} required /></div></AuthField>
         <button type="submit" disabled={loading} aria-busy={loading} className="login-button recovery-submit">{loading ? <><LoaderCircle className="recovery-spinner" size={18} aria-hidden="true" /> Sending code...</> : <>Send Verification Code <ArrowRight size={18} aria-hidden="true" /></>}</button>
         <div className="recovery-help"><ShieldCheck size={18} aria-hidden="true" /><p>Users and administrators can reset their password through their registered email. Check your spam folder too.</p></div>
       </ValidatedForm>}
-      <footer className="recovery-footer"><Link to="/login" className="recovery-back"><ArrowLeft size={16} aria-hidden="true" /> Back to sign in</Link></footer>
+      <footer className="recovery-footer">{onBack ? <button type="button" disabled={loading} onClick={onBack} className="recovery-back"><ArrowLeft size={16} aria-hidden="true" /> Back to sign in</button> : <Link to="/login" className="recovery-back"><ArrowLeft size={16} aria-hidden="true" /> Back to sign in</Link>}</footer>
     </motion.section>
   </main>;
 }

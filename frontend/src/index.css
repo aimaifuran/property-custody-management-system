@@ -4,7 +4,7 @@
 
 /* Follow each field's required attribute, including conditional requirements. */
 label:has(:is(input, select, textarea):required:not(:disabled):not([readonly])) > span:first-child::after,
-label:has(:is(input, select, textarea):required:not(:disabled):not([readonly])):not(:has(> span))::before {
+label:not(.auth-field, .form-field):has(:is(input, select, textarea):required:not(:disabled):not([readonly])):not(:has(> span))::before {
   content: ' *';
   color: #dc2626;
   font-weight: 700;
@@ -171,6 +171,35 @@ body {
   background: #edf3e8;
 }
 
+.auth-transition-layout {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+}
+.auth-transition-layout::before,
+.auth-transition-layout::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.auth-transition-layout::before {
+  z-index: -2;
+  background: linear-gradient(115deg, rgb(10 39 27 / 38%), rgb(39 79 47 / 16%) 55%, rgb(35 65 39 / 12%)), #173d2d url('/login-background.png') center / cover no-repeat;
+}
+.auth-transition-layout::after {
+  z-index: -1;
+  background: radial-gradient(circle at 50% 42%, rgb(255 255 255 / 8%), transparent 38%), linear-gradient(180deg, rgb(8 31 21 / 4%), rgb(8 31 21 / 20%));
+}
+.auth-transition-layout .login-page { background: transparent; }
+.auth-transition-layout .login-page::before,
+.auth-transition-layout .login-page__wash { display: none; }
+.auth-transition-layout :is(.login-input, .login-button, .recovery-back) {
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, color .2s ease, transform .2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-transition-layout :is(.login-input, .login-button, .recovery-back) { transition: none; }
+}
 .login-page {
   position: relative;
   isolation: isolate;
@@ -220,6 +249,134 @@ body {
 .login-card-shell:hover .login-card--split {
   transform: scale(0.98);
   border-radius: 20px;
+}
+
+/* Green rotating rim and soft halo inspired by SelfMadeSystem on Uiverse. */
+@property --auth-light-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes auth-green-light {
+  to { --auth-light-angle: 360deg; }
+}
+.login-page .auth-light-card {
+  position: relative;
+  isolation: isolate;
+  border-radius: 22px;
+  --auth-light-colors: #052e16, #166534, #22c55e, #86efac, #16a34a, #14532d, #052e16;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 30%), 0 0 24px rgb(34 197 94 / 16%);
+  transition: box-shadow .3s ease;
+}
+.login-page .login-card-shell.auth-light-card {
+  padding: 2px;
+  background: transparent;
+}
+.login-page .auth-light-card::before,
+.login-page .auth-light-card::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  padding: 3px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from var(--auth-light-angle), var(--auth-light-colors));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: auth-green-light 4s linear infinite;
+}
+.login-page .auth-light-card::before { z-index: 2; }
+.login-page .auth-light-card::after {
+  z-index: -1;
+  inset: -5px;
+  padding: 7px;
+  filter: blur(8px);
+  opacity: .7;
+  transition: filter .3s ease, opacity .3s ease;
+}
+.login-page .auth-light-card:hover,
+.login-page .auth-light-card:focus-within {
+  box-shadow: 0 20px 60px rgb(0 0 0 / 35%), 0 0 32px rgb(34 197 94 / 30%);
+}
+.login-page .auth-light-card:hover::after,
+.login-page .auth-light-card:focus-within::after { filter: blur(11px); opacity: .95; }
+.login-page .auth-light-card .login-card,
+.login-page .login-card.auth-light-card {
+  border: 0;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgb(25 67 45 / 22%), rgb(10 35 24 / 32%));
+  -webkit-backdrop-filter: blur(4px) saturate(110%);
+  backdrop-filter: blur(4px) saturate(110%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 0 0 1px rgb(219 255 230 / 10%);
+}
+.login-page .auth-light-card:hover .login-card--split { transform: none; }
+.sign-in-page .login-card__form { background: transparent; }
+.sign-in-page .login-panel-content { width: 100%; min-width: 0; }
+.sign-in-page .login-panel-content > .mb-3 { margin-bottom: 12px; }
+.sign-in-page .login-panel-content > div:last-child p { font-size: 16px; }
+.sign-in-page .login-panel-content > div:last-child a { font-size: 16px; }
+@media (max-width: 767px) {
+  .sign-in-page .login-panel-content > .mb-3 { margin-bottom: 4px; }
+  .sign-in-page .login-panel-content > div:last-child p { font-size: 13px; }
+  .sign-in-page .login-panel-content > div:last-child a { font-size: 14px; }
+}
+.sign-in-page .login-card__illustration {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  border: 0;
+  background: rgb(230 255 239 / 6%);
+}
+.sign-in-page .login-panel-curve {
+  position: absolute;
+  display: block;
+  fill: rgb(230 255 239 / 6%);
+  pointer-events: none;
+}
+.sign-in-page .login-panel-curve--vertical { display: none; }
+.sign-in-page .login-panel-curve--horizontal { left: 0; bottom: -20px; width: 100%; height: 20px; }
+.sign-in-page .login-card__form .recovery-embedded {
+  min-height: 0;
+  width: 100%;
+  padding: 0;
+  display: block;
+  background: transparent;
+}
+.sign-in-page .recovery-embedded .recovery-card {
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+@media (min-width: 768px) {
+  .sign-in-page .login-card-shell { max-width: 640px; }
+  .sign-in-page .login-card--split { min-height: 420px; }
+  .sign-in-page .login-card__illustration {
+    padding: 16px;
+    background: linear-gradient(to right, rgb(230 255 239 / 6%) calc(100% - 66px), transparent 0);
+  }
+  .sign-in-page .login-card--recovery .login-card__illustration {
+    background: linear-gradient(to left, rgb(230 255 239 / 6%) calc(100% - 66px), transparent 0);
+  }
+  .sign-in-page .login-panel-curve--horizontal { display: none; }
+  .sign-in-page .login-panel-curve--vertical { display: block; top: 0; right: -44px; width: 110px; height: 100%; }
+  .sign-in-page .login-card--split .login-card__form { min-width: 0; padding: 20px 16px 20px 48px; }
+  .sign-in-page .login-card--recovery { flex-direction: row-reverse; }
+  .sign-in-page .login-card--recovery .login-card__form { padding-left: 16px; padding-right: 48px; }
+  .sign-in-page .login-card--recovery .login-panel-curve--vertical { right: auto; left: -44px; transform: scaleX(-1); }
+}
+@media (max-width: 767px) {
+  .sign-in-page .login-card--split .login-card__form { padding-top: 26px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-page .auth-light-card::before,
+  .login-page .auth-light-card::after { animation: none; }
+  .login-page .auth-light-card,
+  .login-page .auth-light-card::after,
+  .login-page .auth-light-card .login-card { transition: none; }
 }
 
 .login-card--split {
@@ -1611,9 +1768,20 @@ body { font-size: var(--app-text-size); }
   color: #64748b; font-weight: 400;
 }
 @media print {
-  .form-document, .form-document * { font-family: 'Times New Roman', Times, serif !important; }
+  .form-document, .form-document * { font-family: Arial, Helvetica, sans-serif !important; }
+  .form-document .form-page-title, .form-document .form-page-title * { font-family: 'Times New Roman', Times, serif !important; font-size: 16pt; text-align: center; }
 }
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+.form-document .form-signatory-panel,
+.form-document .form-signatory-panel *,
+.form-document .ics-signatories,
+.form-document .ics-signatories *,
+.form-document label:has(.signatory-value),
+.form-document label:has(.signatory-value) *,
+.form-document .signatory-value {
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-style: normal;
+}
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times-bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times-italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
 
@@ -1771,7 +1939,7 @@ body { font-size: var(--app-text-size); }
 .forgot-password-page .recovery-label { display: block; margin-bottom: 4px; font-size: 12px !important; font-weight: 600; }
 .recovery-input-wrap { position: relative; }
 .recovery-input-wrap > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #c5d6ba; pointer-events: none; }
-.login-page.forgot-password-page .recovery-form .recovery-input {
+.forgot-password-page .recovery-form .recovery-input {
   display: block; width: 100%; min-width: 0; box-sizing: border-box;
   min-height: 36px; border-radius: 10px; padding: 7px 12px;
   font-size: 14px !important; color: #fff; outline: none;
@@ -1793,7 +1961,7 @@ body { font-size: var(--app-text-size); }
 .forgot-password-page .recovery-confirmation h2 { margin: 0; font-size: 14px !important; font-weight: 600; }
 .forgot-password-page .recovery-confirmation p { margin: 10px 0 0; font-size: 13px !important; color: #e0eadb; line-height: 1.6; }
 .recovery-footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .16); text-align: center; }
-.login-page.forgot-password-page .recovery-input-wrap .recovery-input { padding-left: 40px; }
+.forgot-password-page .recovery-input-wrap .recovery-input { padding-left: 40px; }
 .forgot-password-page .recovery-back { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; padding: 0 8px; color: #e5eddb; font-size: 13px !important; font-weight: 600; text-decoration: none; }
 .recovery-back:hover { color: #fff; text-decoration: underline; }
 .recovery-back:focus-visible, .recovery-submit:focus-visible { outline: 2px solid #d5e59d; outline-offset: 4px; }
@@ -2448,7 +2616,11 @@ body { font-size: var(--app-text-size); }
     padding: 8px 0;
     line-height: 20px;
   }
-  .form-document .signatory-value.text-center { justify-content: center; }
+  .form-document .signatory-value {
+    padding-inline: 14px;
+    justify-content: flex-start;
+    text-align: left;
+  }
 }
 @media screen and (max-width: 640px) {
   .form-document { --form-field-height: 36px; }
@@ -2498,6 +2670,581 @@ body { font-size: var(--app-text-size); }
   .sign-in-page .login-card__form > div:last-child { margin-top: 3px; padding-top: 3px; }
   .sign-in-page .login-card__form > div:last-child p { font-size: 11px !important; line-height: 1.3; }
   .sign-in-page .login-card__form > div:last-child a { margin-top: 2px; padding-block: 3px; font-size: 11px !important; }
+}
+
+@media (min-width: 768px) {
+  .auth-transition-layout .login-page .login-pams-title { font-size: 28px !important; }
+  .auth-transition-layout .login-page h1.register-pams-title { font-size: 26px !important; }
+  .auth-transition-layout .login-page .login-welcome-copy h2 { font-size: 26px !important; }
+  .auth-transition-layout .login-page .login-welcome-copy p { font-size: 14px !important; line-height: 1.6; }
+  .auth-transition-layout .login-page :is(label > span, .recovery-label) { font-size: 14px !important; line-height: 1.5; }
+  .auth-transition-layout .login-page :is(.login-input, .recovery-input) { font-size: 16px !important; min-height: 42px; line-height: 1.5; }
+  .auth-transition-layout .login-page .login-button { font-size: 16px !important; min-height: 42px; line-height: 1.4; }
+  .auth-transition-layout .login-page :is(label.flex, a, .recovery-back, .recovery-help p, .recovery-heading > p:last-child) { font-size: 14px !important; line-height: 1.5; }
+  .auth-transition-layout .login-page .login-card__form > div:last-child p { font-size: 16px !important; }
+  .auth-transition-layout .login-page .recovery-heading h1 { font-size: 22px !important; }
+  .auth-transition-layout .login-page .recovery-brand__name { font-size: 26px !important; }
+  .auth-transition-layout .login-page .recovery-brand p { font-size: 14px !important; }
+}
+
+@media (min-width: 768px) {
+  .sign-in-page .login-system-title { font-size: 18px !important; line-height: 1.4; }
+}
+
+/* Keep inline login/recovery comfortable on narrow screens and mobile keyboards. */
+@media (min-width: 768px) {
+  .auth-transition-layout .login-page .auth-light-card { border-radius: 16px; }
+  .auth-transition-layout .login-page .auth-light-card .login-card { border-radius: 14px; }
+  .auth-transition-layout .sign-in-page .login-card-shell,
+  .auth-transition-layout .registration-page .login-card-shell { max-width: 720px; }
+  .auth-transition-layout .sign-in-page .login-card--split { min-height: 360px; }
+  .auth-transition-layout .sign-in-page .login-card__illustration { padding: 16px; }
+  .auth-transition-layout .sign-in-page .login-card__form { padding: 16px 16px 16px 48px; }
+  .auth-transition-layout .sign-in-page .login-card--recovery .login-card__form { padding: 16px 48px 16px 16px; }
+  .auth-transition-layout .sign-in-page .login-panel-content > .mb-3 img { width: 48px; height: 48px; margin-bottom: 4px; }
+  .auth-transition-layout .sign-in-page .login-pams-title { font-size: 24px !important; }
+  .auth-transition-layout .login-page :is(.login-input, .recovery-input) { min-height: 38px; padding-block: 6px; }
+  .auth-transition-layout .login-page .login-button { min-height: 38px; padding-block: 7px; font-size: 14px !important; }
+  .auth-transition-layout .registration-page .login-card { padding: 16px 20px; }
+  .auth-transition-layout .registration-page .login-card > .text-center {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: center;
+    text-align: left;
+    margin-bottom: 12px;
+  }
+  .auth-transition-layout .registration-page .login-card > .text-center img { grid-row: 1 / span 2; margin: 0; width: 48px; height: 48px; }
+  .auth-transition-layout .registration-page h1.register-pams-title { font-size: 22px !important; }
+  .auth-transition-layout .registration-page .login-card > .text-center p { margin-top: 2px; }
+  .auth-transition-layout .forgot-password-page:not(.recovery-embedded) .recovery-card { max-width: 600px; padding: 18px 24px; border-radius: 16px; }
+  .auth-transition-layout .recovery-embedded .recovery-brand { flex-direction: row; justify-content: center; padding-bottom: 8px; }
+  .auth-transition-layout .recovery-embedded .recovery-brand p,
+  .auth-transition-layout .recovery-embedded .recovery-icon { display: none; }
+  .auth-transition-layout .recovery-embedded .recovery-heading { padding: 10px 0; }
+  .auth-transition-layout .recovery-embedded .recovery-help { display: none; }
+}
+
+@media (max-width: 767px) {
+  .login-page.sign-in-page {
+    min-height: 100svh;
+    height: auto;
+    padding: 12px 10px !important;
+    overflow: clip;
+  }
+  .login-page.sign-in-page .login-card-shell { width: 100%; max-width: 310px; min-width: 0; margin-block: auto; }
+  .login-page.sign-in-page .login-card--split { flex-direction: column; min-height: 0; }
+  .login-page.sign-in-page .login-card__form { flex: 0 0 auto; width: 100%; min-width: 0; padding: 20px 12px 10px !important; }
+  .login-page.sign-in-page .login-card__illustration { padding: 8px 10px; }
+  .login-page.sign-in-page .login-illustration-stage { height: 40px; }
+  .login-page.sign-in-page .login-illustration #svg-global { height: 38px; }
+  .login-page.sign-in-page .login-welcome-copy { margin-top: 4px; }
+  .login-page.sign-in-page .login-welcome-copy h2 { font-size: 18px !important; margin-bottom: 3px; }
+  .login-page.sign-in-page .login-welcome-copy p { display: none; }
+  .login-page.sign-in-page .login-system-title { font-size: 11px !important; line-height: 1.35; }
+  .login-page.sign-in-page .login-card__form .login-input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    height: 44px;
+    min-height: 44px;
+    padding-block: 9px;
+    font-size: 16px !important;
+  }
+  .login-page.sign-in-page .login-card__form .login-button { min-height: 44px !important; padding: 10px 12px !important; font-size: 14px !important; white-space: normal; }
+  .login-page.sign-in-page .login-card__form label > span { font-size: 13px !important; margin-bottom: 5px; }
+  .login-page.sign-in-page .login-card__form form > * + * { margin-top: 5px; }
+  .login-page.sign-in-page .login-card__form img { width: 64px; height: 64px; margin-bottom: 6px; object-fit: contain; }
+  .login-page.sign-in-page .login-pams-title { font-size: 18px !important; }
+  .login-page.sign-in-page .recovery-embedded { width: 100%; min-width: 0; }
+  .login-page.sign-in-page .recovery-embedded .recovery-card { padding: 0; width: 100%; min-width: 0; }
+  .login-page.sign-in-page .recovery-embedded :is(.recovery-heading, .recovery-form, .recovery-help) { min-width: 0; overflow-wrap: anywhere; }
+  .login-page.sign-in-page .recovery-embedded .recovery-input-wrap .recovery-input { padding-left: 40px; }
+  .login-page.sign-in-page .recovery-embedded .recovery-brand { flex-direction: row; justify-content: center; padding-bottom: 8px; }
+  .login-page.sign-in-page .recovery-embedded .recovery-brand p { display: none; }
+  .login-page.sign-in-page .recovery-embedded .recovery-heading { padding: 8px 0; }
+  .login-page.sign-in-page .recovery-embedded .recovery-icon { display: none; }
+  .login-page.sign-in-page .recovery-embedded .recovery-eyebrow { margin-bottom: 4px; }
+  .login-page.sign-in-page .recovery-embedded .recovery-heading h1 { font-size: 18px !important; }
+  .login-page.sign-in-page .recovery-embedded .recovery-form { gap: 6px; }
+  .login-page.sign-in-page .recovery-embedded .recovery-help { display: none; }
+  .login-page.sign-in-page .recovery-embedded .recovery-footer { margin-top: 6px; padding-top: 6px; }
+  .auth-transition-layout .login-page.sign-in-page .login-card__form label > span { font-size: 14px !important; }
+  .auth-transition-layout .login-page.sign-in-page .login-card__form :is(label.flex, a, button:not(.login-button), .recovery-heading > p:last-child) { font-size: 14px !important; line-height: 1.4; }
+  .auth-transition-layout .login-page.sign-in-page .login-card__form > div:last-child p { font-size: 13px !important; }
+}
+
+/* Keep every authentication card the same compact size, including recovery. */
+.auth-transition-layout {
+  --auth-card-width: 620px;
+  --auth-card-height: min(420px, calc(100svh - 32px));
+}
+.auth-transition-layout .login-page :is(.login-card-shell, .recovery-card.auth-light-card) {
+  width: 100%;
+  max-width: var(--auth-card-width);
+  box-sizing: border-box;
+}
+.auth-transition-layout .login-page .login-card-shell > .login-card,
+.auth-transition-layout .forgot-password-page:not(.recovery-embedded) > .recovery-card {
+  height: var(--auth-card-height);
+  min-height: 0;
+  box-sizing: border-box;
+}
+.auth-transition-layout .registration-page .login-card,
+.auth-transition-layout .forgot-password-page:not(.recovery-embedded) > .recovery-card {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.auth-transition-layout .sign-in-page .login-card__form {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  justify-content: flex-start;
+}
+.auth-transition-layout .sign-in-page .login-panel-content { margin-block: auto; }
+@media (min-width: 768px) {
+  .auth-transition-layout .sign-in-page .login-card__illustration { min-height: 0; }
+  .auth-transition-layout .login-page :is(.login-input, .recovery-input) { font-size: 14px !important; min-height: 34px; height: 34px; padding-block: 5px; }
+  .auth-transition-layout .login-page :is(label > span, .recovery-label, label.flex, a, .recovery-back, .recovery-help p, .recovery-heading > p:last-child) { font-size: 12px !important; }
+  .auth-transition-layout .login-page .login-button { min-height: 34px; font-size: 13px !important; }
+  .auth-transition-layout .login-page :is(.login-pams-title, h1.register-pams-title, .recovery-heading h1, .recovery-brand__name) { font-size: 20px !important; }
+  .auth-transition-layout .login-page .login-welcome-copy h2 { font-size: 22px !important; }
+  .auth-transition-layout .login-page .login-welcome-copy p,
+  .auth-transition-layout .login-page .login-card__form > div:last-child p { font-size: 12px !important; }
+  .auth-transition-layout .sign-in-page .login-system-title { font-size: 14px !important; }
+}
+@media (max-width: 767px) {
+  .auth-transition-layout { --auth-card-width: 310px; --auth-card-height: min(540px, calc(100svh - 24px)); }
+  .auth-transition-layout .login-page.sign-in-page .login-card__illustration { flex: 0 0 auto; min-height: 0; }
+  .auth-transition-layout .login-page.sign-in-page .login-card__form { flex: 1 1 0; min-height: 0; padding-top: 14px !important; }
+  .auth-transition-layout .registration-page .login-card { padding: 14px; }
+  .auth-transition-layout .login-page :is(label > span, .recovery-label, label.flex, a, .recovery-back) { font-size: 12px !important; }
+  .auth-transition-layout .login-page.sign-in-page .login-card__form :is(label > span, label.flex, a, button:not(.login-button), .recovery-heading > p:last-child) { font-size: 12px !important; }
+  .auth-transition-layout .login-page.sign-in-page .login-card__form .login-input { height: 38px; min-height: 38px; padding-block: 6px; }
+  .auth-transition-layout .login-page.sign-in-page .login-card__form .login-button { min-height: 38px !important; padding-block: 7px !important; font-size: 13px !important; }
+}
+
+/* Fit the contents to the shared card rather than expanding its panels. */
+.auth-transition-layout .sign-in-page .login-panel-content > .text-center:first-child { margin-bottom: 8px; }
+.auth-transition-layout .sign-in-page .login-panel-content > form > * + * { margin-top: 6px; }
+.auth-transition-layout .sign-in-page .login-panel-content > form > label.flex { min-height: 24px; }
+.auth-transition-layout .sign-in-page .login-panel-content > button { margin-top: 8px; padding-block: 2px; font-size: 12px !important; }
+.auth-transition-layout .sign-in-page .login-panel-content > div:last-child:not(:first-child) { margin-top: 10px; padding-top: 8px; }
+.auth-transition-layout .sign-in-page .login-panel-content > div:last-child > a { margin-top: 5px; padding-block: 5px; }
+.auth-transition-layout .login-page .recovery-heading { padding-block: 6px; }
+.auth-transition-layout .login-page .recovery-heading h1 { margin-block: 3px; line-height: 1.2; }
+.auth-transition-layout .login-page .recovery-heading > p:last-child { margin-top: 4px; line-height: 1.35; }
+.auth-transition-layout .login-page .recovery-form { gap: 6px; }
+.auth-transition-layout .login-page .recovery-footer { margin-top: 8px; padding-top: 6px; }
+.auth-transition-layout .registration-page .login-card > form > fieldset { gap: 7px 12px; }
+.auth-transition-layout .registration-page .login-card > form > p { margin-top: 8px; font-size: 11px; line-height: 1.35; }
+.auth-transition-layout .registration-page .login-card > form > button { margin-top: 8px; padding-block: 6px; }
+.auth-transition-layout .registration-page .login-card > a { margin-top: 8px; }
+@media (min-width: 768px) {
+  .auth-transition-layout .sign-in-page .login-panel-content > .text-center:first-child img { width: 42px; height: 42px; margin-bottom: 3px; }
+  .auth-transition-layout .sign-in-page .login-card__form { padding-block: 12px; }
+  .auth-transition-layout .sign-in-page .login-card--recovery .login-card__form { padding-block: 12px; }
+  .auth-transition-layout .sign-in-page .login-illustration-stage { height: 160px; flex-shrink: 1; min-height: 0; }
+  .auth-transition-layout .sign-in-page .login-illustration #svg-global { height: 150px; max-height: 100%; }
+  .auth-transition-layout .registration-page .login-card { padding: 12px 18px; }
+  .auth-transition-layout .registration-page .login-card > .text-center { margin-bottom: 8px; }
+  .auth-transition-layout .registration-page .login-card > form > fieldset .login-input { height: 30px; min-height: 30px; }
+  .auth-transition-layout .login-page .recovery-brand img { width: 36px; height: 36px; }
+  .auth-transition-layout .login-page .recovery-form .recovery-input { height: 32px; min-height: 32px; padding-block: 4px; }
+  .auth-transition-layout .login-page .recovery-form .recovery-submit { min-height: 32px !important; padding-block: 5px !important; font-size: 12px !important; }
+  .auth-transition-layout .login-page .recovery-form .recovery-back { padding-block: 2px; line-height: 1.3; }
+}
+@media (max-width: 767px) {
+  .auth-transition-layout .registration-page .login-card > .text-center { margin-bottom: 8px; }
+  .auth-transition-layout .registration-page .login-card > .text-center img { width: 40px; height: 40px; margin-bottom: 4px; }
+  .auth-transition-layout .registration-page h1.register-pams-title { font-size: 18px !important; }
+  .auth-transition-layout .registration-page .login-card > .text-center p { margin-top: 3px; font-size: 11px; }
+  .auth-transition-layout .registration-page .login-card > form > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
+  .auth-transition-layout .registration-page .login-card > form > fieldset label > span { font-size: 11px !important; line-height: 1.3; }
+  .auth-transition-layout .registration-page .login-input { min-width: 0; height: 34px; min-height: 34px; padding: 5px 7px; font-size: 16px !important; }
+  .auth-transition-layout .sign-in-page .login-card__form img { width: 48px; height: 48px; margin-bottom: 3px; }
+}
+
+/* Compact desktop authentication cards with room for their contents. */
+@media (min-width: 768px) {
+  .auth-transition-layout { --auth-card-width: 680px; --auth-card-height: min(500px, calc(100svh - 48px)); }
+  .auth-transition-layout .sign-in-page .login-card__form,
+  .auth-transition-layout .sign-in-page .login-card--recovery .login-card__form { padding-block: 14px; }
+  .auth-transition-layout .sign-in-page .login-card__illustration { padding: 16px; }
+  .auth-transition-layout .sign-in-page .login-system-title { font-size: 14px !important; }
+  .auth-transition-layout .sign-in-page .login-illustration-stage { height: 160px; }
+  .auth-transition-layout .sign-in-page .login-illustration #svg-global { height: 150px; }
+  .auth-transition-layout .sign-in-page .login-panel-content > .text-center:first-child img { width: 50px; height: 50px; margin-bottom: 4px; }
+  .auth-transition-layout .sign-in-page .login-panel-content > .text-center:first-child { margin-bottom: 10px; }
+  .auth-transition-layout .login-page :is(.login-pams-title, h1.register-pams-title, .recovery-brand__name) { font-size: 24px !important; }
+  .auth-transition-layout .login-page :is(label > span, .recovery-label, label.flex, a, .recovery-back) { font-size: 14px !important; }
+  .auth-transition-layout .login-page :is(.login-input, .recovery-input),
+  .auth-transition-layout .login-page .recovery-form .recovery-input,
+  .auth-transition-layout .registration-page .login-card > form > fieldset .login-input { height: 38px; min-height: 38px; font-size: 14px !important; }
+  .auth-transition-layout .sign-in-page .login-panel-content > form > * + * { margin-top: 8px; }
+  .auth-transition-layout .sign-in-page .login-panel-content > button { font-size: 13px !important; margin-top: 12px; }
+  .auth-transition-layout .registration-page .login-card { padding: 16px 20px; }
+  .auth-transition-layout .registration-page .login-card > form > fieldset { gap: 8px 14px; }
+  .auth-transition-layout .registration-page .login-card > .text-center { margin-bottom: 10px; }
+  .auth-transition-layout .login-page .recovery-form { gap: 10px; }
+  .auth-transition-layout .login-page .recovery-heading h1 { font-size: 21px !important; }
+}
+
+/* Center registration branding and actions while keeping all fields compact. */
+.auth-transition-layout .registration-page .login-card {
+  display: flex;
+  flex-direction: column;
+}
+.auth-transition-layout .registration-page .login-card > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  min-width: 0;
+}
+.auth-transition-layout .registration-page .login-card > form > p {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.auth-transition-layout .registration-page .login-card > .text-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.auth-transition-layout .registration-page .login-card > .text-center img {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 2px;
+}
+.auth-transition-layout .registration-page .login-card > .text-center p { margin: 0; font-size: 11px; line-height: 1.3; }
+.auth-transition-layout .registration-page .login-card > form > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 300px);
+  margin: auto auto 0;
+  min-height: 32px;
+  text-align: center;
+}
+.auth-transition-layout .registration-page .login-card > a {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin: 8px auto 0;
+  padding: 0;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+@media (min-width: 768px) {
+  .auth-transition-layout .registration-page .login-card { padding: 12px 20px; }
+  .auth-transition-layout .registration-page h1.register-pams-title { font-size: 20px !important; line-height: 1.2; }
+  .auth-transition-layout .registration-page .login-card > form > fieldset { gap: 6px 14px; }
+  .auth-transition-layout .registration-page .login-card > form > fieldset label > span { margin-bottom: 2px; font-size: 12px !important; line-height: 1.3; }
+  .auth-transition-layout .registration-page .login-card > form > fieldset .login-input { height: 32px; min-height: 32px; padding-block: 4px; }
+  .auth-transition-layout .registration-page .login-card > form > p { margin-top: 6px; }
+}
+
+/* Match account recovery branding and navigation to the login panel. */
+.auth-transition-layout .login-page .forgot-password-page .recovery-brand,
+.auth-transition-layout .login-page.forgot-password-page .recovery-brand {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+.auth-transition-layout .login-page .recovery-brand img { width: 50px; height: 50px; margin: 0 auto; }
+.auth-transition-layout .login-page .recovery-brand p { display: none; }
+.auth-transition-layout .login-page .recovery-footer .recovery-back {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid rgb(255 255 255 / 50%);
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: none;
+}
+.auth-transition-layout .login-page .recovery-footer .recovery-back:hover:not(:disabled) {
+  background: rgb(255 255 255 / 10%);
+  color: #fff;
+  text-decoration: none;
+  transform: none;
+}
+@media (min-width: 768px) {
+  .auth-transition-layout .login-page .recovery-form .recovery-input { font-size: 13px !important; }
+  .auth-transition-layout .login-page .recovery-form .recovery-input::placeholder { font-size: 13px; }
+}
+@media (max-width: 767px) {
+  .auth-transition-layout .login-page .recovery-form .recovery-input { font-size: 16px !important; }
+  .auth-transition-layout .login-page .recovery-form .recovery-input::placeholder { font-size: 13px; }
+}
+
+.auth-transition-layout .sign-in-page .login-panel-content > button,
+.auth-transition-layout .registration-page .login-card > a {
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 50%);
+  background: transparent;
+  color: #fff;
+  min-height: 36px;
+  padding: 7px 12px;
+  text-decoration: none;
+  box-shadow: none;
+  transition: background-color .2s ease, color .2s ease;
+}
+.auth-transition-layout .sign-in-page .login-panel-content > button:hover:not(:disabled),
+.auth-transition-layout .registration-page .login-card > a:hover {
+  background: rgb(255 255 255 / 10%);
+  color: #fff;
+  text-decoration: none;
+  transform: none;
+}
+.auth-transition-layout .sign-in-page .login-panel-content > button:focus-visible,
+.auth-transition-layout .registration-page .login-card > a:focus-visible {
+  outline: 2px solid #d5e59d;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-transition-layout .sign-in-page .login-panel-content > button,
+  .auth-transition-layout .registration-page .login-card > a { transition: none; }
+}
+
+.auth-transition-layout .registration-page .login-card > form > button,
+.auth-transition-layout .registration-page .login-card > a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: min(100%, 300px);
+  min-height: 36px;
+  padding: 7px 12px;
+  line-height: 1.4;
+  text-align: center;
+  margin-inline: auto;
+}
+
+/* Use one text style across authentication controls, retaining title sizes. */
+.auth-transition-layout .login-page {
+  --auth-text-size: 12px;
+  font-family: var(--app-font-family);
+}
+.auth-transition-layout .login-page.login-page.login-page :is(
+  input, select, textarea, button, a, label, label > span,
+  p:not(.login-system-title), .recovery-label, .recovery-eyebrow,
+  .login-button-content, .login-button-content > span,
+  .auth-field__outline > legend, .auth-field__outline > legend > span
+) {
+  font-family: var(--app-font-family) !important;
+  font-size: var(--auth-text-size) !important;
+  line-height: 1.35;
+}
+.auth-transition-layout .login-page.login-page.login-page :is(input, textarea)::placeholder {
+  font-family: var(--app-font-family);
+  font-size: var(--auth-text-size) !important;
+}
+.auth-transition-layout .login-page :is(h1, h2, .login-pams-title, .recovery-brand__name, .login-system-title) {
+  font-family: var(--app-font-family) !important;
+}
+
+.auth-transition-layout .sign-in-page .login-panel-content > div:last-child:not(:first-child) {
+  margin-top: 30px;
+  padding-top: 16px;
+}
+.auth-transition-layout .registration-page .login-card > form > button,
+.auth-transition-layout .registration-page .login-card > a {
+  box-sizing: border-box !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  flex: 0 0 34px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgb(255 255 255 / 50%);
+  border-radius: 8px;
+}
+
+@media (max-width: 767px) {
+  .auth-transition-layout .registration-page .login-card > form > button,
+  .auth-transition-layout .registration-page .login-card > a {
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    flex-basis: 38px !important;
+  }
+}
+
+/* Native legend notches keep transparent labels and rounded corners connected. */
+.auth-transition-layout .login-page .auth-field { display: block; min-width: 0; }
+.auth-transition-layout .login-page .auth-field__outline {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 52%);
+  border-radius: 10px;
+  background: transparent;
+}
+.auth-transition-layout .login-page .auth-field__outline > legend {
+  margin-left: 12px;
+  padding: 0 5px;
+  max-width: calc(100% - 24px);
+}
+.auth-transition-layout .login-page .auth-field__outline > legend > span {
+  display: inline;
+  margin: 0;
+  background: transparent;
+  color: #eef8ee;
+}
+.auth-transition-layout .login-page .auth-field:has(:required:not(:disabled)) legend > span::after {
+  content: ' *'; color: #dc2626; font-weight: 700;
+}
+.auth-transition-layout .login-page .auth-field__control {
+  min-width: 0;
+  margin-top: -8px;
+  padding: 4px 0;
+}
+.auth-transition-layout .login-page .auth-field .login-input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+}
+.auth-transition-layout .login-page .auth-field__outline:focus-within {
+  border-color: rgb(255 255 255 / 92%);
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 15%);
+}
+.auth-transition-layout .login-page .auth-field__outline:focus-within legend > span { color: #d9f99d; }
+.auth-transition-layout .login-page .auth-field:has([aria-invalid="true"]) .auth-field__outline { border-color: #f87171; }
+
+.auth-transition-layout .registration-page .login-card .auth-field .login-input {
+  height: 28px;
+  min-height: 28px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.auth-transition-layout .registration-page .login-card .auth-field__outline > legend {
+  line-height: 14px;
+}
+.auth-transition-layout .registration-page .login-card > form > fieldset {
+  align-items: start;
+  gap: 5px 12px;
+}
+
+.auth-transition-layout .login-page.sign-in-page .login-card__form .auth-field .login-input,
+.auth-transition-layout .login-page.forgot-password-page .recovery-form .auth-field .recovery-input {
+  height: 28px;
+  min-height: 28px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.auth-transition-layout .login-page .auth-field__control :is(.recovery-input-wrap > svg, .relative > span > svg, .relative > button > svg) {
+  width: 16px;
+  height: 16px;
+}
+.auth-transition-layout .login-page.login-page.login-page .auth-field .login-input {
+  display: block;
+  box-sizing: border-box;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: normal;
+}
+
+/* Hide browser autofill paint while preserving the transparent glass fields. */
+.auth-transition-layout .login-page .auth-field .login-input:autofill {
+  background-color: transparent !important;
+  background-clip: text !important;
+  color: #fff !important;
+  caret-color: #fff;
+  box-shadow: none !important;
+}
+.auth-transition-layout .login-page .auth-field .login-input:-webkit-autofill,
+.auth-transition-layout .login-page .auth-field .login-input:-webkit-autofill:hover,
+.auth-transition-layout .login-page .auth-field .login-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+  background-color: transparent !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-box-shadow: none !important;
+  box-shadow: none !important;
+}
+
+.auth-transition-layout .sign-in-page .login-submit { position: relative; }
+.auth-transition-layout .sign-in-page .login-submit__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  padding-inline: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.auth-transition-layout .sign-in-page .login-submit__loading > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Form wrappers remain visually neutral in tables, filters, and print. */
+.form-field__outline,
+.form-field__outline > legend,
+.form-field__control { display: contents; margin: 0; padding: 0; border: 0; min-width: 0; }
+@media screen {
+  .form-document .form-field:not(table *, .table-scroll *) { display: block; min-width: 0; }
+  .form-document .form-field:not(table *, .table-scroll *) > .form-field__outline {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 1px solid rgba(45, 104, 70, .35);
+    border-radius: 10px;
+    background: transparent;
+  }
+  .form-document .form-field:not(table *, .table-scroll *) > .form-field__outline > legend {
+    display: table;
+    width: auto;
+    max-width: calc(100% - 24px);
+    margin-left: 12px;
+    padding: 0 5px;
+    line-height: 1.35;
+  }
+  .form-document .form-field:not(table *, .table-scroll *) > .form-field__outline > legend > span {
+    display: inline;
+    margin: 0;
+    background: transparent;
+    color: #254b3b;
+  }
+  .form-field:has(:is(input, select, textarea):required:not(:disabled):not([readonly])) > .form-field__outline > legend > span::after {
+    content: ' *'; color: #dc2626; font-weight: 700;
+  }
+  .form-document .form-field:not(table *, .table-scroll *) > .form-field__outline > .form-field__control {
+    display: block;
+    min-width: 0;
+    margin-top: -8px;
+    padding: 4px 0;
+  }
+  .form-document .form-field:not(table *, .table-scroll *) :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .form-document .form-field:not(table *, .table-scroll *) :is(input, select, textarea):focus { outline: none; }
+  .form-document .form-field:not(table *, .table-scroll *) > .form-field__outline:focus-within {
+    border-color: #23834b;
+    box-shadow: 0 0 0 2px rgb(35 131 75 / 12%);
+  }
+  .form-document .form-field:not(table *, .table-scroll *):has(:is([aria-invalid='true'], :user-invalid)) > .form-field__outline {
+    border-color: #dc2626;
+  }
 }
 
 .app-shell main :is(.user-issued-items-table, .user-returns-table) thead,
@@ -2635,6 +3382,158 @@ body { font-size: var(--app-text-size); }
   }
 }
 
+/* Layered document summaries with a colored frame and folded icon tab. */
+.dashboard-page .document-summary {
+  --document-accent: #059669;
+  position: relative;
+  min-width: 0;
+  height: 124px;
+  box-sizing: border-box;
+  padding: 6px 0 6px 9px;
+  isolation: isolate;
+}
+.document-summary--propertyCards { --document-accent: #0284c7 !important; }
+.document-summary--ris { --document-accent: #9333ea !important; }
+.document-summary--ics { --document-accent: #f59e0b !important; }
+.document-summary--par { --document-accent: #4f46e5 !important; }
+.document-summary::before {
+  content: '';
+  position: absolute;
+  inset: 0 13px 0 0;
+  border-radius: 20px;
+  background: var(--document-accent);
+  box-shadow: 0 5px 12px rgb(15 23 42 / 8%);
+  z-index: -1;
+}
+.dashboard-page .document-summary__panel {
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: 45px 22px 13px;
+  align-content: center;
+  row-gap: 2px;
+  padding: 8px 10px 8px 39px;
+  border: 1px solid rgb(255 255 255 / 90%);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff, #f8faf9);
+  box-shadow: 0 5px 14px rgb(15 23 42 / 10%);
+}
+.dashboard-page .document-summary__tab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 41px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 9px;
+  color: #fff;
+  background: var(--document-accent);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 38% 86%, 0 100%);
+  border-radius: 20px 0 0 0;
+}
+.dashboard-page .document-summary__title {
+  color: var(--document-accent);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 15px;
+  min-height: 0;
+}
+.dashboard-page .document-summary__total { margin: 0; font-size: 20px; font-weight: 700; line-height: 22px; color: #1e293b; }
+.dashboard-page .document-summary__caption { margin: 0; font-size: 10px; line-height: 13px; color: #64748b; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .dashboard-page .document-summary {
+    transition: translate .22s ease;
+    cursor: default;
+  }
+  .dashboard-page .document-summary__panel {
+    transition: box-shadow .22s ease;
+  }
+  .dashboard-page .document-summary:hover { translate: 0 -4px; }
+  .dashboard-page .document-summary:hover .document-summary__panel {
+    box-shadow: 0 10px 20px rgb(15 23 42 / 17%);
+  }
+  .dashboard-page :is(.dashboard-other .minimal-surface, .dashboard-return-summary, .dashboard-monthly, .dashboard-activity) {
+    transition: translate .22s ease, box-shadow .22s ease;
+    cursor: default;
+  }
+  .dashboard-page :is(.dashboard-other .minimal-surface, .dashboard-return-summary, .dashboard-monthly, .dashboard-activity):hover {
+    translate: 0 -3px;
+    box-shadow: 0 10px 20px rgb(15 23 42 / 12%);
+  }
+}
+@media (min-width: 641px) and (max-width: 1100px) {
+  .dashboard-page .dashboard-issue > .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+}
+@media (max-width: 640px) {
+  .dashboard-page .dashboard-issue > .grid { gap: 12px; }
+  .dashboard-page .document-summary__panel { padding-left: 35px; }
+  .dashboard-page .document-summary__tab { width: 37px; }
+}
+
+.dashboard-page .dashboard-other > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.dashboard-page .other-summary {
+  --other-accent: #059669;
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  height: 112px;
+  padding-bottom: 9px;
+  cursor: default;
+}
+.dashboard-page .other-summary--prs { --other-accent: #166534; }
+.other-summary::before {
+  content: '';
+  position: absolute;
+  inset: 13px 14px 0 0;
+  z-index: -1;
+  border-radius: 23px;
+  background: var(--other-accent);
+  box-shadow: 0 5px 12px rgb(15 23 42 / 12%);
+}
+.dashboard-page .other-summary__count {
+  position: absolute;
+  left: 17px;
+  bottom: 17px;
+  color: white;
+  font-size: 29px;
+  font-weight: 700;
+  line-height: 1;
+}
+.dashboard-page .other-summary__panel {
+  position: relative;
+  height: 100%;
+  margin-left: 42px;
+  padding: 16px 17px 16px 51px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  filter: drop-shadow(0 5px 5px rgb(15 23 42 / 12%));
+}
+.other-summary__panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(135deg, #fff, #f8faf9);
+  border-radius: 20px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 20% 100%);
+}
+.dashboard-page .other-summary__icon { flex-shrink: 0; color: var(--other-accent); }
+.dashboard-page .other-summary__number { flex-shrink: 0; color: var(--other-accent); font-size: 25px; font-weight: 700; line-height: 1; }
+.dashboard-page .other-summary__copy { min-width: 0; }
+.dashboard-page .other-summary__title { font-size: 13px; font-weight: 700; line-height: 1.35; color: #334155; }
+.dashboard-page .other-summary__caption { margin-top: 6px; font-size: 11px; color: #64748b; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .dashboard-page .other-summary { transition: translate .22s ease; }
+  .dashboard-page .other-summary:hover { translate: 0 -3px; }
+}
+@media (max-width: 640px) {
+  .dashboard-page .dashboard-other > .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Saved lists use adjoining rows, like the stock table. */
 .app-shell main .saved-records > .saved-record,
 .app-shell main .saved-records > :has(> .saved-record) {
@@ -2655,10 +3554,10 @@ body { font-size: var(--app-text-size); }
   box-shadow: none;
 }
 
-/* New documents use a soft red background with readable dark text. */
+/* Highlight new documents across saved lists with a pale green row. */
 .app-shell main .saved-records .saved-record:is(:has(> .recent-form-marker), .animate-pulse) {
-  background: #f2cccc !important;
-  border-color: rgb(185 64 64 / 35%) !important;
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
   --tw-ring-color: transparent !important;
   box-shadow: none !important;
 }
@@ -2699,24 +3598,43 @@ body { font-size: var(--app-text-size); }
   align-self: center;
 }
 
-/* Keep new-document text legible against the red row background. */
-.app-shell main .saved-records .saved-record:is(:has(> .recent-form-marker), .animate-pulse) > div:not(:has(button, a)),
-.app-shell main .saved-records .saved-record:is(:has(> .recent-form-marker), .animate-pulse) > div:not(:has(button, a)) :is(div, p, span, h3, b, strong) {
-  color: #472626 !important;
-}
-
 /* Keep issued status and export controls together in compact rows. */
 .app-shell main .saved-record.ris-approved-record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   padding: 8px 16px;
   row-gap: 0;
 }
-.app-shell main .saved-record.ris-approved-record > .ris-record-actions {
+.app-shell main .saved-record.ris-approved-record > div:not(.ris-record-actions) {
+  grid-column: 1;
   grid-row: 1;
+  min-width: 0;
+}
+.app-shell main .saved-record.ris-approved-record > .ris-record-actions {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  justify-content: flex-end;
   align-self: center;
   gap: 8px;
 }
 .app-shell main .saved-record.ris-approved-record > .ris-record-actions > div:empty {
   display: none;
+}
+@media (max-width: 767px) {
+  .app-shell main .saved-record.ris-approved-record {
+    column-gap: 10px;
+    padding: 12px;
+  }
+  .app-shell main .saved-record.ris-approved-record > .ris-record-actions {
+    width: auto;
+    margin: 0;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .app-shell main .saved-record.ris-approved-record > .ris-record-actions > div {
+    justify-content: flex-end;
+  }
 }
 
 /* Reserve scrollbar and border space so sidebar labels never jump on hover. */
@@ -2731,4 +3649,120 @@ body { font-size: var(--app-text-size); }
 }
 .app-shell .sidebar-shell nav :is(a, button):hover {
   border-color: rgb(255 255 255 / 24%) !important;
+}
+
+/* Keep dashboard content in normal flow so compact cards cannot crowd charts. */
+.dashboard-main .dashboard-page.dashboard-compact {
+  display: grid;
+  height: auto;
+  min-height: 0;
+  grid-template-rows: none;
+  gap: 12px;
+}
+.dashboard-page.dashboard-compact > * + * { margin-top: 0 !important; }
+.dashboard-page.dashboard-compact .dashboard-results {
+  display: grid;
+  grid-template-columns: minmax(0, 2.5fr) minmax(250px, 1fr);
+  grid-template-rows: auto;
+  align-items: stretch;
+  gap: 12px;
+}
+.dashboard-page.dashboard-compact .dashboard-charts {
+  display: grid;
+  grid-column: auto;
+  grid-template-rows: auto auto;
+  gap: 12px;
+  min-width: 0;
+}
+.dashboard-page.dashboard-compact .dashboard-activity-column { display: grid; grid-column: auto; min-width: 0; }
+.dashboard-page.dashboard-compact .dashboard-breakdowns {
+  grid-column: auto;
+  grid-row: auto;
+  height: auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: stretch;
+}
+.dashboard-page.dashboard-compact .dashboard-breakdowns > .minimal-surface {
+  height: auto;
+  min-height: 0;
+  padding: 12px;
+}
+.dashboard-page.dashboard-compact .dashboard-return-chart {
+  display: grid;
+  grid-template-rows: 150px auto;
+  height: auto;
+  gap: 8px;
+  flex: none;
+}
+.dashboard-page.dashboard-compact .dashboard-return-pie { height: 150px; min-height: 0; }
+.dashboard-page.dashboard-compact .dashboard-return-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; padding: 0; }
+.dashboard-page.dashboard-compact .monthly-report-chart { height: 190px; min-height: 190px; flex: none; }
+.dashboard-page.dashboard-compact .dashboard-reports { grid-column: auto; grid-row: auto; }
+.dashboard-page.dashboard-compact .dashboard-activity { grid-column: auto; grid-row: auto; height: auto; min-height: 0; }
+.dashboard-page.dashboard-compact .dashboard-activity > .overflow-y-auto { height: 300px; max-height: 300px; flex: 1 1 auto; }
+.dashboard-page.dashboard-compact .document-summary { height: 112px; }
+.dashboard-page.dashboard-compact .document-summary__panel { grid-template-rows: 45px 24px; row-gap: 8px; align-content: center; }
+.dashboard-page .document-summary__stats { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.dashboard-page .document-summary__stats .document-summary__caption { white-space: nowrap; }
+.dashboard-page.dashboard-compact .dashboard-other > h2 { margin-bottom: 6px; }
+.dashboard-page.dashboard-compact .dashboard-other > .grid { gap: 10px; }
+.dashboard-page.dashboard-compact .dashboard-charts { gap: 8px; }
+.dashboard-page.dashboard-compact .other-summary { height: 68px; padding-bottom: 6px; }
+.dashboard-page.dashboard-compact .other-summary::before { inset: 8px 10px 0 0; border-radius: 16px; }
+.dashboard-page.dashboard-compact .other-summary__panel { margin-left: 32px; padding: 7px 10px 7px 54px; gap: 10px; }
+.dashboard-page.dashboard-compact .other-summary__panel::before { border-radius: 14px; clip-path: polygon(0 0, 100% 0, 100% 100%, 14% 100%); }
+.dashboard-page.dashboard-compact .other-summary__caption { margin-top: 3px; }
+.dashboard-page.dashboard-compact .other-summary__count { font-size: 25px; left: 12px; bottom: 12px; }
+@media (min-width: 1101px) and (min-height: 500px) {
+  .app-shell main.dashboard-main { overflow-y: auto; }
+  .dashboard-main .dashboard-container { height: 100%; min-height: 0; }
+  .dashboard-main .dashboard-page.dashboard-compact {
+    height: 100%;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .dashboard-main .dashboard-page.dashboard-compact:has(> .text-rose-700) {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .dashboard-page.dashboard-compact .dashboard-results {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .dashboard-page.dashboard-compact .dashboard-charts {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .dashboard-page.dashboard-compact .dashboard-breakdowns {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .dashboard-page.dashboard-compact .dashboard-breakdowns > .minimal-surface {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .dashboard-page.dashboard-compact .dashboard-return-chart {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .dashboard-page.dashboard-compact .dashboard-return-pie { height: 100%; min-height: 0; }
+  .dashboard-page.dashboard-compact .monthly-report-chart { height: 0; min-height: 0; flex: 1 1 0; }
+  .dashboard-page.dashboard-compact .dashboard-activity-column { min-height: 0; grid-template-rows: minmax(0, 1fr); }
+  .dashboard-page.dashboard-compact .dashboard-activity { height: 100%; min-height: 0; box-sizing: border-box; }
+  .dashboard-page.dashboard-compact .dashboard-activity > .overflow-y-auto {
+    height: 0;
+    min-height: 0;
+    max-height: none;
+    flex: 1 1 0;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 1100px) {
+  .dashboard-page.dashboard-compact .dashboard-results { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-page.dashboard-compact .dashboard-issue > .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .dashboard-page.dashboard-compact .dashboard-issue > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-page.dashboard-compact .dashboard-breakdowns { grid-template-columns: minmax(0, 1fr); }
 }

@@ -7,7 +7,7 @@ import { FORM_PDF_A4_PORTRAIT, FORM_PDF_MARGIN } from '../src/utils/formPdfStyle
 
 function assertLayout(runs) {
   for (const run of runs) {
-    assert.equal(run.size, 9);
+    assert.equal(run.size, run.section === 'form title' ? 16 : 9);
     assert.ok(run.x >= run.bounds.x, run.text);
     assert.ok(run.x + run.width <= run.bounds.x + run.bounds.width + .01, run.text);
     assert.ok(run.y >= run.bounds.top - run.bounds.height, run.text);
@@ -40,7 +40,7 @@ test('PTR header values follow their captions on retained underlines in PDF and 
   const pdf = await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(), 1);
   assert.deepEqual(pdf.getPage(0).getSize(), { width: FORM_PDF_A4_PORTRAIT[0], height: FORM_PDF_A4_PORTRAIT[1] });
-  for (const value of ['Trust Fund', 'CATHERINE LAGERA', 'CHERIE MAE FRANCISCO', '2026-10-001', '10/8/2026']) assert.ok(runs.some(run => run.text === value), value);
+  for (const value of ['Trust Fund', 'CATHERINE LAGERA', 'CHERIE MAE FRANCISCO', '2026-10-001', '10/08/2026']) assert.ok(runs.some(run => run.text === value), value);
   for (const caption of ['Entity Name:', 'Fund Cluster:', 'From Accountable Officer/Agency/Fund Cluster:', 'To Accountable Officer/Agency/Fund Cluster:', 'PTR No.:', 'Date:']) {
     const label = runs.find(run => run.section === caption && run.fieldRole === 'label');
     const value = runs.find(run => run.section === caption && run.fieldRole === 'value');
@@ -59,7 +59,7 @@ test('PTR columns keep dates, property numbers and large amounts intact with bal
   const runs = [];
   const propertyNumber = 'CARIGARA-PPE-2026-000123';
   const pdf = await PDFDocument.load(await buildPtrPdf({ items: [{ dateAcquired: '2026-10-08', propertyNumber, description: 'Laptop computer with charger and carrying case', amount: 1234567890123.45, condition: 'Serviceable' }] }, { onDraw: run => runs.push(run) }));
-  for (const [section, value] of [['item:0', '10/8/2026'], ['item:1', propertyNumber], ['item:3', '1,234,567,890,123.45']]) assert.deepEqual(runs.filter(run => run.section === section).map(run => run.text), [value]);
+  for (const [section, value] of [['item:0', '10/08/2026'], ['item:1', propertyNumber], ['item:3', '1,234,567,890,123.45']]) assert.deepEqual(runs.filter(run => run.section === section).map(run => run.text), [value]);
   assertLayout(runs);
   for (const run of runs.filter(run => ['item:0', 'item:1', 'item:3'].includes(run.section))) {
     const upper = run.bounds.top - (run.y + run.ascent);
@@ -105,7 +105,7 @@ test('PTR signatory captions, names and positions are capitals and every signato
     assert.ok(Math.abs(run.x - (run.bounds.x + (run.bounds.width - run.width) / 2)) < .01, `${run.text}: centered`);
   }
   assert.equal(signatories.filter(run => run.section === 'signatory:name' && run.fieldRole === 'value').map(run => run.text).join(' '), `${person.name.toUpperCase()} CATHERINE LAGERA ${person.name.toUpperCase()}`);
-  assert.ok(signatories.some(run => run.text === '10/8/2026' && run.section === 'signatory:date'));
+  assert.ok(signatories.some(run => run.text === '10/08/2026' && run.section === 'signatory:date'));
   assert.ok(runs.some(run => run.text === 'Laptop computer'), 'General item text keeps its original case');
   assertLayout(runs);
 });

@@ -1,3 +1,4 @@
+import FormField from '../components/FormField';
 import { formNumber, formNumberData } from '../utils/formNumbers';
 import FormNumberInput from '../components/FormNumberInput';
 import DateInput from '../components/DateInput';
@@ -451,51 +452,51 @@ export default function PtrPage() {
     };
 
     const field = (label, key, type = 'text') => key === 'fromAccountableOfficer' && returnDraftItem ? (
-        <label className="block">
+        <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <input aria-label={label} readOnly value={form.fromAccountableOfficer} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" />
-        </label>
+        </FormField>
     ) : key === 'fromAccountableOfficer' && !isUser && !editingId && !returnDraftItem ? (
-        <label className="block">
+        <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <SearchInput required aria-label={label} placeholder="Search accountable officer" value={form.fromAccountableOfficer || ''} options={fromAccountableOptions} openOnFocus onChange={value => { setSelectedFromAccountableUserId(''); update('fromAccountableOfficer', value); }} onSelect={option => { setSelectedFromAccountableUserId(option.value); update('fromAccountableOfficer', option.label); }} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" />
-        </label>
+        </FormField>
     ) : key === 'toAccountableOfficer' && returnDraftItem ? (
-        <label className="block">
+        <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">To New Accountable Officer</span>
             <SearchInput required aria-label="To New Accountable Officer" placeholder="Search To New Accountable Officer" value={form.toAccountableOfficer || ''} options={people.filter(person => String(person._id) !== String(returnDraftItem.returnedBy?.user || '')).map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => setForm(previous => ({ ...previous, toAccountableOfficer: value, toUser: '', receivedBy: { ...previous.receivedBy, user: undefined, name: '', designation: '' } }))} onSelect={option => { const person = people.find(row => row._id === option.value); if (person) setForm(previous => ({ ...previous, toUser: person._id, toAccountableOfficer: person.name, receivedBy: { ...previous.receivedBy, user: person._id, name: person.name, designation: person.office || '', date: todayManila() } })); }} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-        </label>
-    ) : key === 'toAccountableOfficer' && isUser && !editingId ? <label className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></label> : key === 'entityName' && returnDraftItem ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} readOnly value={form.entityName} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></label> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
-        <label className="block">
+        </FormField>
+    ) : key === 'toAccountableOfficer' && isUser && !editingId ? <FormField className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></FormField> : key === 'entityName' && returnDraftItem ? <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} readOnly value={form.entityName} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></FormField> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
+        <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <SearchInput aria-label={label} placeholder={`Enter ${label.toLowerCase()}`} value={form[key] || ''} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => setForm(previous => ({ ...previous, [key]: value, ...(key === 'toAccountableOfficer' ? { toUser: '' } : {}) }))} onSelect={key === 'toAccountableOfficer' ? option => { const person = people.find(row => row._id === option.value); if (person) setForm(previous => ({ ...previous, toUser: person._id, toAccountableOfficer: person.name })); } : undefined} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-        </label>
+        </FormField>
     ) : (
-        <label className="block">
+        <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <DateInput required aria-label={label} readOnly={(key === 'ptrNumber' && !editingId) || (isUser && key === 'fromAccountableOfficer') || (returnDraftItem && key === 'date')} type={type} placeholder={key === 'entityName' ? 'e.g., Municipality of Carigara' : key === 'fundCluster' ? 'e.g., General Fund' : key === 'ptrNumber' ? 'Assigned on save' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-        </label>
+        </FormField>
     );
 
     const signatoryFields = (label, section) => (
-        <div className="rounded-xl border border-slate-200 p-4">
+        <div className="form-signatory-panel rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
-                <label className="block">
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
                     {section === 'receivedBy' ? <SearchInput aria-label="Received By Name" placeholder="Enter name or select a custodian" value={form[section].name} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => updateSignatory(section, 'name', value)} onSelect={option => {
                         const person = people.find(row => row._id === option.value);
                         if (person) setForm(previous => ({ ...previous, [section]: { ...previous[section], name: person.name, designation: person.office || previous[section].designation } }));
                     }} className="w-full rounded-xl border border-slate-200 px-3 py-2" /> : <SignatoryValue value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="ptr" role={section} field="name" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />}
-                </label>
-                <label className="block">
+                </FormField>
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
                     <SignatoryValue  value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="ptr" role={section} field="designation" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
-                </label>
-                <label className="block">
+                </FormField>
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
                     <DateInput required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                </label>
+                </FormField>
             </div>
         </div>
     );
@@ -678,7 +679,7 @@ export default function PtrPage() {
                 <fieldset disabled={workflow} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-3">
                     {field('Entity Name', 'entityName')}
-                    {returnDraftItem ? <label className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Fund Cluster</span><input aria-label="Fund Cluster" readOnly value={form.fundCluster} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></label> : <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />}
+                    {returnDraftItem ? <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">Fund Cluster</span><input aria-label="Fund Cluster" readOnly value={form.fundCluster} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></FormField> : <FundClusterField value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />}
                     {field('PTR No.', 'ptrNumber')}
                     {field('From Accountable Officer', 'fromAccountableOfficer')}
                     {field('To Accountable Officer', 'toAccountableOfficer')}
@@ -756,14 +757,14 @@ export default function PtrPage() {
                 {!isUser && !workflow && !returnDraftItem && <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>}
 
                 <div className="mt-6 grid gap-3 md:grid-cols-2">
-                    <label className="block">
+                    <FormField className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks (optional)</span>
                         <textarea readOnly={Boolean(returnDraftItem)} value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
-                    </label>
-                    <label className="block">
+                    </FormField>
+                    <FormField className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Reason for Transfer</span>
                         <textarea required readOnly={Boolean(returnDraftItem)} value={form.reasonForTransfer} onChange={(e) => update('reasonForTransfer', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
-                    </label>
+                    </FormField>
                 </div>
 
                 <fieldset disabled={Boolean(returnDraftItem)} className="mt-6 grid gap-4 md:grid-cols-2">

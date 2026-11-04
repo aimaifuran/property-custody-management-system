@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PDFDocument, PDFDict, PDFName, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
-import { embedFormFonts, preloadFormFonts } from '../src/utils/formPdfFonts.js';
+import { embedFormFonts, embedPrintFonts, preloadFormFonts } from '../src/utils/formPdfFonts.js';
+
+test('print body uses the ICS-style font while form titles retain Times New Roman', async () => {
+  const document = await PDFDocument.create();
+  const fonts = await embedPrintFonts(document);
+  assert.equal(fonts.regular.name, 'Helvetica');
+  assert.equal(fonts.bold.name, 'Helvetica-Bold');
+  assert.equal(fonts.italic.name, 'Helvetica-Oblique');
+  assert.ok(fonts.titleBold.name.includes('TimesNewRoman'));
+  assert.ok(fonts.titleRegular.name.includes('TimesNewRoman'));
+});
 
 test('repeated font requests reuse document fonts while independent PDFs retain separate subsets', async () => {
   await preloadFormFonts(['regular', 'bold']);

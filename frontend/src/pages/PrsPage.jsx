@@ -1,3 +1,4 @@
+import FormField from '../components/FormField';
 import { formNumber, formNumberData } from '../utils/formNumbers';
 import FormNumberInput from '../components/FormNumberInput';
 import DateInput from '../components/DateInput';
@@ -347,18 +348,18 @@ export default function PrsPage() {
         <fieldset disabled={disabled} className="min-w-0 rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
-                <label className="block">
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
                     <DateInput required aria-label={`${label} Date`} type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
-                </label>
-                <label className="block">
+                </FormField>
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Name</span>
                     <SignatoryValue  aria-label={`${label} Name`} value={form[section].name} onChange={(e) => updateSignatory(section, 'name', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="prs" role={section} field="name" managed={(!editingId || canReceive) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
-                </label>
-                <label className="block">
+                </FormField>
+                <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
                     <SignatoryValue  aria-label={`${label} Designation`} value={form[section].designation} onChange={(e) => updateSignatory(section, 'designation', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" formType="prs" role={section} field="designation" managed={(!editingId || canReceive) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
-                </label>
+                </FormField>
             </div>
         </fieldset>
     );
@@ -657,10 +658,10 @@ export default function PrsPage() {
                 </div>
 
                 <div className="mt-4">
-                    <label className="block">
+                    <FormField className="block">
                         <span className="mb-1 block text-sm font-semibold text-slate-700">Note (optional)</span>
                         <textarea value={form.note} onChange={(e) => update('note', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
-                    </label>
+                    </FormField>
                 </div>
 
                 </fieldset>

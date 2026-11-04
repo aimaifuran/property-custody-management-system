@@ -1,9 +1,9 @@
 import { formNumberData } from './formNumbers.js';
-﻿import { embedFormFonts } from './formPdfFonts.js';
+﻿import { embedPrintFonts as embedFormFonts, embedSignatureFonts } from './formPdfFonts.js';
 import { FORM_PDF_A4_PORTRAIT, FORM_PDF_MARGIN } from './formPdfStyle.js';
 import { signatoryText } from './formPdfSignatories.js';
 import { PDFDocument, rgb } from 'pdf-lib';
-import { drawReportGridHeader, drawReportGridRow, drawReportLines, reportColumns, REPORT_CELL_PADDING, REPORT_LINE_HEIGHT, wrapReportText } from './reportPdfLayout.js';
+import { drawReportTitle, drawReportGridHeader, drawReportGridRow, drawReportLines, reportColumns, REPORT_CELL_PADDING, REPORT_LINE_HEIGHT, wrapReportText } from './reportPdfLayout.js';
 
 export const PPE_COLUMNS = [
   ['risNumber', 'RIS No.', 13], ['responsibilityCenter', 'Responsibility Center Code', 15],
@@ -30,18 +30,19 @@ export const ppePeriod = record => {
 export async function buildPpePdf(record, { onDraw } = {}) {
   record = formNumberData(record);
   const pdf = await PDFDocument.create();
-  const { regular, bold, italic } = await embedFormFonts(pdf);
+  const { regular, bold, italic, titleBold } = await embedFormFonts(pdf);
+  const { signatureRegular, signatureBold } = await embedSignatureFonts(pdf);
   const [width, height] = FORM_PDF_A4_PORTRAIT;
   const left = FORM_PDF_MARGIN, tableWidth = width - 2 * left;
   const columns = reportColumns(PPE_COLUMNS, left, tableWidth);
   const recapColumns = reportColumns(RECAP_COLUMNS, left, tableWidth);
   const layout = { page: null, y: 0, bottom: left, rowCapacity: 0, onDraw };
   let recapping = false;
-  const paragraph = (value, x, top, w, font = regular, align = 'center') => drawReportLines(layout.page, wrapReportText(value, w - 8, font), x, top, w, font, { align });
+  const paragraph = (value, x, top, w, font = regular, align = 'center') => font === titleBold ? drawReportTitle(layout.page, value, x, top, w, font) : drawReportLines(layout.page, wrapReportText(value, w - 8, font), x, top, w, font, { align });
   const header = (withTable = true) => {
     layout.page = pdf.addPage(FORM_PDF_A4_PORTRAIT);
     layout.y = height - left;
-    layout.y -= paragraph(PPE_TITLE, left, layout.y, tableWidth, bold);
+    layout.y -= paragraph(PPE_TITLE, left, layout.y, tableWidth, titleBold);
     layout.y -= paragraph(ppePeriod(record), left, layout.y, tableWidth) + 10;
     for (const values of [[`LGU: ${record.lgu || ''}`, `Serial No.: ${record.serialNumber || ''}`], [`Fund: ${record.fund || ''}`, `Date: ${ppeDate(record.reportDate)}`]]) {
       const first = paragraph(values[0], left, layout.y, tableWidth * .6, regular, 'left');
@@ -94,15 +95,15 @@ export async function buildPpePdf(record, { onDraw } = {}) {
   }
   const blocks = [
     { x: left, width: tableWidth * .6, fields: [
-      [signatoryText('I hereby certify to the correctness of the above information.'), regular, 14],
-      [signatoryText(record.custodian) || '_________________________', bold, 4],
-      [signatoryText('Signature over Printed Name of Supply\nand/or Property Custodian'), regular, 0],
+      [signatoryText('I hereby certify to the correctness of the above information.'), signatureRegular, 14],
+      [signatoryText(record.custodian) || '_________________________', signatureBold, 4],
+      [signatoryText('Signature over Printed Name of Supply\nand/or Property Custodian'), signatureRegular, 0],
     ] },
     { x: left + tableWidth * .6, width: tableWidth * .4, fields: [
-      [signatoryText('Posted by:'), regular, 14],
-      [signatoryText(record.accountingStaff) || '_____________________', bold, 4],
-      [signatoryText('Signature over Printed Name of\nDesignated Accounting Staff'), regular, 4],
-      [`DATE: ${ppeDate(record.postedDate) || '________________'}`, regular, 0],
+      [signatoryText('Posted by:'), signatureRegular, 14],
+      [signatoryText(record.accountingStaff) || '_____________________', signatureBold, 4],
+      [signatoryText('Signature over Printed Name of\nDesignated Accounting Staff'), signatureRegular, 4],
+      [`DATE: ${ppeDate(record.postedDate) || '________________'}`, signatureRegular, 0],
     ] },
   ];
   const signatureHeight = Math.max(...blocks.map(block => block.fields.reduce((sum, [value, font, gap]) => sum + wrapReportText(value, block.width - 16, font).length * REPORT_LINE_HEIGHT + 8 + gap, 16)));

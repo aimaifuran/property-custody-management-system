@@ -54,7 +54,7 @@ test('every archived form retains official fields on exact A4 pages without page
     for (const [, object] of result.context.enumerateIndirectObjects()) {
       if (object instanceof PDFDict && object.get(PDFName.of('Type'))?.toString() === '/Font') {
         const family = object.get(PDFName.of('BaseFont'))?.toString();
-        assert.ok(family?.includes('TimesNewRoman'), `${type}: ${family}`);
+        assert.ok(family?.includes('TimesNewRoman') || ['/Helvetica', '/Helvetica-Bold', '/Helvetica-Oblique'].includes(family), `${type}: ${family}`);
       }
       if (!(object instanceof PDFRawStream)) continue;
       let content;
@@ -64,7 +64,7 @@ test('every archived form retains official fields on exact A4 pages without page
         const position = block[1].match(/[-\d.]+\s+[-\d.]+\s+[-\d.]+\s+[-\d.]+\s+([-\d.]+)\s+([-\d.]+)\s+Tm\b/);
         if (position) assert.ok(![39.6, 40.08, 40.32].includes(Number(position[2])) && !(Number(position[1]) === 53.64 && Number(position[2]) === 300.55), `${type}: printed handbook pagination is gone`);
       }
-      for (const match of content.matchAll(/\/[^\s]+\s+([\d.]+)\s+Tf\b/g)) assert.equal(Number(match[1]), type === 'PROPERTY CARD' ? 11 : FORM_PDF_FONT_SIZE, `${type}: fixed print/PDF size`);
+      for (const match of content.matchAll(/\/[^\s]+\s+([\d.]+)\s+Tf\b/g)) assert.ok(Number(match[1]) === 16 || Number(match[1]) === (type === 'PROPERTY CARD' ? 11 : FORM_PDF_FONT_SIZE), `${type}: fixed body size or enlarged title`);
     }
   }
 });
@@ -79,7 +79,7 @@ test('fixed official table rows wrap long entries and continue without repeating
     const quantityField = type === 'PROPERTY CARD' ? 'receiptQuantity' : 'quantity';
     assert.equal(runs.filter(run => run.section === quantityField).length, items.length, `${type}: one quantity per item`);
     for (const run of runs) {
-      assert.equal(run.size, type === 'PROPERTY CARD' ? 11 : 9);
+      assert.equal(run.size, run.section === 'form title' ? 16 : type === 'PROPERTY CARD' ? 11 : 9);
       assert.ok(run.x >= run.bounds.x - .01 && run.x + run.width <= run.bounds.x + run.bounds.width + .01, `${type}: ${run.text}`);
       assert.ok(run.y - (run.height - run.ascent) >= run.bounds.y - .01 && run.y + run.ascent <= run.bounds.y + run.bounds.height + .01, `${type}: ${run.text}`);
       if (run.cellBounds) {
@@ -124,7 +124,7 @@ test('PAR captions and ordinary PRS amounts fit their table columns without extr
     if (type === 'PAR') {
       assert.ok(runs.some(run => run.section === 'table caption' && run.text === 'Quantity'));
       assert.ok(runs.some(run => run.section === 'remarks caption' && run.text === 'Remarks:'));
-      assert.equal(runs.filter(run => run.section === 'property custodian caption').map(run => run.text).join(' '), 'SIGNATURE OVER PRINTED NAME OF PROPERTY CUSTODIAN');
+      assert.equal(runs.filter(run => run.section === 'property custodian caption').map(run => run.text).join(' '), 'Signature over Printed Name Property Custodian');
     }
     for (const run of runs) assert.ok(run.x >= run.bounds.x - .01 && run.x + run.width <= run.bounds.x + run.bounds.width + .01, `${type}: ${run.text}`);
   }
@@ -133,7 +133,7 @@ test('PAR captions and ordinary PRS amounts fit their table columns without extr
 test('RIS export retains every item on continuation pages', async () => {
   const items = Array.from({ length: 40 }, (_, i) => ({ stockNumber: `MANUAL-${i}`, description: `Item ${i}`, quantityRequested: 1 }));
   const result = await PDFDocument.load(await buildHistoricalFormPdf({ type: 'RIS', details: { risNumber: 'RIS-OLD', items } }, loadTemplate));
-  assert.equal(result.getPageCount(), 3);
+  assert.equal(result.getPageCount(), 2);
   assert.equal(templateFieldValue('stockNumber1', {}, items.slice(38)), 'MANUAL-38');
 });
 test('historical values, blank fields and signatories map without fabricated values', () => {
@@ -192,8 +192,9 @@ test('official forms use the A4 width and keep metadata and certification text s
       assert.ok(run.x >= 28 - .01 && run.x + run.width <= document.getPage(run.page).getWidth() - 28 + .01, `${type}: A4 horizontal margins: ${run.text}`);
       assert.ok(bottom >= 28 - .01 && run.y + run.ascent <= document.getPage(run.page).getHeight() - 28 + .01, `${type}: A4 vertical margins: ${run.text}`);
       if (isFormSignatoryField(run.section) || ['signatory caption', 'signature field caption', 'property custodian caption', 'certification caption', 'certification statement'].includes(run.section)) {
-        assert.equal(run.text, run.text.toUpperCase(), `${type}: uppercase signatory ${run.text}`);
-        assert.ok(Math.abs(run.x + run.width / 2 - (run.bounds.x + run.bounds.width / 2)) < .01, `${type}: centered signatory ${run.text}`);
+        const icsCaption = ['ICS', 'PAR'].includes(type) && ['signatory caption', 'signature field caption', 'property custodian caption'].includes(run.section);
+        if (!icsCaption) assert.equal(run.text, run.text.toUpperCase(), `${type}: uppercase signatory ${run.text}`);
+        if (!(['ICS', 'PAR'].includes(type) && run.section === 'signatory caption')) assert.ok(Math.abs(run.x + run.width / 2 - (run.bounds.x + run.bounds.width / 2)) < .01, `${type}: centered signatory ${run.text}`);
       }
     }
     for (const [index, first] of runs.entries()) for (const second of runs.slice(index + 1)) {

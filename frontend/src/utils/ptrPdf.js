@@ -1,8 +1,8 @@
 import { formNumberData } from './formNumbers.js';
 import { displayDate } from './dateInput.js';
 import { PDFDocument, rgb } from 'pdf-lib';
-import { embedFormFonts } from './formPdfFonts.js';
-import { FORM_PDF_A4_PORTRAIT, FORM_PDF_FONT_SIZE, FORM_PDF_MARGIN } from './formPdfStyle.js';
+import { embedPrintFonts as embedFormFonts, embedSignatureFonts } from './formPdfFonts.js';
+import { FORM_PDF_A4_PORTRAIT, FORM_PDF_FONT_SIZE, FORM_PDF_TITLE_SIZE, FORM_PDF_MARGIN } from './formPdfStyle.js';
 import { signatoryText } from './formPdfSignatories.js';
 
 const PAGE = FORM_PDF_A4_PORTRAIT;
@@ -17,7 +17,8 @@ const amountText = value => value == null || value === '' ? '' : Number(value).t
 export async function buildPtrPdf(data = {}, { onDraw } = {}) {
   data = formNumberData(data);
   const document = await PDFDocument.create();
-  const { regular, bold } = await embedFormFonts(document, ['regular', 'bold']);
+  const { regular, bold, titleBold, titleRegular } = await embedFormFonts(document, ['regular', 'bold']);
+  const { signatureRegular, signatureBold } = await embedSignatureFonts(document);
   const size = FORM_PDF_FONT_SIZE;
   const leading = 12, padding = 5;
   const items = Array.isArray(data.items) ? data.items : [];
@@ -47,20 +48,20 @@ export async function buildPtrPdf(data = {}, { onDraw } = {}) {
   const heightFor = (value, width, font = regular) => Math.max(22, wrap(value, width - 10, font).length * leading + 10);
   let page;
   const box = (x, top, width, height) => page.drawRectangle({ x, y: top - height, width, height, borderWidth: .65, borderColor: rgb(0, 0, 0) });
-  const draw = (value, x, top, width, height, { font = regular, align = 'left', section = '', fieldRole, underlined = false, lines = wrap(value, width - 10, font) } = {}) => {
-    const ascent = font.heightAtSize(size, { descender: false });
-    const textHeight = font.heightAtSize(size), descent = textHeight - ascent;
+  const draw = (value, x, top, width, height, { font = regular, fontSize = size, align = 'left', section = '', fieldRole, underlined = false, lines = wrap(value, width - 10, font) } = {}) => {
+    const ascent = font.heightAtSize(fontSize, { descender: false });
+    const textHeight = font.heightAtSize(fontSize), descent = textHeight - ascent;
     const blockHeight = textHeight + (lines.length - 1) * leading;
     const first = top - (height - blockHeight) / 2 - ascent;
     lines.forEach((line, index) => {
-      const textWidth = font.widthOfTextAtSize(line, size);
+      const textWidth = font.widthOfTextAtSize(line, fontSize);
       const left = align === 'center' ? x + (width - textWidth) / 2 : align === 'right' ? x + width - textWidth - 5 : x + 5;
       const y = first - index * leading;
       const underline = underlined ? { start: { x: x + padding, y: y - descent - 1 }, end: { x: x + width - padding, y: y - descent - 1 } } : undefined;
       if (underline) page.drawLine({ ...underline, thickness: .65 });
       if (!line) return;
-      page.drawText(line, { x: left, y, size, font });
-      onDraw?.({ text: line, x: left, y, width: textWidth, size, ascent, descent, padding, page: document.getPageCount(), section, fieldRole, underline, bounds: { x, top, width, height } });
+      page.drawText(line, { x: left, y, size: fontSize, font });
+      onDraw?.({ text: line, x: left, y, width: textWidth, size: fontSize, ascent, descent, padding, page: document.getPageCount(), section, fieldRole, underline, bounds: { x, top, width, height } });
     });
   };
   const stackedHeight = (label, value, width) => heightFor(label, width, bold) + heightFor(value, width);
@@ -83,8 +84,8 @@ export async function buildPtrPdf(data = {}, { onDraw } = {}) {
   const dates = people.map(person => dateText(person.date));
   const signatureLabelWidth = 80;
   const personWidth = (WIDTH - signatureLabelWidth) / 3;
-  const nameHeight = Math.max(...names.map(value => heightFor(value, personWidth)));
-  const designationHeight = Math.max(...designations.map(value => heightFor(value, personWidth)));
+  const nameHeight = Math.max(heightFor('PRINTED NAME:', signatureLabelWidth, signatureRegular), ...names.map(value => heightFor(value, personWidth, signatureRegular)));
+  const designationHeight = Math.max(heightFor('DESIGNATION:', signatureLabelWidth, signatureRegular), ...designations.map(value => heightFor(value, personWidth, signatureRegular)));
   const remarksHeight = stackedHeight('Remarks:', data.remarks, WIDTH);
   const reasonHeight = stackedHeight('Reason for Transfer:', data.reasonForTransfer, WIDTH);
   const footerHeight = remarksHeight + reasonHeight + 22 + 32 + nameHeight + designationHeight + 22;
@@ -99,7 +100,7 @@ export async function buildPtrPdf(data = {}, { onDraw } = {}) {
     page = document.addPage(PAGE);
     const headingTop = PAGE[1] - MARGIN;
     draw('Appendix 76', MARGIN, headingTop, WIDTH, 20, { align: 'right' });
-    draw('PROPERTY TRANSFER REPORT', MARGIN, headingTop - 24, WIDTH, 24, { font: bold, align: 'center' });
+    draw('PROPERTY TRANSFER REPORT', MARGIN, headingTop - 24, WIDTH, 32, { font: titleBold, fontSize: FORM_PDF_TITLE_SIZE, align: 'center', section: 'form title' });
     let top = headingTop - 60;
     const agencyWidth = WIDTH * 0.6;
     const fundWidth = WIDTH - agencyWidth;
@@ -155,10 +156,10 @@ export async function buildPtrPdf(data = {}, { onDraw } = {}) {
     }
     const signatureTop = top;
     for (const [label, values, height, headings, section] of [['', ['APPROVED BY:', 'RELEASED/ISSUED BY:', 'RECEIVED BY:'], 22, true, 'signatory:heading'], ['SIGNATURE:', ['', '', ''], 32, false, 'signatory:signature'], ['PRINTED NAME:', names, nameHeight, false, 'signatory:name'], ['DESIGNATION:', designations, designationHeight, false, 'signatory:designation'], ['DATE:', dates, 22, false, 'signatory:date']]) {
-      draw(label, MARGIN, top, signatureLabelWidth, height, { align: 'center', section, fieldRole: 'label' });
+      draw(label, MARGIN, top, signatureLabelWidth, height, { font: signatureRegular, align: 'center', section, fieldRole: 'label' });
       values.forEach((value, index) => {
         const x = MARGIN + signatureLabelWidth + index * personWidth;
-        draw(value, x, top, personWidth, height, { font: headings ? bold : regular, align: 'center', section, fieldRole: 'value' });
+        draw(value, x, top, personWidth, height, { font: headings ? signatureBold : signatureRegular, align: 'center', section, fieldRole: 'value' });
       });
       top -= height;
     }

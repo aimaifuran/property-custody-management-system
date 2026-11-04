@@ -1,3 +1,23 @@
+import { StandardFonts } from 'pdf-lib';
+
+export async function embedSignatureFonts(document) {
+  return {
+    signatureRegular: await document.embedFont(StandardFonts.Helvetica),
+    signatureBold: await document.embedFont(StandardFonts.HelveticaBold),
+  };
+}
+
+export async function embedPrintFonts(document) {
+  const titleFonts = await embedFormFonts(document, ['regular', 'bold']);
+  return {
+    regular: await document.embedFont(StandardFonts.Helvetica),
+    bold: await document.embedFont(StandardFonts.HelveticaBold),
+    italic: await document.embedFont(StandardFonts.HelveticaOblique),
+    titleRegular: titleFonts.regular,
+    titleBold: titleFonts.bold,
+  };
+}
+
 const urls = {
   regular: new URL('../assets/fonts/times.ttf', import.meta.url).href,
   bold: new URL('../assets/fonts/times-bold.ttf', import.meta.url).href,

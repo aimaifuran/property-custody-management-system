@@ -474,6 +474,6 @@
 .login-hourglass { display: inline-block; width: 32px; height: 32px; position: relative; flex-shrink: 0; vertical-align: middle; }
 .login-hourglass .hourglassBackground { position: absolute; top: 0; left: 0; margin: 0; transform: scale(.2461538462); transform-origin: top left; background-color: #244b3d; }
 .login-button-content { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
-.login-button:has(.login-hourglass) { padding-top: 6px; padding-bottom: 6px; }
+.login-button:not(.login-submit):has(.login-hourglass) { padding-top: 6px; padding-bottom: 6px; }
 .auth-loading-screen { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: #edf3e8; }
 @media (prefers-reduced-motion: reduce) { .login-hourglass *, .login-hourglass *::before, .login-hourglass *::after { animation: none !important; } }

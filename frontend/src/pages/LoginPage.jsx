@@ -1,3 +1,5 @@
+import AuthField from '../components/AuthField';
+import ForgotPasswordPage from './ForgotPasswordPage';
 import ValidatedForm from '../components/ValidatedForm';
 import HourglassLoader from '../components/HourglassLoader';
 import FormLoader from '../components/FormLoader';
@@ -19,6 +21,14 @@ import LoginIllustration from '../components/LoginIllustration';
 export default function LoginPage() {
 
   const [identifier, setIdentifier] = useState('');
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [wideLayout, setWideLayout] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 768px)');
+    const updateLayout = () => setWideLayout(media.matches);
+    media.addEventListener('change', updateLayout);
+    return () => media.removeEventListener('change', updateLayout);
+  }, []);
 
   const [password, setPassword] = useState('');
   const identifierRef = useRef(null);
@@ -131,17 +141,17 @@ export default function LoginPage() {
 
       <motion.div
 
-        initial={reducedMotion ? false : { opacity: 0, y: 24 }}
+        initial={false}
 
         animate={{ opacity: 1, y: 0 }}
 
-        className="login-card-shell w-full max-w-[420px] md:max-w-[640px]"
+        className="login-card-shell auth-light-card w-full max-w-[420px] md:max-w-[640px]"
 
       >
 
-        <div className="login-card login-card--split w-full overflow-hidden rounded-2xl md:rounded-3xl">
+        <div className={`login-card login-card--split ${showRecovery ? "login-card--recovery" : ""} w-full overflow-hidden rounded-2xl md:rounded-3xl`}>
 
-        <div className={`login-card__illustration login-illustration ${signingIn ? 'login-card__illustration--signing-in' : ''}`}>
+        <motion.div layout={wideLayout && !reducedMotion ? 'position' : false} transition={{ layout: { duration: reducedMotion ? 0 : .65, ease: [.22, 1, .36, 1] } }} className={`login-card__illustration login-illustration ${signingIn ? 'login-card__illustration--signing-in' : ''}`}>
           <p className="login-system-title">Property Accountability Management System of Supply Office of Local Government Unit Carigara, Leyte</p>
           <div className={`login-illustration-stage ${signingIn ? 'login-illustration-stage--signing-in' : ''}`}>
             <div className="login-illustration-layer login-illustration-layer--original" aria-hidden="true">
@@ -154,12 +164,25 @@ export default function LoginPage() {
             </AnimatePresence>
           </div>
           <div className="login-welcome-copy">
-            <h2>Welcome Back!</h2>
-            <p>Please login your account to start<br />your session.</p>
+            <h2>{showRecovery ? 'Account Recovery' : 'Welcome Back!'}</h2>
+            <p>{showRecovery ? 'Use your registered email to reset your password.' : <>Please login your account to start<br />your session.</>}</p>
           </div>
-        </div>
+          <svg className="login-panel-curve login-panel-curve--vertical" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path d="M0 0 H90 C30 0 55 15 55 25 C55 37 10 40 10 53 C10 64 40 67 35 79 C30 90 8 96 0 100 Z" />
+          </svg>
+          <svg className="login-panel-curve login-panel-curve--horizontal" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path d="M0 0 H100 V7 C78 0 65 24 40 14 C22 6 12 20 0 12 Z" />
+          </svg>
+        </motion.div>
 
-        <div className="login-card__form p-3 md:p-5">
+        <motion.div layout={wideLayout && !reducedMotion ? 'position' : false} transition={{ layout: { duration: reducedMotion ? 0 : .65, ease: [.22, 1, .36, 1] } }} className="login-card__form p-3 md:p-5">
+          <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={showRecovery ? 'recovery' : 'login'} className="login-panel-content"
+            initial={{ opacity: reducedMotion ? 1 : 0, x: reducedMotion || !wideLayout ? 0 : showRecovery ? -16 : 16, y: reducedMotion || wideLayout ? 0 : 8 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: reducedMotion ? 1 : 0, x: reducedMotion || !wideLayout ? 0 : showRecovery ? 12 : -12, y: 0 }}
+            transition={{ duration: reducedMotion ? 0 : .3, ease: [.22, 1, .36, 1] }}>
+          {showRecovery ? <ForgotPasswordPage embedded onBack={() => setShowRecovery(false)} /> : <>
 
           <div className="mb-3 text-center">
 
@@ -181,7 +204,7 @@ export default function LoginPage() {
             setEditableFields({ identifier: true, password: true });
           }} onSubmit={handleSubmit} inert={signingIn ? true : undefined} aria-busy={signingIn} className="space-y-2.5 md:space-y-3">
 
-            <label htmlFor="login-identifier" className="block">
+            <AuthField htmlFor="login-identifier" className="block">
 
               <span className="mb-1 block text-xs font-semibold text-white/85 md:mb-1 md:text-sm">Username or email</span>
 
@@ -190,9 +213,9 @@ export default function LoginPage() {
                 <span className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-center text-white/85" aria-hidden="true"><UserRound size={18} /></span>
               </div>
 
-            </label>
+            </AuthField>
 
-            <label htmlFor="login-password" className="block">
+            <AuthField htmlFor="login-password" className="block">
 
               <span className="mb-1 block text-xs font-semibold text-white/85 md:mb-1 md:text-sm">Password</span>
 
@@ -203,7 +226,7 @@ export default function LoginPage() {
                 </button>
               </div>
 
-            </label>
+            </AuthField>
 
             <label className="flex min-h-8 items-center gap-2 text-xs text-white/75 md:text-sm">
 
@@ -211,14 +234,17 @@ export default function LoginPage() {
 
             </label>
 
-            <button type="submit" disabled={signingIn || countdown > 0} aria-label="Sign in" aria-busy={signingIn} className="login-button min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base">{signingIn ? <span className="login-button-content"><HourglassLoader /><span>{loginDestination ? 'Opening your account...' : 'Signing in...'}</span></span> : 'Sign in'}</button>
+            <button type="submit" disabled={signingIn || countdown > 0} aria-label="Sign in" aria-busy={signingIn} className="login-button login-submit min-h-10 w-full rounded-lg px-3 py-2 md:min-h-11 text-sm font-semibold text-white md:rounded-xl md:px-4 md:py-3 md:text-base"><span className="login-submit__label" style={{ visibility: signingIn ? 'hidden' : 'visible' }}>Sign in</span>{signingIn && <span className="login-button-content login-submit__loading"><HourglassLoader /><span>{loginDestination ? 'Opening your account...' : 'Signing in...'}</span></span>}</button>
 
             {countdown > 0 && <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-center text-sm text-amber-900">Too many attempts, please try again in {countdown}s</p>}
           </ValidatedForm>
-          <Link to="/forgot-password" className="mt-3 block py-1 text-center text-xs text-white/85 underline md:mt-3 md:py-0 md:text-sm">Forgot your password?</Link>
+          <button type="button" disabled={signingIn} onClick={() => setShowRecovery(true)} className="mt-3 block w-full py-1 text-center text-xs text-white/85 underline md:mt-3 md:py-0 md:text-sm">Forgot your password?</button>
           <div className="mt-4 border-t border-white/20 pt-3 text-center"><p className="text-xs text-white/75">Don't have an account?</p><Link to="/register" className="mt-2 block rounded-lg border border-white/50 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">Register</Link></div>
 
-        </div>
+          </>}
+          </motion.div>
+          </AnimatePresence>
+        </motion.div>
 
         </div>
 

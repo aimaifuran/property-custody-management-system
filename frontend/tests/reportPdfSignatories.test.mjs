@@ -68,7 +68,7 @@ test('station report centers and capitalizes long names/designations and signatu
   const text = (await inspectReportPdf(document, FORM_PDF_A4_LANDSCAPE)).join('\n');
   assert.ok(text.includes('PREPARED BY:'));
   assert.ok(text.includes('REVIEWED BY:'));
-  assert.ok(text.includes('Mixed Case Accountable Person'), 'table people retain their entered casing');
+  assert.ok(text.replace(/\s+/g, ' ').includes('Mixed Case Accountable Person'), 'table people retain their entered casing');
   assert.ok(text.includes('Serviceable'), 'table remarks retain their entered casing');
 });
 

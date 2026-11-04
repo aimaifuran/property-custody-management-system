@@ -9,7 +9,7 @@ function assertA4Layout(pdf, runs) {
   const [width, height] = FORM_PDF_A4_PORTRAIT;
   for (const page of pdf.getPages()) assert.deepEqual(page.getSize(), { width, height });
   for (const run of runs) {
-    assert.equal(run.size, 9);
+    assert.equal(run.size, run.section === 'form title' ? 16 : 9);
     assert.ok(run.x >= Math.max(run.bounds.x, FORM_PDF_MARGIN), run.text);
     assert.ok(run.x + run.width <= Math.min(run.bounds.x + run.bounds.width + .01, width - FORM_PDF_MARGIN), run.text);
     assert.ok(run.y >= Math.max(run.bounds.top - run.bounds.height, FORM_PDF_MARGIN), run.text);
@@ -48,7 +48,7 @@ test('RIS signatory captions, names and positions are capitals and values stay c
     assert.ok(Math.abs(run.x - (run.bounds.x + (run.bounds.width - run.width) / 2)) < .01, `${run.text}: centered`);
   }
   assert.equal(signatories.filter(run => run.section === 'signatory:name' && run.fieldRole === 'value').map(run => run.text).join(' '), `${name.toUpperCase()} CATHERINE LAGERA RALPH SAVERET CHERIE MAE FRANCISCO`);
-  assert.ok(signatories.some(run => run.text === '10/8/2026' && run.section === 'signatory:date'));
+  assert.ok(signatories.some(run => run.text === '10/08/2026' && run.section === 'signatory:date'));
   assert.ok(runs.some(run => run.text === 'Printer supplies'), 'General item text keeps its original case');
   assertA4Layout(pdf, runs);
 });
@@ -90,6 +90,28 @@ test('RIS descriptions longer than an A4 page continue at readable size without 
   const pdf = await PDFDocument.load(await buildRisPdf({ items: [{ description, quantityRequested: 1 }] }, { onDraw: run => runs.push(run) }));
   assert.ok(pdf.getPageCount() > 1);
   assert.equal(runs.filter(run => run.section === 'item:2').map(run => run.text).join(' '), description);
+  assertA4Layout(pdf, runs);
+});
+
+test('RIS metadata divider aligns with the stock-availability grid and footer stays fixed on continuation pages', async () => {
+  const runs = [];
+  const pdf = await PDFDocument.load(await buildRisPdf({
+    risNumber: 'RIS-001', responsibilityCenterCode: 'Supply', purpose: 'OFFICE USE',
+    items: Array.from({ length: 40 }, (_, index) => ({ stockNumber: '001', unit: 'PCS', description: `Item ${index}`, quantityRequested: 1, quantityIssued: 1, isAvailable: true })),
+  }, { onDraw: run => runs.push(run) }));
+  assert.ok(pdf.getPageCount() > 1);
+  for (let page = 1; page <= pdf.getPageCount(); page++) {
+    const fields = runs.filter(run => run.page === page);
+    const reference = fields.find(run => run.text === 'Responsibility Center Code:');
+    const availability = fields.find(run => run.section === 'table:group' && run.text.includes('Stock'));
+    assert.equal(reference.bounds.x, availability.bounds.x);
+    const yes = fields.find(run => run.section === 'item:4');
+    assert.equal(yes.bounds.x, availability.bounds.x);
+    for (const label of ['Requisition', 'Quantity', 'Remarks', 'Purpose:', 'REQUESTED BY:', 'APPROVED BY:', 'ISSUED BY:', 'RECEIVED BY:']) assert.ok(fields.some(run => run.text === label), label);
+  }
+  const purposes = runs.filter(run => run.text === 'Purpose:');
+  assert.equal(purposes.length, pdf.getPageCount());
+  assert.ok(purposes.every(run => run.bounds.top === purposes[0].bounds.top));
   assertA4Layout(pdf, runs);
 });
 

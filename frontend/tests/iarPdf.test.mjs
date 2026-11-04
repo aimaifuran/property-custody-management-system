@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { PDFArray, PDFDocument, PDFName, decodePDFRawStream } from 'pdf-lib';
+import { PDFArray, PDFDocument, PDFName, StandardFonts, decodePDFRawStream } from 'pdf-lib';
 import { buildHistoricalFormPdf } from '../src/utils/historicalFormPdf.js';
+import { drawStandardFormHeaders, templateRowLayout } from '../src/utils/templatePdfLayout.js';
 
 const loadTemplate = path => readFile(new URL(`../public${path}`, import.meta.url));
 const sample = {
@@ -22,6 +23,27 @@ function marks(content) {
   return Array.from(content.matchAll(/\b1 w\s+\[\] 0 d\s+([\d.]+) ([\d.]+) m\s+\1 \2 m\s+([\d.]+) ([\d.]+) l\s+S/g), match => ({ start: { x: Number(match[1]), y: Number(match[2]) }, end: { x: Number(match[3]), y: Number(match[4]) } }));
 }
 const make = async (details, options) => PDFDocument.load(await buildHistoricalFormPdf({ type: 'IAR', details: { ...sample, ...details } }, loadTemplate, options));
+
+test('IAR metadata border joins the table and aligns its divider with Description and Unit', async () => {
+  const document = await PDFDocument.create();
+  const fonts = { regular: await document.embedFont(StandardFonts.TimesRoman), bold: await document.embedFont(StandardFonts.TimesRomanBold) };
+  const layout = templateRowLayout('iar', fonts.bold);
+  const rectangles = [], lines = [], runs = [];
+  const page = { drawRectangle: value => rectangles.push(value), drawLine: value => lines.push(value), drawText: () => {} };
+  drawStandardFormHeaders(page, fonts, layout, key => ({ supplierName: 'Supplier', poNumber: 'PO-001', poDate: '11/03/2026', rcc: 'Supply', iarNumber: '001', iarDate: '11/03/2026', invoiceNumber: 'INV-001', invoiceDate: '11/03/2026' })[key] || '', {}, { onDraw: run => runs.push(run) });
+  const border = rectangles.find(rect => rect.x === layout.left && rect.width === layout.right - layout.left);
+  assert.ok(border);
+  assert.equal(border.y, layout.top);
+  const divider = lines.find(line => line.start.x === layout.columns[2].x && line.end.x === layout.columns[2].x);
+  assert.equal(divider.start.y, layout.top);
+  assert.equal(divider.end.y, border.y + border.height);
+  for (const key of ['supplierName', 'poNumber', 'rcc', 'iarNumber', 'iarDate', 'invoiceNumber', 'invoiceDate']) {
+    const field = runs.find(run => run.section === key);
+    assert.ok(field, key);
+    assert.ok(field.bounds.y >= border.y && field.bounds.y + field.bounds.height <= border.y + border.height);
+    assert.ok(['supplierName', 'poNumber', 'rcc'].includes(key) ? field.bounds.x + field.bounds.width <= divider.start.x : field.bounds.x >= divider.start.x);
+  }
+});
 
 test('IAR PDF aligns all three boxes with the first line of their official captions', async () => {
   const runs = [];
