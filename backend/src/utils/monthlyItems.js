@@ -4,6 +4,7 @@ const monthOf = value => {
 };
 const id = value => String(value?._id || value || '');
 const number = value => value == null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+const blankPlaceholder = value => ['-', '—'].includes(String(value || '').trim()) ? '' : value || '';
 
 const stockNumberOf = item => String(item.stockPropertyNumber || item.stockNumber || '').replace(/~[a-f0-9]{24}$/i, '');
 const iarRows = rows => rows.filter(row => row.source === 'IAR').map(row => ({ ...row, stockNumber: stockNumberOf(row) }));
@@ -31,7 +32,7 @@ function collectMonthlyItems(sources) {
       }));
       const risNumber = [...new Set(references.map(ris => ris.risNumber).filter(Boolean))].join(', ');
       rows.push({
-        risNumber, responsibilityCenter: record.responsibilityCenterCode || '',
+        risNumber, responsibilityCenter: blankPlaceholder(record.responsibilityCenterCode),
         stockNumber: stockNumberOf(item), item: description, unit: item.unit || '',
         quantity: number(item.quantity) ?? 0, unitCost: null, totalCost: null,
         source: 'IAR', sourceId: id(record._id), sourceRow: index, sourceNumber: record.iarNumber || '',

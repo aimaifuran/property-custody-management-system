@@ -1,5 +1,6 @@
 import useRecordActivity from '../utils/useRecordActivity';
 import OfficeSelect from '../components/OfficeSelect';
+import { divisionForOffice } from '../utils/officeDivisions';
 import RegistrationRequests from '../components/RegistrationRequests';
 import UserRecordsDialog from '../components/UserRecordsDialog';
 import ValidatedForm from '../components/ValidatedForm';
@@ -199,7 +200,7 @@ export default function UsersPage() {
           <div className="user-card-details">
             <h2>{[user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ') || user.username}</h2>
             <p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{user.email || 'Email not recorded'}</span></p>
-            <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span>{user.office || 'Office not assigned'}</span></p>
+            <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span title={user.office || 'Office not assigned'}>{user.office || 'Office not assigned'}</span></p>
           </div>
           {currentUser?.role === 'admin' && <div className="user-card-actions" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(previous => previous === user._id ? null : previous); }}>
             <button type="button" className="user-card-menu-toggle relative" aria-label={`Actions for ${user.username}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" />{hasNew(user._id) && <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-red-600" role="status" aria-label="New record activity" />}</button>
@@ -253,11 +254,11 @@ export default function UsersPage() {
           </label>
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">Office</span>
-            <OfficeSelect id="user-office" aria-label="Office" required value={form.office} onChange={event => setForm({ ...form, office: event.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <OfficeSelect id="user-office" aria-label="Office" required value={form.office} onChange={event => setForm({ ...form, office: event.target.value, division: divisionForOffice(event.target.value) })} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">Division</span>
-            <input id="user-division" aria-label="Division" required value={form.division} onChange={(e) => setForm({ ...form, division: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Division" />
+            <input id="user-division" aria-label="Division" value={form.division} onChange={(e) => setForm({ ...form, division: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Division" />
           </label>
         </div>
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">

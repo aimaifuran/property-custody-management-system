@@ -275,7 +275,32 @@ try {
     })()`);
     await delay(100);
   };
-  if (process.env.CURRENT_CHANGES_ONLY) {
+  if (process.env.MANUAL_ONLY) {
+    for (const [width, height] of [[320, 568], [375, 667], [390, 844], [667, 375], [1024, 768]]) {
+      const mobile = width < 768;
+      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
+      await navigate('/dashboard');
+      if (mobile) await evaluate(`document.querySelector('[aria-label="Open navigation menu"]').click()`);
+      await delay(400);
+      for (const expanded of [false, true]) {
+        if (expanded) {
+          await evaluate(`[...document.querySelectorAll('#app-sidebar button[aria-expanded="false"]')].forEach(button => button.click())`);
+          await delay(400);
+        }
+        const visible = await evaluate(`(() => {
+          const link = document.querySelector('#app-sidebar a[href="/user-manual"]');
+          const box = link.getBoundingClientRect();
+          const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+          return box.top >= 0 && box.bottom <= innerHeight && box.left >= 0 && box.right <= innerWidth && link.contains(hit);
+        })()`);
+        assert.ok(visible, `User Manual is visible and clickable at ${width}x${height}, expanded=${expanded}`);
+      }
+      await evaluate(`document.querySelector('#app-sidebar a[href="/user-manual"]').click()`);
+      await waitFor(`location.pathname === '/user-manual' && document.querySelector('h1')?.textContent === 'PAMS User Manual'`);
+      if (mobile) await waitFor(`document.querySelector('[aria-label="Open navigation menu"]')?.getAttribute('aria-expanded') === 'false'`);
+      console.log(`PASS User Manual visibility and navigation at ${width}x${height}`);
+    }
+  } else if (process.env.CURRENT_CHANGES_ONLY) {
     const widths = [320, 375, 768, 1024, 1200, 1440];
     let checks = 0;
     const checkLayout = async label => {

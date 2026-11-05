@@ -38,7 +38,7 @@ const rules = {
   properties: { fields: ['propertyName', 'category', 'acquisitionDate', 'acquisitionCost', 'supplier', 'purchaseOrderNumber', 'sourceOfFund', 'location', 'description', 'quantity'], positiveFields: ['quantity'], nonnegativeFields: ['acquisitionCost'] },
   settings: { fields: ['organizationName', 'governmentAgency', 'address', 'telephone', 'systemName', 'lguName'] },
   profile: { fields: ['firstName', 'lastName', 'office', 'division'] },
-  users: { fields: ['firstName', 'lastName', 'email', 'username', 'office', 'division'] },
+  users: { fields: ['firstName', 'lastName', 'email', 'username', 'office'] },
   'monthly-item-reports': { fields: ['lgu', 'fund', 'serialNumber', 'reportDate', 'custodian', 'accountingStaff', 'postedDate'] },
   'ppe-station-reports': {
     fields: ['governmentUnit', 'accountGroup', 'date', 'preparedBy', 'preparedDesignation', 'reviewedBy', 'reviewedDesignation'],

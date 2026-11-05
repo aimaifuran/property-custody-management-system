@@ -80,6 +80,11 @@ test('only IAR rows are collected and original stock numbers have no catalog suf
   assert.ok(rows.every(row => row.source === 'IAR' && row.responsibilityCenter === 'Supply'));
 });
 
+test('a dash responsibility center is shown as blank in monthly reports', () => {
+  const rows = collectMonthlyItems({ iar: [{ _id: 'iar1', createdAt: date, responsibilityCenterCode: '-', items: [item] }] }).get('2026-10');
+  assert.equal(rows[0].responsibilityCenter, '');
+});
+
 test('issued RIS numbers enrich exact IAR items without adding rows or changing receipt quantities', () => {
   const receipt = { _id: 'iar1', createdAt: date, items: [
     { ...item, inventory: 'inv1', inventories: ['inv1', 'inv2'], quantity: 5 },

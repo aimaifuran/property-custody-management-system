@@ -14,6 +14,7 @@ const dateText = displayDate;
 
 export async function buildRisPdf(data, { onDraw } = {}) {
   data = formNumberData(data);
+  if (['-', '—'].includes(String(data.responsibilityCenterCode || '').trim())) data.responsibilityCenterCode = '';
   const document = await PDFDocument.create();
   const { regular, bold, titleBold, titleRegular } = await embedFormFonts(document, ['regular', 'bold']);
   const { signatureRegular, signatureBold } = await embedSignatureFonts(document);

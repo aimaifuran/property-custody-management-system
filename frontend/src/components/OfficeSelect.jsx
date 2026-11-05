@@ -1,14 +1,13 @@
 const OFFICE_OPTIONS = [
   "Mayor's Office",
   'Municipal Administrator Office',
-  'Department of the Interior and Local Government',
   'Municipal Budget Office',
   'Municipal Accounting Office',
   'Municipal Planning and Development Office',
   'Municipal Engineering Office',
   'Municipal Social Welfare and Development Office',
-  'Municipal Registrar Office',
-  'Human Resource Management Office',
+  'Municipal Civil Registrar Office',
+  'Human Resource and Management Office',
   'Municipal Treasurer Office',
   'Municipal Assessor Office',
   'Sangguniang Bayan Office',
@@ -16,6 +15,15 @@ const OFFICE_OPTIONS = [
   'Municipal Agriculture Office',
   'Municipal Health Office',
   'Supply Office',
+  'Department of Interior & Local Government',
+  'Business Permit and Licensing Office',
+  'Department of Trade and Industry',
+  'Carigara Traffic Enforcer and Management Office',
+  'Person with Disability Affairs Office',
+  "Senior's Office",
+  'Market and Slaughter House',
+  'Philippine Health Insurance Corporation',
+  'Tourism Office',
 ];
 
 export default function OfficeSelect({ value = '', readOnly = false, className = '', ...props }) {

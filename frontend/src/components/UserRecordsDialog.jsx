@@ -6,10 +6,13 @@ import { Eye, X, RotateCcw, CircleCheck } from 'lucide-react';
 import axios from 'axios';
 import { userRecordItems } from '../utils/userRecordItems';
 import { groupAccountItems, allocateAccountReturn } from '../utils/groupAccountItems';
+import { motherOfficeForOffice } from '../utils/officeDivisions';
 
 const dateText = value => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toLocaleDateString() : '—';
 
 export default function UserRecordsDialog({ user, onClose, basePath = '/users', onViewed }) {
+  const motherOffice = motherOfficeForOffice(user.office) || user.division || '';
+  const officeLabel = [user.office, motherOffice].filter((value, index, values) => value && values.indexOf(value) === index).join(' — ');
   const pendingReturns = usePendingReturns();
   const userRequests = pendingReturns.filter(request => returnRequestUserId(request) === String(user._id));
   const dialogRef = useRef(null);
@@ -106,7 +109,7 @@ export default function UserRecordsDialog({ user, onClose, basePath = '/users', 
   }));
   return <dialog ref={dialogRef} className="user-records-dialog" aria-labelledby="user-records-title" onCancel={event => { event.preventDefault(); onClose(); }}>
     <div className="user-editor-heading">
-      <div><h2 id="user-records-title">View Records</h2><p>{user.name || [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ')}{user.username ? ` / @${user.username}` : ' / Offline recipient'}</p><p>{user.office}</p></div>
+      <div><h2 id="user-records-title">View Records</h2><p>{user.name || [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ')}{user.username ? ` / @${user.username}` : ' / Offline recipient'}</p><p>{officeLabel}</p></div>
       <button type="button" className="user-editor-close" aria-label="Close user records" onClick={onClose}><X size={18} /></button>
     </div>
     {userRequests.length > 0 && <section className="rounded-lg border border-red-200 p-4"><h3 className="font-semibold">Awaiting Return Confirmation ({userRequests.length})</h3>{userRequests.map(request => <div key={request._id} className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="min-w-0 break-words">{request.prsNumber}: {request.items.map(item => item.description || item.propertyNumber).join(', ')}</p><Link to={`/returns?record=${request._id}`} onClick={onClose} className="ml-auto inline-block shrink-0 rounded-lg bg-red-600 px-3 py-2 text-white hover:bg-red-700">Review Return Request</Link></div>)}</section>}

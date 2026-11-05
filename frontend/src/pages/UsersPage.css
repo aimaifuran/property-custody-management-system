@@ -314,6 +314,7 @@
 /* Keep the photo and name together; place contact details below them. */
 .user-management-page:not(.my-profile-page) .user-card-avatar { grid-row: 1; }
 .user-management-page:not(.my-profile-page) .user-card-details > :is(.user-card-email, .user-card-office) { grid-column: 1 / -1; }
+.user-management-page:not(.my-profile-page) .user-card-office span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The profile uses its own two-column layout, separate from directory cards. */
 .my-profile-page .admin-profile-card { display: grid; grid-template-columns: 160px minmax(0, 1fr); grid-template-rows: auto auto; align-items: start; gap: 24px; padding: 28px; min-height: 0; }

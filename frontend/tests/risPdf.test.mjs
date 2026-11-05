@@ -35,6 +35,12 @@ test('RIS text stays inside its header fields, table cells and signatory cells',
   assert.ok(runs.some(run => run.text === 'RECEIVED BY:'));
 });
 
+test('RIS PDF leaves a dash responsibility center code blank', async () => {
+  const runs = [];
+  await buildRisPdf({ entityName: 'LGU', fundCluster: 'General Fund', responsibilityCenterCode: '-', risNumber: 'RIS-001', items: [] }, { onDraw: run => runs.push(run) });
+  assert.equal(runs.some(run => run.text === '-'), false);
+});
+
 test('RIS signatory captions, names and positions are capitals and values stay centered', async () => {
   const runs = [];
   const name = 'Cherie Mae Francisco Municipal Treasury Department';

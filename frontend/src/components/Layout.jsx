@@ -196,6 +196,9 @@ export default function Layout() {
             <div className="sidebar-brand__title text-lg font-bold tracking-wide">PAMS</div>
           </div>
         </div>
+        {user?.role === 'admin' && <nav className="mb-3 shrink-0 border-b border-white/15 pb-3 md:order-last md:mb-0 md:mt-3 md:border-b-0 md:border-t md:pb-0 md:pt-3" aria-label="System information">
+          <NavLink to="/user-manual" onClick={closeMobileSidebar} className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}><BookOpen size={18} aria-hidden="true" />User Manual</NavLink>
+        </nav>}
         <div className="sidebar-section-label">Workspace</div>
         <div ref={sidebarNavRef} className="sidebar-nav min-h-0 flex-1 overflow-y-auto pr-1">
         <nav className="space-y-1">
@@ -285,9 +288,6 @@ export default function Layout() {
           })}
         </nav>
         </div>
-        <nav className="mt-3 shrink-0 border-t border-white/15 pt-3" aria-label="System information">
-          {user?.role === 'admin' && <NavLink to="/user-manual" onClick={closeMobileSidebar} className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${isActive ? 'bg-emerald-100 text-emerald-800 shadow-inner' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}><BookOpen size={18} aria-hidden="true" />User Manual</NavLink>}
-        </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="title-bar border-b border-white/70 px-6 py-4 shadow-sm">

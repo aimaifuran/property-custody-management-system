@@ -73,7 +73,7 @@ export async function buildPpePdf(record, { onDraw } = {}) {
   header();
   const money = value => value === '' || value == null ? '' : Number(value).toFixed(2);
   for (const row of record.rows || []) {
-    const values = PPE_COLUMNS.map(([key]) => key === 'amount' ? ppeAmount(row) : key === 'unitCost' ? money(row.accountingManual ? row.unitCost : null) : row[key]);
+    const values = PPE_COLUMNS.map(([key]) => key === 'amount' ? ppeAmount(row) : key === 'unitCost' ? money(row.accountingManual ? row.unitCost : null) : key === 'responsibilityCenter' && ['-', '—'].includes(String(row[key] || '').trim()) ? '' : row[key]);
     drawReportGridRow(layout, columns, values, regular, header);
   }
   if (record.recapitulation?.length) {

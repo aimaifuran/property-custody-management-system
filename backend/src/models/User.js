@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   profilePicture: { type: String },
   office: { type: String, required: true },
-  division: { type: String, required: true },
+  division: { type: String },
   position: { type: String, trim: true, maxlength: 150 },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
