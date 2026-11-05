@@ -213,17 +213,18 @@ export default function PtrPage() {
                 const itemName = getIssuedItemName(asset);
                 return {
                     value: asset._id,
-                    label: `${itemName} · ${formNumber(asset.propertyNumber || asset.inventory?.propertyNumber) || formNumber(stockItem?.displayStockNumber || stockItem?.stockNumber)} · ${ownerName}`,
-                    keywords: `${stockItem?.description || ''} ${stockItem?.stockNumber || ''} ${asset.documentNumber || ''}`,
+                    // Keep the actual item name in the input; use the rest of the
+                    // asset details only for matching so the text stays stable
+                    // as the suggestion list refreshes while typing.
+                    label: itemName,
+                    keywords: `${formNumber(asset.propertyNumber || asset.inventory?.propertyNumber) || formNumber(stockItem?.displayStockNumber || stockItem?.stockNumber)} ${ownerName} ${stockItem?.description || ''} ${stockItem?.stockNumber || ''} ${asset.documentNumber || ''}`,
                 };
             });
     };
 
     const updateAdminSourceSearch = (rowIndex, value) => {
-        setSelectedFromAccountableUserId('');
         setForm(previous => ({
             ...previous,
-            fromAccountableOfficer: '',
             items: previous.items.map((item, index) => index === rowIndex ? {
                 ...item,
                 accountability: undefined,
@@ -495,7 +496,7 @@ export default function PtrPage() {
                 </FormField>
                 <FormField className="block">
                     <span className="mb-1 block text-sm font-semibold text-slate-700">Date</span>
-                    <DateInput required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                    <DateInput required type="date" value={form[section].date} onChange={(e) => updateSignatory(section, 'date', e.target.value)} className="ptr-signatory-date w-full rounded-xl border border-slate-200 px-3 py-2" />
                 </FormField>
             </div>
         </div>
