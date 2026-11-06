@@ -33,7 +33,7 @@ export default function SignatoryValue({ formType, role, field = 'name', value =
     if (managed && configured !== undefined && value !== configured) change.current?.({ target: { value: configured } });
   }, [managed, configured, value]);
   return <div className="min-w-0">
-    <p aria-label={label} className="signatory-value min-h-9 whitespace-pre-wrap break-words px-1 py-2 text-left text-sm">{value || ''}</p>
+    <p aria-label={label} className="signatory-value min-h-9 whitespace-pre-wrap break-words px-1 py-2 text-left text-sm"><span className="signatory-value__text">{value || ''}</span></p>
     {managed && state.error && <p role="alert" className="mt-1 text-xs text-red-700">{state.error}</p>}
   </div>;
 }

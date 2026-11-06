@@ -1,6 +1,8 @@
 import { useRef } from 'react';
 import { collectFormErrors } from '../utils/formValidation';
 
+const capitalizeWordStarts = value => value.replace(/(^|\s)(\p{L})/gu, (_, space, letter) => `${space}${letter.toLocaleUpperCase()}`);
+
 export default function ValidatedForm({ children, onSubmit, onChangeCapture, onValidationError, ref, validationSelector, as: Form = 'form', ...props }) {
   const attempted = useRef(false);
 
@@ -27,6 +29,17 @@ export default function ValidatedForm({ children, onSubmit, onChangeCapture, onV
     }
     onSubmit?.(event);
   }} onChangeCapture={event => {
+    const field = event.target;
+    if (field instanceof HTMLElement && field.matches('input:not([type]), input[type="text"], textarea') && !field.readOnly && !field.disabled && !field.matches('.login-input, [autocomplete="username"], [name="username"]') && !event.nativeEvent.isComposing) {
+      const original = field.value;
+      const formatted = capitalizeWordStarts(original);
+      if (formatted !== original) {
+        const caret = field.selectionStart;
+        const formattedPrefix = caret == null ? null : capitalizeWordStarts(original.slice(0, caret)).length;
+        field.value = formatted;
+        if (formattedPrefix != null) field.setSelectionRange(formattedPrefix, formattedPrefix);
+      }
+    }
     onChangeCapture?.(event);
     if (attempted.current) validate(event.currentTarget);
   }}>

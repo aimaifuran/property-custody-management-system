@@ -11,7 +11,7 @@ const iarRows = rows => rows.filter(row => row.source === 'IAR').map(row => ({ .
 
 function collectMonthlyItems(sources) {
   const groups = new Map();
-  const issued = (sources.ris || []).filter(record => !record.deleted && ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status));
+  const issued = (sources.ris || []).filter(record => !record.deleted && record.status === 'ACCOUNTABILITY_LOCKED');
   for (const record of sources.iar || []) {
     if (record.deleted || record.status === 'REJECTED') continue;
     const month = monthOf(record.createdAt || record.iarDate);
@@ -30,6 +30,7 @@ function collectMonthlyItems(sources) {
         return id(ris.iar) === id(record._id) && Boolean(line.stockNumber)
           && line.stockNumber === (item.stockNumber || item.stockPropertyNumber);
       }));
+      if (!references.length) return;
       const risNumber = [...new Set(references.map(ris => ris.risNumber).filter(Boolean))].join(', ');
       rows.push({
         risNumber, responsibilityCenter: blankPlaceholder(record.responsibilityCenterCode),

@@ -7,7 +7,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { syncMonthlyItems } = require('../utils/syncMonthlyItems');
 const { monthOf, iarRows, recapitulate } = require('../utils/monthlyItems');
 const { SAVED_REPORT_SORT, sortSavedReports } = require('../utils/savedReportOrder');
-const { manualRows, applyAccounting } = require('../utils/monthlyAccounting');
+const { rowKey, manualRows, applyAccounting } = require('../utils/monthlyAccounting');
 const router = express.Router();
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 router.use(authenticate, adminOnly);
@@ -16,7 +16,12 @@ router.get('/', async (req, res) => {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2000 || Number(month.slice(0, 4)) > 2100) return errorResponse(res, 'Select a valid month between 2000 and 2100', [], 400);
   const records = await syncMonthlyItems(month);
   const manual = await PpeList.find({ automatic: false }).sort(SAVED_REPORT_SORT).lean();
-  return successResponse(res, 'Monthly item reports synchronized', { report: records.find(record => record.month === month), records: sortSavedReports([...manual.map(record => ({ ...record, rows: manualRows(iarRows(record.rows)), recapitulation: recapitulate(iarRows(record.rows)) })), ...records.filter(record => record.rows.length > 0)]) });
+  const issuedRows = new Set(records.flatMap(record => record.rows).map(rowKey));
+  const savedReports = manual.map(record => {
+    const rows = iarRows(record.rows).filter(row => row.sourceId ? issuedRows.has(rowKey(row)) : Boolean(row.risNumber?.trim()));
+    return { ...record, rows: manualRows(rows), recapitulation: recapitulate(rows) };
+  });
+  return successResponse(res, 'Monthly item reports synchronized', { report: records.find(record => record.month === month), records: sortSavedReports([...savedReports, ...records.filter(record => record.rows.length > 0)]) });
 });
 router.post('/', validateAdminForm('monthly-item-reports'), async (req, res) => {
   const month = String(req.body.month || '');

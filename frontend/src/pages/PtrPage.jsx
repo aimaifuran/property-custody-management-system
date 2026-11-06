@@ -480,7 +480,7 @@ export default function PtrPage() {
     );
 
     const signatoryFields = (label, section) => (
-        <div className="form-signatory-panel rounded-xl border border-slate-200 p-4">
+        <div className="form-signatory-panel ptr-signatory-panel rounded-xl border border-slate-200 p-4">
             <h3 className="mb-3 font-semibold text-slate-700">{label}</h3>
             <div className="grid gap-3 md:grid-cols-3">
                 <FormField className="block">

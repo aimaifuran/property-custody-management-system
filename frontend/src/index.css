@@ -1788,6 +1788,25 @@ body { font-size: var(--app-text-size); }
   white-space: nowrap;
   padding-right: 2.5rem !important;
 }
+.form-document .ptr-signatory-panel .signatory-value {
+  display: flex;
+  align-items: center;
+  height: var(--form-field-height, 42px);
+  min-height: var(--form-field-height, 42px);
+  overflow: hidden;
+  padding-block: 3px;
+  line-height: 18px;
+}
+.form-document .ptr-signatory-panel .signatory-value__text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.form-document .ptr-signatory-panel .form-field__control > .relative {
+  height: var(--form-field-height, 42px);
+  overflow: hidden;
+}
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times-bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: 'Times New Roman'; src: url('./assets/fonts/times-italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
 

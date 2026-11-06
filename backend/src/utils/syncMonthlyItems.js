@@ -8,7 +8,7 @@ let queue = Promise.resolve();
 async function synchronize(selectedMonth) {
   const [iar, ris] = await Promise.all([
     IAR.find({ deleted: false }).lean(),
-    RIS.find({ deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } }).select('risNumber iar status items.inventory items.property items.stockNumber items.quantityIssued').lean(),
+    RIS.find({ deleted: false, status: 'ACCOUNTABILITY_LOCKED' }).select('risNumber iar status items.inventory items.property items.stockNumber items.quantityIssued').lean(),
   ]);
   const groups = collectMonthlyItems({ iar, ris });
   const existing = await PpeList.find({ automatic: true }).select('month rows').lean();
