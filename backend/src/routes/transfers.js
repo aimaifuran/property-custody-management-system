@@ -19,6 +19,11 @@ const { accountName } = require('../utils/accountLinks');
 const { notifyUsers, notifyAdmins } = require('../utils/workflowNotifications');
 const reassignAccountability = require('../utils/reassignAccountability');
 const { isDisposalReturn } = require('../utils/returnPurpose');
+const visiblePropertyNumber = value => {
+  const number = String(value || '').trim();
+  return /^P-[a-f0-9]{24}$/i.test(number) ? '' : number.replace(/~[a-f0-9]{24}$/i, '');
+};
+const propertyNumberFrom = (...values) => values.map(visiblePropertyNumber).find(Boolean) || '';
 
 const resolveReturnSlipItem = async (returnSlipId, returnSlipItemId, session = null) => {
   const slip = await PropertyReturnSlip.findOne({
@@ -63,7 +68,7 @@ const resolveReturnSlipItem = async (returnSlipId, returnSlipItemId, session = n
       property: inventory?.property,
       serialNumber: inventory?.serialNumber || '',
       dateAcquired: inventory?.purchaseDate || slip.returnedAt || slip.updatedAt,
-      propertyNumber: line.propertyNumber || accountability?.propertyNumber || inventory?.propertyNumber || issuedLine?.stockNumber || '',
+      propertyNumber: propertyNumberFrom(line.propertyNumber, accountability?.propertyNumber, inventory?.propertyNumber, inventory?.item?.displayStockNumber, issuedLine?.stockNumber, inventory?.item?.stockNumber),
       itemName: inventory?.item?.name || issuedLine?.itemName ||
         (inventory?.item?.category !== 'General' ? inventory?.item?.category : '') ||
         issuedLine?.description || inventory?.item?.description || line.description || '',
@@ -113,13 +118,12 @@ const resolveIssuedItems = async (items, session) => {
     active: true,
     deleted: false,
     user: { $ne: null },
-    acceptedAt: { $ne: null },
     pendingMovement: { $in: [null, ''] },
   }).populate({ path: 'inventory', populate: { path: 'item' } }).session(session);
   const byId = new Map(accountabilities.map(row => [String(row._id), row]));
   const rows = ids.map(id => byId.get(id));
   if (rows.some(row => !row || !row.inventory?.item || Number(row.quantity || 0) <= Number(row.returnedQuantity || 0))) {
-    throw Object.assign(new Error('PTR items must be issued, accepted, and still held by a user'), { status: 400 });
+    throw Object.assign(new Error('PTR items must be issued and still held by a user'), { status: 400 });
   }
   const ownerIds = [...new Set(rows.map(row => String(row.user)))];
   if (ownerIds.length !== 1) {
@@ -142,7 +146,7 @@ const resolveIssuedItems = async (items, session) => {
         property: row.inventory.property,
         serialNumber: row.serialNumber || row.inventory.serialNumber,
         dateAcquired: item.dateAcquired || row.inventory.purchaseDate,
-        propertyNumber: row.propertyNumber || row.inventory.propertyNumber || row.inventory.item.stockNumber,
+        propertyNumber: propertyNumberFrom(row.propertyNumber, row.inventory.propertyNumber, row.inventory.item.displayStockNumber, row.inventory.item.stockNumber),
         itemName: row.inventory.item.name || '',
         description: row.inventory.item.description,
         amount: remaining * Number(row.inventory.unitCost || 0),

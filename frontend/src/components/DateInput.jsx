@@ -20,7 +20,7 @@ function CalendarInput({ value = '', onChange, className = '', readOnly, disable
       onChange={event => change(event, event.target.value, parseDisplayDate(event.target.value))} />
     {!readOnly && !disabled && <>
       <input ref={calendar} type="date" tabIndex={-1} aria-hidden="true" value={value || ''}
-        min={props.min} max={props.max} className="pointer-events-none absolute bottom-0 right-0 h-0 w-0 opacity-0"
+        min={props.min} max={props.max} className="date-input-calendar"
         onChange={event => change(event, displayDate(event.target.value), event.target.value)} />
       <button type="button" aria-label={`Choose ${props['aria-label'] || 'date'}`} className="absolute inset-y-0 right-2 flex items-center px-1 text-slate-600"
         onClick={() => { if (calendar.current?.showPicker) calendar.current.showPicker(); else input.current?.focus(); }}><CalendarDays size={17} /></button>

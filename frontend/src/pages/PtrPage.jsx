@@ -6,7 +6,6 @@ import SearchInput from '../components/SearchInput';
 import SignatoryValue from '../components/SignatoryValue';
 import useSourceDocument from '../utils/useSourceDocument';
 import { todayManila } from '../utils/formDates';
-import IarSourceSelect from '../components/IarSourceSelect';
 import { hasRowData } from '../utils/formRows';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
@@ -37,7 +36,7 @@ import Pagination from '../components/Pagination';
 import { FileText, Printer, RotateCcw } from 'lucide-react';
 import useUpdateFormNavigation from '../utils/useUpdateFormNavigation';
 import useDocumentNumberPreview from '../utils/useDocumentNumberPreview';
-import { getAccountableOwner, matchSourceRowsToAccountabilities } from '../utils/ptrIssuedItems';
+import { getAccountableOwner } from '../utils/ptrIssuedItems';
 
 const FIXED_TRANSFER_TYPES = ['Donation', 'Reassignment', 'Relocation'];
 
@@ -55,6 +54,13 @@ const emptySignatory = () => ({ name: '', designation: '', date: todayManila() }
 const getIssuedItemName = (asset) => {
     const stockItem = asset.inventory?.item;
     return stockItem?.name || 'Item name unavailable';
+};
+
+const getIssuedPropertyNumber = asset => {
+    const stockItem = asset.inventory?.item;
+    return [asset.propertyNumber, asset.inventory?.propertyNumber, stockItem?.displayStockNumber, stockItem?.stockNumber]
+        .map(formNumber)
+        .find(Boolean) || '';
 };
 
 const initial = {
@@ -186,16 +192,30 @@ export default function PtrPage() {
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
     const transferableAssets = assets.filter(asset => asset.acceptedAt && !asset.pendingMovement && Number(asset.quantityRemaining) > 0);
-    const adminTransferableAssets = transferableAssets.filter(asset => asset.user);
+    const adminTransferableAssets = assets.filter(asset => asset.user && !asset.pendingMovement && Number(asset.quantityRemaining) > 0);
     const selectedSourceAssets = form.items
-        .map(item => transferableAssets.find(asset => String(asset._id) === String(item.accountability)))
+        .map(item => adminTransferableAssets.find(asset => String(asset._id) === String(item.accountability)))
         .filter(Boolean);
     const selectedSourceOwnerIds = [...new Set(selectedSourceAssets.map(asset => String(asset.user?._id || asset.user)))];
     const fromAccountableOptions = people
         .map(person => ({ value: String(person._id), label: person.name, keywords: person.office || '' }))
         .filter(option => option.value && option.label);
+    const updateAdminFromAccountSearch = value => {
+        const normalized = value.trim().toLocaleLowerCase();
+        const exactMatches = fromAccountableOptions.filter(option => option.label.trim().toLocaleLowerCase() === normalized);
+        const selected = exactMatches.length === 1 ? exactMatches[0] : null;
+        const nextOwnerId = selected?.value || '';
+        const ownerChanged = nextOwnerId !== selectedFromAccountableUserId;
+        setSelectedFromAccountableUserId(nextOwnerId);
+        setForm(previous => ({
+            ...previous,
+            fromAccountableOfficer: selected?.label || value,
+            ...(ownerChanged ? { items: previous.items.map(() => emptyItem()) } : {}),
+        }));
+    };
 
-    const adminSourceItemOptions = rowIndex => {
+    const adminSourceItemOptions = (rowIndex, field) => {
+        if (!selectedFromAccountableUserId) return [];
         const otherSelectedOwnerIds = [...new Set(form.items
             .filter((_, index) => index !== rowIndex)
             .map(item => adminTransferableAssets.find(asset => String(asset._id) === String(item.accountability)))
@@ -204,25 +224,23 @@ export default function PtrPage() {
         return adminTransferableAssets
             .filter(asset => {
                 const ownerId = String(asset.user?._id || asset.user);
-                return (!selectedFromAccountableUserId || ownerId === selectedFromAccountableUserId) &&
+                return ownerId === selectedFromAccountableUserId &&
                     (!otherSelectedOwnerIds.length || otherSelectedOwnerIds.includes(ownerId));
             })
             .map(asset => {
                 const stockItem = asset.inventory?.item;
                 const { name: ownerName } = getAccountableOwner(asset, people);
                 const itemName = getIssuedItemName(asset);
+                const propertyNumber = getIssuedPropertyNumber(asset);
                 return {
                     value: asset._id,
-                    // Keep the actual item name in the input; use the rest of the
-                    // asset details only for matching so the text stays stable
-                    // as the suggestion list refreshes while typing.
-                    label: itemName,
-                    keywords: `${formNumber(asset.propertyNumber || asset.inventory?.propertyNumber) || formNumber(stockItem?.displayStockNumber || stockItem?.stockNumber)} ${ownerName} ${stockItem?.description || ''} ${stockItem?.stockNumber || ''} ${asset.documentNumber || ''}`,
+                    label: field === 'propertyNumber' ? propertyNumber : itemName,
+                    keywords: `${itemName} ${propertyNumber} ${ownerName} ${stockItem?.description || ''} ${stockItem?.stockNumber || ''} ${asset.documentNumber || ''}`,
                 };
             });
     };
 
-    const updateAdminSourceSearch = (rowIndex, value) => {
+    const updateAdminSourceSearch = (rowIndex, field, value) => {
         setForm(previous => ({
             ...previous,
             items: previous.items.map((item, index) => index === rowIndex ? {
@@ -231,8 +249,8 @@ export default function PtrPage() {
                 inventory: undefined,
                 property: undefined,
                 serialNumber: '',
-                propertyNumber: '',
-                itemName: value,
+                propertyNumber: field === 'propertyNumber' ? value : '',
+                itemName: field === 'itemName' ? value : '',
                 description: '',
                 amount: '',
                 condition: '',
@@ -256,7 +274,7 @@ export default function PtrPage() {
                 property: asset.inventory?.property,
                 serialNumber: asset.serialNumber || asset.inventory?.serialNumber || '',
                 dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || todayManila(),
-                propertyNumber: asset.propertyNumber || asset.inventory?.propertyNumber || stockItem?.stockNumber || '',
+                propertyNumber: getIssuedPropertyNumber(asset),
                 itemName: getIssuedItemName(asset),
                 description: stockItem?.description || '',
                 amount: Number(asset.quantityRemaining || 0) * Number(asset.inventory?.unitCost || 0),
@@ -265,53 +283,19 @@ export default function PtrPage() {
         }));
     };
 
-    const selectSourcePropertyRecord = (report, sourceForm) => {
-        const sourceRows = (report.items || []).filter(item => (item.acceptedQuantity ?? item.quantity) > 0);
-        const sourceMatches = matchSourceRowsToAccountabilities(sourceRows, assets);
-        const eligibleSourceMatches = sourceMatches.map(candidates => candidates.filter(asset =>
-            transferableAssets.some(eligible => String(eligible._id) === String(asset._id))
-        ));
-        const items = sourceForm.items.map((item, index) => {
-            const eligibleCandidates = eligibleSourceMatches[index] || [];
-            const asset = eligibleCandidates.length === 1 ? eligibleCandidates[0] : null;
-            if (!asset) return item;
-            const stockItem = asset.inventory?.item;
-            return {
-                ...item,
-                accountability: asset._id,
-                inventory: asset.inventory?._id,
-                property: asset.inventory?.property,
-                serialNumber: asset.serialNumber || asset.inventory?.serialNumber || '',
-                propertyNumber: asset.propertyNumber || asset.inventory?.propertyNumber || item.propertyNumber,
-                itemName: stockItem?.name || (stockItem?.category !== 'General' ? stockItem?.category : '') || item.itemName,
-                description: stockItem?.description || item.description,
-                dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || item.dateAcquired || todayManila(),
-                amount: Number(asset.quantityRemaining || 0) * Number(asset.inventory?.unitCost || 0),
-                condition: asset.condition || 'Serviceable',
-            };
-        });
-        const matchedAssets = eligibleSourceMatches.flat();
-        const ownerIds = [...new Set(matchedAssets.map(asset => String(asset.user?._id || asset.user)).filter(Boolean))];
-        const owner = ownerIds.length === 1 ? people.find(person => String(person._id) === ownerIds[0]) : null;
-        const accountableName = owner?.name || (ownerIds.length === 1 ? matchedAssets.find(asset => String(asset.user?._id || asset.user) === ownerIds[0])?.employee : '') || '';
-        setSelectedFromAccountableUserId(ownerIds.length === 1 ? ownerIds[0] : '');
-        setForm(previous => ({
-            ...previous,
-            ...sourceForm,
-            items,
-            fromAccountableOfficer: accountableName,
-        }));
-    };
-
-    const clearSourcePropertyRecord = () => {
-        setSelectedFromAccountableUserId('');
-        setForm(previous => ({
-            ...previous,
-            iar: undefined,
-            fromAccountableOfficer: '',
-            items: [emptyItem()],
-        }));
-    };
+    const adminSourceSearchInput = (rowIndex, field) => <SearchInput
+        required
+        aria-label={field === 'propertyNumber' ? 'Property Number' : 'Item Name'}
+        openOnFocus={Boolean(selectedFromAccountableUserId)}
+        placeholder={selectedFromAccountableUserId
+            ? field === 'propertyNumber' ? 'Search property number' : 'Search an issued item'
+            : 'Select From Accountable Officer first'}
+        value={form.items[rowIndex][field] || ''}
+        options={adminSourceItemOptions(rowIndex, field)}
+        onChange={value => updateAdminSourceSearch(rowIndex, field, value)}
+        onSelect={option => selectAdminSourceItem(rowIndex, option)}
+        className="w-full rounded-xl border border-slate-200 px-2 py-2"
+    />;
 
     const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -319,6 +303,30 @@ export default function PtrPage() {
         const signatory = { ...prev[section], [key]: value };
         return { ...prev, [section]: signatory };
     });
+
+    const updateToAccountableOfficerSearch = value => setForm(previous => ({
+        ...previous,
+        toAccountableOfficer: value,
+        toUser: '',
+        receivedBy: { ...previous.receivedBy, user: undefined, name: '', designation: '' },
+    }));
+
+    const selectToAccountableOfficer = option => {
+        const person = people.find(row => String(row._id) === String(option.value));
+        if (!person) return;
+        setForm(previous => ({
+            ...previous,
+            toUser: person._id,
+            toAccountableOfficer: person.name,
+            receivedBy: {
+                ...previous.receivedBy,
+                user: person._id,
+                name: person.name,
+                designation: person.office || '',
+                date: todayManila(),
+            },
+        }));
+    };
 
     const updateItem = (index, key, value) => setForm((prev) => ({
         ...prev,
@@ -460,17 +468,17 @@ export default function PtrPage() {
     ) : key === 'fromAccountableOfficer' && !isUser && !editingId && !returnDraftItem ? (
         <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <SearchInput required aria-label={label} placeholder="Search accountable officer" value={form.fromAccountableOfficer || ''} options={fromAccountableOptions} openOnFocus onChange={value => { setSelectedFromAccountableUserId(''); update('fromAccountableOfficer', value); }} onSelect={option => { setSelectedFromAccountableUserId(option.value); update('fromAccountableOfficer', option.label); }} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" />
+            <SearchInput required aria-label={label} placeholder="Search accountable officer" value={form.fromAccountableOfficer || ''} options={fromAccountableOptions} openOnFocus onChange={updateAdminFromAccountSearch} onSelect={option => { setSelectedFromAccountableUserId(option.value); update('fromAccountableOfficer', option.label); }} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" />
         </FormField>
     ) : key === 'toAccountableOfficer' && returnDraftItem ? (
         <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">To New Accountable Officer</span>
-            <SearchInput required aria-label="To New Accountable Officer" placeholder="Search To New Accountable Officer" value={form.toAccountableOfficer || ''} options={people.filter(person => String(person._id) !== String(returnDraftItem.returnedBy?.user || '')).map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => setForm(previous => ({ ...previous, toAccountableOfficer: value, toUser: '', receivedBy: { ...previous.receivedBy, user: undefined, name: '', designation: '' } }))} onSelect={option => { const person = people.find(row => row._id === option.value); if (person) setForm(previous => ({ ...previous, toUser: person._id, toAccountableOfficer: person.name, receivedBy: { ...previous.receivedBy, user: person._id, name: person.name, designation: person.office || '', date: todayManila() } })); }} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <SearchInput required aria-label="To New Accountable Officer" placeholder="Search To New Accountable Officer" value={form.toAccountableOfficer || ''} options={people.filter(person => String(person._id) !== String(returnDraftItem.returnedBy?.user || '')).map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={updateToAccountableOfficerSearch} onSelect={selectToAccountableOfficer} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </FormField>
     ) : key === 'toAccountableOfficer' && isUser && !editingId ? <FormField className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{people.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></FormField> : key === 'entityName' && returnDraftItem ? <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} readOnly value={form.entityName} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></FormField> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
         <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-            <SearchInput aria-label={label} placeholder={`Enter ${label.toLowerCase()}`} value={form[key] || ''} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => setForm(previous => ({ ...previous, [key]: value, ...(key === 'toAccountableOfficer' ? { toUser: '' } : {}) }))} onSelect={key === 'toAccountableOfficer' ? option => { const person = people.find(row => row._id === option.value); if (person) setForm(previous => ({ ...previous, toUser: person._id, toAccountableOfficer: person.name })); } : undefined} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
+            <SearchInput aria-label={label} placeholder={`Enter ${label.toLowerCase()}`} value={form[key] || ''} options={people.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => key === 'toAccountableOfficer' ? updateToAccountableOfficerSearch(value) : setForm(previous => ({ ...previous, [key]: value }))} onSelect={key === 'toAccountableOfficer' ? selectToAccountableOfficer : undefined} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </FormField>
     ) : (
         <FormField className="block">
@@ -676,7 +684,6 @@ export default function PtrPage() {
 
             {editorOpen && (<ValidatedForm as={motion.form} ref={editorRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
                 <FormEditorHeader title="Property Transfer Report" description={returnDraftItem ? `Select the new accountable officer, then click Transfer & Save. The PTR is saved automatically in Saved Records and removed from Drafts from PRS.` : 'Transfer an accountable asset to another custodian.'} onClose={() => { cancelEdit(); setEditorOpen(false); setSavedView('records'); scrollToRecords(); }} />
-                {!editingId && !isUser && !returnDraftItem && <IarSourceSelect type="ptr" setForm={setForm} onSourceSelect={selectSourcePropertyRecord} onSourceClear={clearSourcePropertyRecord} accountabilities={assets} />}
                 <fieldset disabled={workflow} className="min-w-0">
                 <div className="grid gap-3 md:grid-cols-3">
                     {field('Entity Name', 'entityName')}
@@ -735,10 +742,10 @@ export default function PtrPage() {
                                         <DateInput required={hasRowData(item, emptyItem())} aria-label="Date Acquired" type="date" value={item.dateAcquired || todayManila()} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        {isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = transferableAssets.find(row => row._id === event.target.value); const stockItem = asset?.inventory?.item; setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || todayManila(), propertyNumber: asset.propertyNumber || stockItem?.stockNumber || '', itemName: getIssuedItemName(asset), description: stockItem?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select an issued item</option>{transferableAssets.map(asset => <option key={asset._id} value={asset._id}>{getIssuedItemName(asset)} - {asset.documentNumber}</option>)}</select> : <FormNumberInput required={hasRowData(item, emptyItem())} aria-label="Property Number" readOnly={Boolean(returnDraftItem)} value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                                        {!isUser && !editingId && !returnDraftItem ? adminSourceSearchInput(index, 'propertyNumber') : isUser && !editingId ? <select required aria-label="Property to transfer" value={item.accountability || ''} onChange={event => { const asset = transferableAssets.find(row => row._id === event.target.value); const stockItem = asset?.inventory?.item; setForm(previous => ({ ...previous, items: [asset ? { accountability: asset._id, dateAcquired: toDateInputValue(asset.inventory?.purchaseDate) || todayManila(), propertyNumber: getIssuedPropertyNumber(asset), itemName: getIssuedItemName(asset), description: stockItem?.description || '', amount: asset.quantityRemaining * Number(asset.inventory?.unitCost || 0), condition: asset.condition || 'Serviceable' } : emptyItem()] })); }} className="w-full rounded-xl border p-2"><option value="">Select an issued item</option>{transferableAssets.map(asset => <option key={asset._id} value={asset._id}>{getIssuedItemName(asset)} - {asset.documentNumber}</option>)}</select> : <FormNumberInput required={hasRowData(item, emptyItem())} aria-label="Property Number" readOnly={Boolean(returnDraftItem)} value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        {!isUser && !editingId && !returnDraftItem ? <SearchInput required aria-label="Item Name" placeholder="Search an accountable item" value={item.itemName || ''} options={adminSourceItemOptions(index)} onChange={value => updateAdminSourceSearch(index, value)} onSelect={option => selectAdminSourceItem(index, option)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> : <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Item Name" value={item.itemName} onChange={(e) => updateItem(index, 'itemName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                                        {!isUser && !editingId && !returnDraftItem ? adminSourceSearchInput(index, 'itemName') : <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Item Name" value={item.itemName} onChange={(e) => updateItem(index, 'itemName', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
@@ -747,7 +754,7 @@ export default function PtrPage() {
                                         <input required={hasRowData(item, emptyItem())} readOnly={isUser || Boolean(returnDraftItem)} aria-label="Amount" type="number" min="0" step="any" value={item.amount} onChange={(e) => updateItem(index, 'amount', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <select required={hasRowData(item, emptyItem())} disabled={isUser || Boolean(returnDraftItem)} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
+                                        <select required={hasRowData(item, emptyItem())} aria-label="Condition of PPE" value={item.condition} onChange={event => updateItem(index, 'condition', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2"><option value="">Select condition</option>{item.condition && !['Serviceable', 'Unserviceable'].includes(item.condition) && <option value={item.condition}>{item.condition}</option>}<option value="Serviceable">Serviceable</option><option value="Unserviceable">Unserviceable</option></select>
                                     </td>
                                   <td className="p-2 text-center">{!returnDraftItem && <DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} />}</td>
                                 </tr>

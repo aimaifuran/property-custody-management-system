@@ -138,9 +138,11 @@ router.get('/returnable-items', authenticate, authorize('canManageInventory'), a
       const quantityRemaining = Math.max(0, Number(item.quantityIssued || 0) - (returned.get(`${record._id}:${item._id}`) || 0));
       if (!quantityRemaining) continue;
       const stock = await Item.findOne({ deleted: false, stockNumber: item.stockNumber }).lean();
-      const inventory = stock ? await Inventory.findOne({ deleted: false, item: stock._id, ...(item.inventory ? { _id: item.inventory } : {}) }).populate('inspectionAcceptanceReport', 'poNumber').sort({ createdAt: -1 }).lean() : null;
-      const receipt = inventory?.inspectionAcceptanceReport || (record.iar ? await require('../models/InspectionAcceptanceReport').findById(record.iar).select('poNumber').lean() : null);
-      items.push({ ...item, serialNumber: inventory?.serialNumber || item.serialNumber || '', poNumber: receipt?.poNumber || '', itemName: stock?.name || item.itemName || (stock?.category !== 'General' ? stock?.category : '') || item.description || '', quantityRemaining, unitCost: item.unitCost ?? inventory?.unitCost ?? stock?.cost ?? 0, propertyNumber: inventory?.propertyNumber || item.stockNumber || '' });
+      const inventory = stock ? await Inventory.findOne({ deleted: false, item: stock._id, ...(item.inventory ? { _id: item.inventory } : {}) }).populate('inspectionAcceptanceReport', 'poNumber iarNumber items').sort({ createdAt: -1 }).lean() : null;
+      const receipt = inventory?.inspectionAcceptanceReport || (record.iar ? await require('../models/InspectionAcceptanceReport').findById(record.iar).select('poNumber iarNumber items').lean() : null);
+      const receiptItem = receipt?.items?.find(entry => [entry.inventory, ...(entry.inventories || [])].some(id => String(id?._id || id) === String(inventory?._id)))
+        || receipt?.items?.find(entry => String(entry.stockNumber || '') === String(item.stockNumber || '') || String(entry.stockPropertyNumber || '') === String(item.stockNumber || ''));
+      items.push({ ...item, serialNumber: inventory?.serialNumber || item.serialNumber || '', poNumber: receipt?.poNumber || '', iarNumber: receipt?.iarNumber || '', itemName: stock?.name || item.itemName || (stock?.category !== 'General' ? stock?.category : '') || item.description || '', quantityRemaining, unitCost: item.unitCost ?? inventory?.unitCost ?? stock?.cost ?? 0, propertyNumber: inventory?.propertyNumber || receiptItem?.inventoryItemNo || item.stockNumber || '' });
     }
     if (items.length) output.push({ ...record, items });
   }

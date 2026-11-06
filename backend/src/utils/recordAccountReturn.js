@@ -46,7 +46,7 @@ module.exports = (offline = false) => async (req, res) => {
       quantity = returnQuantity;
       const cost = Number(asset?.inventory?.unitCost ?? item.unitCost ?? 0);
       const entry = { accountability: asset?._id, ris: ris._id, risItem: item._id, quantity, unit: item.unit,
-        description: item.description, propertyNumber: asset?.propertyNumber || item.stockNumber, mrNumber: ris.risNumber,
+        description: item.description, propertyNumber: asset?.inventory?.propertyNumber || asset?.propertyNumber || item.stockNumber, mrNumber: ris.risNumber,
         condition, unitValue: cost, totalValue: quantity * cost };
       await validateLinks([entry], null, session);
       const now = new Date();

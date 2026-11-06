@@ -1788,6 +1788,20 @@ body { font-size: var(--app-text-size); }
   white-space: nowrap;
   padding-right: 2.5rem !important;
 }
+.date-input-calendar {
+  position: fixed !important;
+  top: 0 !important;
+  left: -10000px !important;
+  width: 1px !important;
+  min-width: 1px !important;
+  max-width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 .form-document .ptr-signatory-panel .signatory-value {
   display: flex;
   align-items: center;

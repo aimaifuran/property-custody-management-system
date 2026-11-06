@@ -195,8 +195,13 @@ export default function PrsPage() {
             if (isUser) {
                 const [assets, issued] = await Promise.all([axios.get('/custody/assets'), axios.get('/ris/my-returns')]);
                 const person = makeForm().returnedBy;
-                const assetRows = (assets.data.data || []).map(asset => ({ _id: asset.ris || asset._id, risNumber: asset.documentNumber, requestedBy: person, items: [{ _id: asset.risItem || asset._id, accountability: asset._id, description: asset.inventory?.item?.description, unit: asset.inventory?.item?.unit, quantityRemaining: asset.quantityRemaining, unitCost: asset.inventory?.unitCost, propertyNumber: asset.propertyNumber || asset.inventory?.item?.stockNumber, pendingMovement: asset.pendingMovement }] }));
-                const otherRows = (issued.data.data || []).filter(row => row.quantityRemaining > 0 && !assetRows.some(record => String(record._id) === String(row.risId) && record.items.some(item => String(item._id) === String(row.itemId)))).map(row => ({ _id: row.risId, risNumber: row.risNumber, requestedBy: person, items: [{ _id: row.itemId, description: row.description, unit: row.unit || '', quantityRemaining: row.quantityRemaining, unitCost: row.unitCost || 0, propertyNumber: row.stockNumber, pendingMovement: row.pendingReturn }] }));
+                const assetRows = (assets.data.data || []).map(asset => {
+                    const inventory = asset.inventory;
+                    const iarItem = inventory?.inspectionAcceptanceReport?.items?.find(entry => [entry.inventory, ...(entry.inventories || [])].some(id => String(id?._id || id) === String(inventory?._id)))
+                        || inventory?.inspectionAcceptanceReport?.items?.find(entry => String(entry.stockNumber || '') === String(inventory?.item?.stockNumber || '') || String(entry.stockPropertyNumber || '') === String(inventory?.item?.stockNumber || ''));
+                    return { _id: asset.ris || asset._id, risNumber: asset.documentNumber, requestedBy: person, items: [{ _id: asset.risItem || asset._id, accountability: asset._id, description: inventory?.item?.description, unit: inventory?.item?.unit, quantityRemaining: asset.quantityRemaining, unitCost: inventory?.unitCost, propertyNumber: formNumber(inventory?.propertyNumber) || formNumber(iarItem?.inventoryItemNo) || formNumber(asset.propertyNumber) || formNumber(inventory?.item?.displayStockNumber || inventory?.item?.stockNumber), iarNumber: inventory?.inspectionAcceptanceReport?.iarNumber || '', pendingMovement: asset.pendingMovement }] };
+                });
+                const otherRows = (issued.data.data || []).filter(row => row.quantityRemaining > 0 && !assetRows.some(record => String(record._id) === String(row.risId) && record.items.some(item => String(item._id) === String(row.itemId)))).map(row => ({ _id: row.risId, risNumber: row.risNumber, requestedBy: person, items: [{ _id: row.itemId, itemName: row.itemName, description: row.description, unit: row.unit || '', quantityRemaining: row.quantityRemaining, unitCost: row.unitCost || 0, propertyNumber: formNumber(row.propertyNumber) || formNumber(row.displayStockNumber || row.stockNumber), iarNumber: row.iarNumber || '', pendingMovement: row.pendingReturn }] }));
                 setIssuedRecords([...assetRows, ...otherRows]); setApprovedRecords([]); return;
             }
             const [{ data }, { data: requests }] = await Promise.all([axios.get('/ris/returnable-items', { params: editingId ? { exclude: editingId } : {} }), axios.get('/ris')]);
@@ -632,7 +637,7 @@ export default function PrsPage() {
                                         <input required={hasRowData(item, emptyItem())} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <FormNumberInput aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <FormNumberInput aria-label="Property Number" value={item.propertyNumber} readOnly={Boolean(item.ris && item.risItem)} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2 read-only:bg-slate-50 read-only:text-slate-600" />
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} aria-label="Material Record No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />

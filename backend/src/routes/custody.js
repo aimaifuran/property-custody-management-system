@@ -65,7 +65,7 @@ router.post('/transfers/reconcile', async (req, res) => {
 
 router.get('/assets', async (req, res) => {
   const query = { deleted: false, active: true, ...(req.user.role === 'admin' ? {} : { user: req.user._id }) };
-  const rows = await Accountability.find(query).populate({ path: 'inventory', populate: { path: 'item' } }).sort({ createdAt: -1 }).lean();
+  const rows = await Accountability.find(query).populate({ path: 'inventory', populate: [{ path: 'item' }, { path: 'inspectionAcceptanceReport', select: 'iarNumber items' }] }).sort({ createdAt: -1 }).lean();
   return successResponse(res, 'Current accountabilities', rows.map(row => ({ ...row, quantityRemaining: Math.max(0, Number(row.quantity || 0) - Number(row.returnedQuantity || 0)) })));
 });
 
@@ -200,7 +200,7 @@ router.post('/returns', transaction(async (req, session) => {
   const quantity = Number(req.body.quantity);
   if (!Number.isInteger(quantity) || quantity <= 0 || quantity > row.quantity - Number(row.returnedQuantity || 0)) fail('Choose a positive whole quantity within your remaining accountability');
   const prsNumber = await reserveDocumentNumber(PRS, 'prsNumber', new Date(), session);
-  const [report] = await PRS.create([{ prsNumber, lguName: (await (row.formType === 'ICS' ? ICS : PAR).findById(row.issuanceForm).session(session))?.entityName, status: 'PENDING', submittedBy: req.user._id, pendingKey: `ASSET:${row._id}`, purpose: 'Returned To Stock', note: String(req.body.note || '').trim(), returnedBy: { user: req.user._id, name: accountName(req.user), designation: req.user.office, date: new Date() }, items: [{ accountability: row._id, ris: row.ris, risItem: row.risItem, quantity, unit: row.inventory.item?.unit, description: row.inventory.item?.description, propertyNumber: row.propertyNumber || row.inventory.item?.stockNumber, mrNumber: row.documentNumber, unitValue: row.inventory.unitCost, totalValue: quantity * row.inventory.unitCost }] }], { session });
+  const [report] = await PRS.create([{ prsNumber, lguName: (await (row.formType === 'ICS' ? ICS : PAR).findById(row.issuanceForm).session(session))?.entityName, status: 'PENDING', submittedBy: req.user._id, pendingKey: `ASSET:${row._id}`, purpose: 'Returned To Stock', note: String(req.body.note || '').trim(), returnedBy: { user: req.user._id, name: accountName(req.user), designation: req.user.office, date: new Date() }, items: [{ accountability: row._id, ris: row.ris, risItem: row.risItem, quantity, unit: row.inventory.item?.unit, description: row.inventory.item?.description, propertyNumber: row.inventory.propertyNumber || row.propertyNumber || row.inventory.item?.stockNumber, mrNumber: row.documentNumber, unitValue: row.inventory.unitCost, totalValue: quantity * row.inventory.unitCost }] }], { session });
   row.pendingMovement = `PRS:${report._id}`; await row.save({ session });
   await notifyAdmins('Property return awaiting receipt', `${accountName(req.user)} submitted ${report.prsNumber}. Inspect condition and confirm physical receipt.`, '/returns', session);
   await log(req, 'Return submitted', report.prsNumber, session);
