@@ -91,10 +91,9 @@ export default function PropertyRecordsPage() {
           <p className="property-records-prompt text-sm text-slate-600">Search and select a user account to view its issued property records.</p>
         </div>
         <div className="property-records-search ml-auto w-full sm:w-80">
-          <label htmlFor="property-records-user-search" className="mb-1 block text-xs font-semibold text-slate-600">Search user account</label>
           <div className="relative">
             <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <SearchInput id="property-records-user-search" aria-label="Search user account" placeholder={usersLoading ? 'Loading accounts…' : 'Search name, username, or office'} disabled={usersLoading || Boolean(usersError)} value={search}
+            <SearchInput id="property-records-user-search" aria-label="Search Employee" placeholder={usersLoading ? 'Loading…' : 'Search Employee'} disabled={usersLoading || Boolean(usersError)} value={search}
               options={userOptions} onChange={value => { setSearch(value); if (selectedUser && value !== userName(selectedUser)) setSelectedUser(null); }} onSelect={selectUser}
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
           </div>
