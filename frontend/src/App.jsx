@@ -11,6 +11,7 @@ import IarPage from './pages/IarPage';
 import InventoryPage from './pages/InventoryPage';
 import PtrPage from './pages/PtrPage';
 import PrsPage from './pages/PrsPage';
+import PropertyRecordsPage from './pages/PropertyRecordsPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import IcsPage from './pages/IcsPage';
@@ -62,6 +63,7 @@ const permissionRoutes = {
   '/par': ['canViewRIS', 'canManageRIS', 'canManageInventory'],
   '/transfers': ['canViewRIS', 'canViewDashboard', 'canManageInventory'],
   '/returns': ['canViewRIS', 'canViewDashboard', 'canManageInventory'],
+  '/property-records': 'adminOnly',
   '/users': 'canManageUsers',
   '/settings': 'canManageSettings',
   '/profile': null,
@@ -101,6 +103,7 @@ function AppRoutes() {
               '/par': ParPage,
               '/transfers': PtrPage,
               '/returns': PrsPage,
+              '/property-records': PropertyRecordsPage,
               '/users': UsersPage,
               '/settings': SettingsPage,
               '/profile': ProfilePage,

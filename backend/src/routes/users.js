@@ -31,7 +31,7 @@ router.get('/:id/records', authenticate, adminOnly, async (req, res) => {
   const PropertyTransferReport = require('../models/PropertyTransferReport');
   const [risRows, assets, returnSlips] = await Promise.all([
     accountRecords(user, true),
-    Accountability.find({ deleted: false, active: true, user: user._id }).populate({ path: 'inventory', populate: { path: 'item' } }).sort({ createdAt: -1 }).lean(),
+    Accountability.find({ deleted: false, active: true, user: user._id }).populate('ris', 'risNumber').populate({ path: 'inventory', populate: { path: 'item' } }).sort({ createdAt: -1 }).lean(),
     PropertyReturnSlip.find({ deleted: false, $or: [{ submittedBy: user._id }, { 'returnedBy.user': user._id }] }).sort({ createdAt: -1 }).lean(),
   ]);
   const ptrRecords = await PropertyTransferReport.find({

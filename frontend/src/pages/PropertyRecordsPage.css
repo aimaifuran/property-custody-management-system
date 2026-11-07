@@ -1,0 +1,47 @@
+/* Match only the Property Card table colors; keep this table's layout intact. */
+.app-shell main .property-records-table thead,
+.app-shell main .property-records-table thead th {
+  background: #154734 !important;
+  color: #fff !important;
+}
+.app-shell main .property-records-table tbody > tr:nth-child(odd),
+.app-shell main .property-records-table tbody > tr:nth-child(odd) > td {
+  background: #eef0f2 !important;
+  color: #172e24 !important;
+  border-color: #d1d5db !important;
+}
+.app-shell main .property-records-table tbody > tr:nth-child(even),
+.app-shell main .property-records-table tbody > tr:nth-child(even) > td {
+  background: #fff !important;
+  color: #172e24 !important;
+  border-color: #d1d5db !important;
+}
+.app-shell main .property-records-table :is(th, td) { border: 0 !important; }
+
+@media print {
+  body:has(.property-records-page) { background: #fff !important; }
+  .app-shell:has(.property-records-page) { display: block !important; height: auto !important; overflow: visible !important; }
+  .app-shell:has(.property-records-page) > .sidebar-shell,
+  .app-shell:has(.property-records-page) .title-bar,
+  .property-records-header,
+  .property-records-search,
+  .property-records-footer,
+  .property-records-empty,
+  .property-records-prompt,
+  .table-scroll__hint { display: none !important; }
+  .app-shell:has(.property-records-page) main { height: auto !important; overflow: visible !important; padding: 0 !important; }
+  .app-shell:has(.property-records-page) .route-content { transform: none !important; opacity: 1 !important; }
+  .property-records-page { margin: 0 !important; padding: 0 !important; }
+  .property-records-print { min-height: 0 !important; overflow: visible !important; border: 0 !important; box-shadow: none !important; }
+  .property-records-card-header { padding: 0 0 12px !important; border: 0 !important; }
+  .property-records-account { padding: 0 !important; }
+  .property-records-content { padding: 0 !important; }
+  .property-records-print .table-scroll,
+  .property-records-print .table-scroll__content { display: block !important; visibility: visible !important; width: 100% !important; max-height: none !important; overflow: visible !important; }
+  .property-records-print .property-records-table { display: table !important; visibility: visible !important; table-layout: fixed !important; border-collapse: collapse !important; min-width: 0 !important; width: 100% !important; font-size: 10pt !important; }
+  .property-records-table thead { display: table-header-group !important; }
+  .property-records-table tbody { display: table-row-group !important; }
+  .property-records-table tr { display: table-row !important; }
+  .property-records-table th, .property-records-table td { display: table-cell !important; width: auto !important; min-width: 0 !important; overflow-wrap: anywhere; }
+  .app-shell main .property-records-table :is(th, td) { border-width: 1px !important; border-style: solid !important; border-color: #64748b !important; }
+}

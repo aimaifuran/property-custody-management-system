@@ -32,6 +32,7 @@ const navItems = [
   { to: '__issue__', label: 'Issue', icon: FileText, permissions: [] },
   { to: '/transfers', label: 'Property Transfer Report', icon: ArrowLeftRight, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
   { to: '/returns', label: 'Property Return Slip', icon: RotateCcw, permissions: ['canViewRIS', 'canViewDashboard', 'canManageInventory'], adminOnly: true },
+  { to: '/property-records', label: 'Property Records', icon: ClipboardList, permissions: [], adminOnly: true },
   { to: '__reports__', label: 'Reports', icon: BarChart3, permissions: [] },
 ];
 
