@@ -225,16 +225,34 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
             inspectionAcceptanceReport: report._id,
           }], { session });
           if (entry.itemType === 'ASSET') {
-            if (unitCount === 1 && requestedPropertyNumber && await Inventory.exists({ _id: { $ne: inventory._id }, propertyNumber: requestedPropertyNumber }).session(session)) throw new Error('Each asset must have a unique property number');
-            const [property] = await require('../models/Property').create([{
-              propertyCode: requestedPropertyNumber || `P-${inventory._id}`, inventory: inventory._id, iar: report._id,
+            const Property = require('../models/Property');
+            const propertyCode = requestedPropertyNumber || `P-${inventory._id}`;
+            const propertyData = {
+              propertyCode, inventory: inventory._id, iar: report._id,
               propertyName: entry.propertyPlantAndEquipment || entry.description,
               description: entry.description, category: entry.propertyPlantAndEquipment || 'Other Property',
               serialNumber: unitSerial, quantity: receiptQuantity,
               acquisitionDate: report.acceptanceDate || report.poDate, acquisitionCost: lineAmount(receiptQuantity, entry.unitCost),
               supplier: report.supplierName, purchaseOrderNumber: report.poNumber, sourceOfFund: report.fundCluster,
               status: 'AVAILABLE', events: [{ action: 'IAR receipt', status: 'AVAILABLE', remarks: report.iarNumber }],
-            }], { session });
+            };
+            if (unitCount === 1 && requestedPropertyNumber) {
+              const duplicateInventory = await Inventory.exists({ _id: { $ne: inventory._id }, deleted: { $ne: true }, propertyNumber: requestedPropertyNumber }).session(session);
+              const duplicateProperty = await Property.exists({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: { $ne: true } }).session(session);
+              if (duplicateInventory || duplicateProperty) throw new Error('Each asset must have a unique property number');
+            }
+            // A soft-deleted record may hold the unique property-code index.
+            // Reuse that archived property record so the administrator can use
+            // the same inventory number again after records were cleared.
+            let property = requestedPropertyNumber
+              ? await Property.findOne({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: true }).session(session)
+              : null;
+            if (property) {
+              Object.assign(property, propertyData, { deleted: false });
+              await property.save({ session });
+            } else {
+              [property] = await Property.create([propertyData], { session });
+            }
             inventory.property = property._id;
             inventory.propertyNumber = inventory.propertyNumber || property.propertyCode;
             await inventory.save({ session });
