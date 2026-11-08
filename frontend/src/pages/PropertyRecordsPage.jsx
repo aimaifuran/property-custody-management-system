@@ -3,6 +3,7 @@ import TableScroll from '../components/TableScroll';
 import axios from 'axios';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Printer, Search, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { formNumber } from '../utils/formNumbers';
 import { risStockNumber } from '../utils/risItemSelection';
 import './PropertyRecordsPage.css';
@@ -23,7 +24,8 @@ export default function PropertyRecordsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null);
-  const [recordListOpen, setRecordListOpen] = useState(false);
+  const [recordInput, setRecordInput] = useState('');
+  const [recordInputValid, setRecordInputValid] = useState(true);
   const [saving, setSaving] = useState(false);
   const tableRef = useRef(null);
   const scrolledUserId = useRef('');
@@ -82,6 +84,23 @@ export default function PropertyRecordsPage() {
       });
     return [...issued, ...transferredIn];
   }, [records]);
+  const recordOptions = useMemo(() => {
+    const labels = rows.map(row => `${row.itemName || row.description || 'Property'} — ${shownPropertyNumber(row) || 'No property number'}`);
+    const counts = new Map(labels.map(label => [label, (labels.filter(candidate => candidate === label).length)]));
+    return rows.map((row, index) => ({
+      row,
+      label: counts.get(labels[index]) > 1 ? `${labels[index]} · ${row.risNumber ? `RIS ${row.risNumber}` : 'Record'} #${index + 1}` : labels[index],
+    }));
+  }, [rows]);
+  const recordSuggestions = useMemo(() => recordOptions.flatMap(({ row, label }) => {
+    const itemName = row.itemName || row.description || 'Property';
+    const propertyNumber = shownPropertyNumber(row) || 'No property number';
+    const suffix = label.includes(' · ') ? label.slice(label.lastIndexOf(' · ')) : '';
+    return [
+      { row, value: label },
+      { row, value: `${propertyNumber} — ${itemName}${suffix}` },
+    ];
+  }), [recordOptions]);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const visibleRows = useMemo(() => rows.slice((currentPage - 1) * pageSize, currentPage * pageSize), [rows, currentPage]);
 
@@ -104,6 +123,7 @@ export default function PropertyRecordsPage() {
   const saveRecord = async event => {
     event.preventDefault();
     if (!selectedUser || !editing) return;
+    if (rows.length > 1 && !recordInputValid) { toast.error('Choose a property record from the suggestions.'); return; }
     setSaving(true);
     try {
       await axios.patch(`/users/${selectedUser._id}/records/${editing.risId}/${editing.itemId}`, {
@@ -170,11 +190,11 @@ export default function PropertyRecordsPage() {
           </>}
         </div>
         <div className="flex gap-2">
-        {selectedUser && <button type="button" disabled={loading || !rows.length} onClick={() => { const row = rows[0]; setEditing({ ...row, propertyNumber: shownPropertyNumber(row), amount: Number(row.unitCost || 0) * Number(row.quantityIssued || 0) }); }} className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"><Pencil size={16} aria-hidden="true" />Update</button>}
+        {selectedUser && <button type="button" disabled={loading || !rows.length} onClick={() => { const row = rows[0]; setEditing({ ...row, propertyNumber: shownPropertyNumber(row), amount: Number(row.unitCost || 0) * Number(row.quantityIssued || 0) }); setRecordInput(recordOptions[0]?.label || ''); setRecordInputValid(true); }} className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"><Pencil size={16} aria-hidden="true" />Update</button>}
         <button type="button" disabled={!selectedUser || loading || !rows.length} onClick={() => window.print()} className="property-records-print-button inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16} aria-hidden="true" />Print</button>
         </div>
       </footer>}
     </section>
-    {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={saveRecord} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold">Update property record</h2><button type="button" onClick={() => { setEditing(null); setRecordListOpen(false); }} aria-label="Close"><X size={20}/></button></div>{rows.length > 1 && <div className="relative mb-4"><label className="block text-sm font-medium">Record to update</label><button type="button" aria-expanded={recordListOpen} onClick={() => setRecordListOpen(open => !open)} className="property-record-choice-trigger mt-1 w-full rounded-lg border bg-white px-3 py-2 text-left">{editing.itemName || editing.description || 'Property'} — {editing.propertyNumber || 'No property number'} <span className="float-right">⌄</span></button>{recordListOpen && <div role="listbox" aria-label="Property records" className="absolute left-0 right-0 top-full z-20 max-h-48 overflow-y-auto rounded-lg border border-slate-300 bg-white shadow-lg">{rows.map((row, index) => <button type="button" role="option" aria-selected={row.risId === editing.risId && row.itemId === editing.itemId} key={`${row.risId}:${row.itemId}:${index}`} onClick={() => { setEditing({ ...row, propertyNumber: shownPropertyNumber(row), amount: Number(row.unitCost || 0) * Number(row.quantityIssued || 0) }); setRecordListOpen(false); }} className="property-record-choice-option block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-slate-100">{row.itemName || row.description || 'Property'} — {shownPropertyNumber(row) || 'No property number'}</button>)}</div>}</div>}<div className="space-y-4"><label className="block text-sm font-medium">Property No.<input required value={editing.propertyNumber || ''} onChange={event => setEditing({ ...editing, propertyNumber: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label><label className="block text-sm font-medium">Description<textarea required value={editing.description || ''} onChange={event => setEditing({ ...editing, description: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label><label className="block text-sm font-medium">Amount (₱)<input required min="0" step="0.01" type="number" value={editing.amount ?? ''} onChange={event => setEditing({ ...editing, amount: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => { setEditing(null); setRecordListOpen(false); }} className="rounded-lg border px-4 py-2">Cancel</button><button type="submit" disabled={saving} className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button></div></form></div>}
+    {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={saveRecord} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold">Update property record</h2><button type="button" onClick={() => setEditing(null)} aria-label="Close"><X size={20}/></button></div>{rows.length > 1 && <label className="mb-4 block text-sm font-medium">Record to update<input type="text" list="property-record-options" autoComplete="off" placeholder="Search by item name or property number" value={recordInput} onChange={event => { const value = event.target.value; setRecordInput(value); setRecordInputValid(false); const suggestion = recordSuggestions.find(candidate => candidate.value === value); if (suggestion) { const row = suggestion.row; setEditing({ ...row, propertyNumber: shownPropertyNumber(row), amount: Number(row.unitCost || 0) * Number(row.quantityIssued || 0) }); setRecordInputValid(true); } }} className="mt-1 w-full rounded-lg border p-2" /><datalist id="property-record-options">{recordSuggestions.map(({ row, value }, index) => <option key={`${row.risId}:${row.itemId}:${index}`} value={value} />)}</datalist></label>}<div className="space-y-4"><label className="block text-sm font-medium">Property No.<input required value={editing.propertyNumber || ''} onChange={event => setEditing({ ...editing, propertyNumber: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label><label className="block text-sm font-medium">Description<textarea required value={editing.description || ''} onChange={event => setEditing({ ...editing, description: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label><label className="block text-sm font-medium">Amount (₱)<input required min="0" step="0.01" type="number" value={editing.amount ?? ''} onChange={event => setEditing({ ...editing, amount: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} className="rounded-lg border px-4 py-2">Cancel</button><button type="submit" disabled={saving} className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button></div></form></div>}
   </div>;
 }
