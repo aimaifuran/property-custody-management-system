@@ -210,6 +210,20 @@ router.post('/forgot-password', forgotPasswordLimiter, [
   }
 });
 
+router.post('/verify-password-reset-code', loginLimiter, [
+  body('email').trim().isEmail(),
+  body('code').isString().matches(/^\d{6}$/),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return errorResponse(res, 'Enter your email and six-digit verification code.', errors.array(), 400);
+  const scope = { email: req.body.email.toLowerCase(), deleted: false, status: 'active', passwordResetCodeExpiry: { $gt: new Date() }, passwordResetCodeAttempts: { $lt: 5 } };
+  const hash = hashSecret(req.body.code);
+  const user = await User.findOne({ ...scope, passwordResetCode: hash }).select('_id');
+  if (user) return successResponse(res, 'Verification code confirmed. You may now choose a new password.', { verified: true });
+  await User.updateOne({ ...scope, passwordResetCode: { $ne: hash } }, { $inc: { passwordResetCodeAttempts: 1 } });
+  return errorResponse(res, 'The code is invalid or expired. Please check it or request a new code.', [], 400);
+});
+
 router.post('/reset-password-code', loginLimiter, [
   body('email').trim().isEmail(),
   body('code').isString().matches(/^\d{6}$/),

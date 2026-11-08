@@ -141,7 +141,7 @@ export default function UserManualPage() {
         <li>On the sign-in page, choose <strong>Forgot Password</strong>.</li>
         <li>Enter the email address registered to your account and request a verification code.</li>
         <li>Check your inbox and spam/junk folder. Enter the six-digit code before it expires (10 minutes).</li>
-        <li>Enter and confirm a new password of at least eight characters, then choose Verify Code and Update Password.</li>
+        <li>Enter the six-digit code and choose Verify Code. After it is confirmed, enter and confirm a new password of at least eight characters, then choose Update Password.</li>
         <li>If needed, choose Send a new code. A new code replaces the previous one. You can also choose Use a different email.</li>
       </Steps>
       <p>If no email arrives, verify that you used the registered email and check spam. Ask an administrator to confirm your account email or help with delivery. Recovery does not unlock accounts locked by an administrator or inactivity; contact an administrator for those locks.</p>

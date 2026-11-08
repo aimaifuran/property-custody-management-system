@@ -1986,6 +1986,7 @@ body { font-size: var(--app-text-size); }
 .forgot-password-page .recovery-submit > svg { width: 18px; height: 18px; }
 .forgot-password-page .recovery-submit:disabled { opacity: .7; cursor: wait; }
 .recovery-help { display: flex; align-items: flex-start; gap: 9px; color: #d3e0ca; }
+.recovery-verified-code { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid #8eb77d; border-radius: 8px; background: rgba(21, 71, 52, .62); color: #e5f2d9; font-size: 13px; font-weight: 600; }
 .recovery-help > svg { flex-shrink: 0; margin-top: 2px; color: #c3d697; }
 .forgot-password-page .recovery-help p { margin: 0; font-size: 12px !important; line-height: 1.6; }
 .recovery-confirmation { display: flex; align-items: flex-start; gap: 12px; padding: 18px; border-radius: 12px; border: 1px solid rgba(192, 208, 125, .35); background: rgba(176, 194, 94, .1); }
