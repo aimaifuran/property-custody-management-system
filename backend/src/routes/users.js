@@ -63,6 +63,169 @@ router.get('/:id/records', authenticate, adminOnly, async (req, res) => {
 // Record a physical, serviceable return directly from the admin's account records.
 router.post('/:id/records/returned', authenticate, adminOnly, require('../utils/recordAccountReturn')());
 
+router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req, res) => {
+  const mongoose = require('mongoose');
+  const RequisitionIssueSlip = require('../models/RequisitionIssueSlip');
+  const Accountability = require('../models/PropertyAccountability');
+  const Inventory = require('../models/Inventory');
+  const InspectionAcceptanceReport = require('../models/InspectionAcceptanceReport');
+  const InventoryCustodianSlip = require('../models/InventoryCustodianSlip');
+  const PropertyAcknowledgementReceipt = require('../models/PropertyAcknowledgementReceipt');
+  const Property = require('../models/Property');
+  const PropertyCard = require('../models/PropertyCard');
+  const PropertyTransferReport = require('../models/PropertyTransferReport');
+  const PropertyReturnSlip = require('../models/PropertyReturnSlip');
+  const ReturnedSupply = require('../models/ReturnedSupply');
+  const PpeList = require('../models/PpeList');
+  const Item = require('../models/Item');
+  const { propertyNumber, description, amount, accountability } = req.body || {};
+  if (![req.params.id, req.params.risId, req.params.itemId].every(mongoose.isValidObjectId)) return errorResponse(res, 'Invalid property record', [], 400);
+  if (typeof propertyNumber !== 'string' || !propertyNumber.trim() || typeof description !== 'string' || !description.trim() || !Number.isFinite(Number(amount)) || Number(amount) < 0) return errorResponse(res, 'Enter a property number, description, and valid amount', [], 400);
+  const user = await User.findOne({ _id: req.params.id, deleted: false, role: 'user' });
+  if (!user) return errorResponse(res, 'User account not found', [], 404);
+  const asset = accountability ? await Accountability.findOne({ _id: accountability, user: user._id, deleted: false }).lean() : null;
+  const risId = asset?.ris || req.params.risId;
+  const itemId = asset?.risItem || req.params.itemId;
+  const risQuery = { _id: risId, deleted: false, status: { $in: ['ISSUED', 'ACCOUNTABILITY_LOCKED'] } };
+  if (!asset) risQuery.$or = [{ 'receivedBy.user': user._id }, { 'requestedBy.user': user._id }];
+  const ris = await RequisitionIssueSlip.findOne(risQuery);
+  const item = ris?.items.id(itemId);
+  if (!ris || !item) return errorResponse(res, 'Issued property record not found for this account', [], 404);
+  const issuedAmount = Number(item.quantityIssued || 0);
+  if (issuedAmount <= 0) return errorResponse(res, 'This record has no issued quantity to update', [], 400);
+  const ownedAsset = asset ? await Accountability.findById(asset._id) : await Accountability.findOne({ ris: ris._id, risItem: item._id, user: user._id, deleted: false });
+  const inventoryId = ownedAsset?.inventory || item.inventory;
+  const inventory = inventoryId ? await Inventory.findById(inventoryId) : null;
+  const nextPropertyNumber = propertyNumber.trim();
+  const unitCost = Number(amount) / issuedAmount;
+  if (inventory) {
+    const duplicateInventory = await Inventory.exists({ _id: { $ne: inventory._id }, deleted: { $ne: true }, propertyNumber: nextPropertyNumber });
+    if (duplicateInventory) return errorResponse(res, 'This property number is already assigned to another inventory item', [], 409);
+    if (inventory.property) {
+      const duplicateProperty = await Property.exists({ _id: { $ne: inventory.property }, propertyCode: nextPropertyNumber.toUpperCase(), deleted: { $ne: true } });
+      if (duplicateProperty) return errorResponse(res, 'This property number is already assigned to another property', [], 409);
+    }
+  }
+  item.description = description.trim();
+  item.unitCost = unitCost;
+  item.totalCost = Number(amount);
+  ris.lastEditedAt = new Date();
+  await ris.save();
+  if (inventory) {
+    inventory.propertyNumber = nextPropertyNumber;
+    inventory.unitCost = unitCost;
+    inventory.assetCost = unitCost * Number(inventory.quantity || 1);
+    await inventory.save();
+    if (inventory.item) await Item.updateOne({ _id: inventory.item }, { $set: { description: description.trim(), cost: unitCost } });
+    if (inventory.property) {
+      const linkedProperty = await Property.findById(inventory.property);
+      if (linkedProperty) {
+        linkedProperty.propertyCode = nextPropertyNumber;
+        linkedProperty.description = description.trim();
+        linkedProperty.acquisitionCost = inventory.assetCost;
+        await linkedProperty.save();
+      }
+    }
+  }
+  if (ownedAsset) {
+    ownedAsset.propertyNumber = nextPropertyNumber;
+    await ownedAsset.save();
+  }
+  if (inventory) {
+    const linkedIars = await InspectionAcceptanceReport.find({ deleted: false, $or: [{ 'items.inventory': inventory._id }, { 'items.inventories': inventory._id }] });
+    for (const iar of linkedIars) {
+      const linkedReceiptRows = [];
+      for (const [receiptItemIndex, receiptItem] of iar.items.entries()) {
+        const matches = String(receiptItem.inventory || '') === String(inventory._id) || (receiptItem.inventories || []).some(id => String(id) === String(inventory._id));
+        if (!matches) continue;
+        receiptItem.inventoryItemNo = nextPropertyNumber;
+        receiptItem.propertyNumber = nextPropertyNumber;
+        receiptItem.description = description.trim();
+        receiptItem.item = description.trim();
+        receiptItem.unitCost = unitCost;
+        receiptItem.totalCost = unitCost * Number(receiptItem.acceptedQuantity ?? receiptItem.quantity ?? 1);
+        linkedReceiptRows.push({ receiptItemIndex, quantity: Number(receiptItem.acceptedQuantity ?? receiptItem.quantity ?? 1) });
+      }
+      iar.lastEditedAt = new Date();
+      await iar.save();
+      const ppeReports = linkedReceiptRows.length ? await PpeList.find({ 'rows.source': 'IAR', 'rows.sourceId': String(iar._id) }) : [];
+      for (const ppeReport of ppeReports) {
+        let changed = false;
+        for (const linkedRow of linkedReceiptRows) {
+          const row = ppeReport.rows.find(candidate => candidate.source === 'IAR' && candidate.sourceId === String(iar._id) && Number(candidate.sourceRow) === linkedRow.receiptItemIndex);
+          if (row) {
+            row.item = description.trim();
+            row.unitCost = unitCost;
+            row.totalCost = unitCost * linkedRow.quantity;
+            row.accountingManual = true;
+            changed = true;
+          }
+        }
+        if (changed) {
+          ppeReport.recapitulation = require('../utils/monthlyItems').recapitulate(ppeReport.rows);
+          ppeReport.lastEditedAt = new Date();
+          await ppeReport.save();
+        }
+      }
+    }
+    for (const Model of [InventoryCustodianSlip, PropertyAcknowledgementReceipt]) {
+      const forms = await Model.find({ deleted: false, 'items.inventory': inventory._id });
+      for (const form of forms) {
+        for (const formItem of form.items) if (String(formItem.inventory || '') === String(inventory._id)) {
+          formItem.description = description.trim();
+          formItem.unitCost = unitCost;
+          if (Model === InventoryCustodianSlip) {
+            formItem.inventoryItemNo = nextPropertyNumber;
+            formItem.totalCost = unitCost * Number(formItem.quantity || 0);
+          } else {
+            formItem.propertyNumber = nextPropertyNumber;
+            formItem.amount = unitCost * Number(formItem.quantity || 0);
+          }
+        }
+        form.lastEditedAt = new Date();
+        await form.save();
+      }
+    }
+    const cards = await PropertyCard.find({ deleted: false, $or: [{ inventory: inventory._id }, { 'items.inventory': inventory._id }] });
+    for (const card of cards) {
+      if (String(card.inventory || '') === String(inventory._id)) {
+        card.propertyNumber = nextPropertyNumber;
+        card.description = description.trim();
+      }
+      for (const cardItem of card.items || []) if (String(cardItem.inventory || '') === String(inventory._id)) {
+        cardItem.propertyNumber = nextPropertyNumber;
+        cardItem.description = description.trim();
+        cardItem.unitCost = unitCost;
+        cardItem.amount = unitCost * Number(cardItem.receiptQuantity || cardItem.itdQuantity || 0);
+      }
+      card.lastEditedAt = new Date();
+      await card.save();
+    }
+    const transfers = await PropertyTransferReport.find({ deleted: false, 'items.inventory': inventory._id });
+    for (const report of transfers) {
+      for (const line of report.items) if (String(line.inventory || '') === String(inventory._id)) {
+        line.propertyNumber = nextPropertyNumber;
+        line.description = description.trim();
+        line.amount = unitCost * Number(line.quantity || 0);
+      }
+      report.lastEditedAt = new Date();
+      await report.save();
+    }
+  }
+  const linkedReturns = ownedAsset ? await PropertyReturnSlip.find({ deleted: false, 'items.accountability': ownedAsset._id }) : [];
+  for (const slip of linkedReturns) {
+    for (const line of slip.items) if (String(line.accountability || '') === String(ownedAsset?._id || '')) {
+      line.propertyNumber = nextPropertyNumber;
+      line.description = description.trim();
+      line.unitValue = unitCost;
+      line.totalValue = unitCost * Number(line.quantity || 0);
+    }
+    await slip.save();
+  }
+  await ReturnedSupply.updateMany({ ris: ris._id, risItem: item._id }, { $set: { propertyNumber: nextPropertyNumber, description: description.trim(), unitValue: unitCost, totalValue: unitCost * issuedAmount } });
+  return successResponse(res, 'Property record updated', { risId: ris._id, itemId: item._id });
+});
+
 router.get('/password-reset-requests', authenticate, adminOnly, async (req, res) => {
   await PasswordResetRequest.updateMany({ status: 'APPROVED', expiresAt: { $lte: new Date() } }, { $set: { status: 'EXPIRED' }, $unset: { activeKey: 1, tokenHash: 1 } });
   const requests = await PasswordResetRequest.find({ status: { $in: ['PENDING', 'SENDING', 'APPROVED'] } })

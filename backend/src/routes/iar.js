@@ -224,11 +224,10 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
             purchaseDate: report.purchaseDate,
             inspectionAcceptanceReport: report._id,
           }], { session });
-          if (entry.itemType === 'ASSET') {
+          if (entry.itemType === 'ASSET' && requestedPropertyNumber) {
             const Property = require('../models/Property');
-            const propertyCode = requestedPropertyNumber || `P-${inventory._id}`;
             const propertyData = {
-              propertyCode, inventory: inventory._id, iar: report._id,
+              propertyCode: requestedPropertyNumber, inventory: inventory._id, iar: report._id,
               propertyName: entry.propertyPlantAndEquipment || entry.description,
               description: entry.description, category: entry.propertyPlantAndEquipment || 'Other Property',
               serialNumber: unitSerial, quantity: receiptQuantity,
@@ -244,9 +243,7 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
             // A soft-deleted record may hold the unique property-code index.
             // Reuse that archived property record so the administrator can use
             // the same inventory number again after records were cleared.
-            let property = requestedPropertyNumber
-              ? await Property.findOne({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: true }).session(session)
-              : null;
+            let property = await Property.findOne({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: true }).session(session);
             if (property) {
               Object.assign(property, propertyData, { deleted: false });
               await property.save({ session });

@@ -17,6 +17,11 @@
   border-color: #d1d5db !important;
 }
 .app-shell main .property-records-table :is(th, td) { border: 0 !important; }
+.app-shell main .property-records-table,
+.app-shell main .property-records-table :is(tr, th, td) { border-radius: 0 !important; }
+.property-record-choice-trigger,
+.property-record-choice-option { justify-content: flex-start !important; text-align: left !important; }
+.property-record-choice-option { display: flex !important; }
 
 @media print {
   body:has(.property-records-page) { background: #fff !important; }
