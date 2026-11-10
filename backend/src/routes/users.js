@@ -265,7 +265,7 @@ router.post('/password-reset-requests/:id/reject', authenticate, adminOnly, asyn
 
 router.get('/', authenticate, authorize('canManageUsers'), async (req, res) => {
   await lockInactiveUsers();
-  const users = await User.find({ deleted: false, ...(req.query.role === 'user' ? { role: 'user' } : {}) }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry').populate('createdBy', 'firstName middleName lastName username').sort({ createdAt: -1 });
+  const users = await User.find({ deleted: false, ...(req.query.role === 'user' ? { role: 'user' } : {}) }).select('-password -refreshToken -refreshTokens -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry').populate('createdBy', 'firstName middleName lastName username').sort({ createdAt: -1 });
   return successResponse(res, 'Users retrieved', users);
 });
 
@@ -294,13 +294,13 @@ router.put('/:id', authenticate, validateAdminForm('users'), authorize('canManag
   if (req.body.password) {
     updates.password = await bcrypt.hash(req.body.password, 10);
     updates.failedLoginAttempts = 0;
-    for (const key of ['refreshToken', 'resetToken', 'resetTokenExpiry', 'lockUntil', 'passwordResetCode', 'passwordResetCodeExpiry', 'passwordResetCodeAttempts']) unset[key] = 1;
+    for (const key of ['refreshToken', 'refreshTokens', 'resetToken', 'resetTokenExpiry', 'lockUntil', 'passwordResetCode', 'passwordResetCodeExpiry', 'passwordResetCodeAttempts']) unset[key] = 1;
   }
   if (changedEmail) for (const key of ['pendingEmail', 'emailChangeCode', 'emailChangeExpiry', 'resetToken', 'resetTokenExpiry', 'passwordResetCode', 'passwordResetCodeExpiry', 'passwordResetCodeAttempts']) unset[key] = 1;
   // Account recovery edits retain the existing role and never accept session fields from the client.
   updates.permissions = existing.role === 'admin' ? [] : ['canViewRIS'];
   try {
-    const user = await User.findByIdAndUpdate(existing._id, { $set: updates, ...(Object.keys(unset).length ? { $unset: unset } : {}) }, { returnDocument: 'after', runValidators: true }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry');
+    const user = await User.findByIdAndUpdate(existing._id, { $set: updates, ...(Object.keys(unset).length ? { $unset: unset } : {}) }, { returnDocument: 'after', runValidators: true }).select('-password -refreshToken -refreshTokens -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry');
     await ActivityLog.create({ user: req.user._id, action: 'Account updated', details: `${existing.username}: account details updated${changedEmail ? '; email changed' : ''}${req.body.password ? '; password reset' : ''}` });
     return successResponse(res, 'Account updated', user);
   } catch (error) { return errorResponse(res, error.code === 11000 ? 'Email or username is already in use' : 'Check the account details and try again', [], error.code === 11000 ? 409 : 400); }
@@ -310,7 +310,7 @@ router.patch('/:id/lock', authenticate, authorize('canManageUsers'), async (req,
   const mongoose = require('mongoose');
   if (!mongoose.isValidObjectId(req.params.id)) return errorResponse(res, 'Invalid user account', [], 400);
   const locked = Boolean(req.body.locked);
-  const user = await User.findOneAndUpdate({ _id: req.params.id, deleted: false, ...(locked ? {} : { status: 'active' }) }, { $set: { locked, ...(!locked ? { inactivityResetAt: new Date() } : {}) }, ...(locked ? { $unset: { refreshToken: 1 } } : {}) }, { returnDocument: 'after' }).select('-password -refreshToken -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry');
+  const user = await User.findOneAndUpdate({ _id: req.params.id, deleted: false, ...(locked ? {} : { status: 'active' }) }, { $set: { locked, ...(!locked ? { inactivityResetAt: new Date() } : {}) }, ...(locked ? { $unset: { refreshToken: 1, refreshTokens: 1 } } : {}) }, { returnDocument: 'after' }).select('-password -refreshToken -refreshTokens -resetToken -resetTokenExpiry -emailChangeCode -emailChangeExpiry');
   if (!user) {
     const existing = await User.exists({ _id: req.params.id, deleted: false });
     return errorResponse(res, existing ? 'Inactive accounts are automatically locked. Activate the account before unlocking it.' : 'Account not found', [], existing ? 409 : 404);

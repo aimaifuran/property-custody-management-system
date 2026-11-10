@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema({
   locked: { type: Boolean, default: false },
   permissions: [{ type: String }],
   refreshToken: { type: String },
+  refreshTokens: { type: [String], default: [] },
   failedLoginAttempts: { type: Number, default: 0 },
   lockUntil: { type: Date },
   resetToken: { type: String },

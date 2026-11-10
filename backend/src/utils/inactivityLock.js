@@ -12,7 +12,7 @@ const lockInactiveUsers = async (scope = {}, now = new Date()) => {
       { $or: [{ lastLogin: { $lte: cutoff } }, { lastLogin: null, createdAt: { $lte: cutoff } }] },
       { $or: [{ inactivityResetAt: null }, { inactivityResetAt: { $lte: cutoff } }] },
     ],
-  }, { $set: { locked: true }, $unset: { refreshToken: 1 } });
+  }, { $set: { locked: true }, $unset: { refreshToken: 1, refreshTokens: 1 } });
 };
 
 module.exports = { INACTIVITY_DAYS, lockInactiveUsers };

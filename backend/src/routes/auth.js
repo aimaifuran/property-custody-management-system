@@ -11,7 +11,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const { loginLimiter, forgotPasswordLimiter } = require('../middlewares/rateLimiter');
 const { sendPasswordResetCode, sendEmailChangeCode } = require('../utils/mailer');
 const { authenticate } = require('../middlewares/auth');
-const { getAccessToken, isSessionUserActive } = require('../utils/session');
+const { isSessionUserActive } = require('../utils/session');
 const { lockInactiveUsers } = require('../utils/inactivityLock');
 const router = express.Router();
 const { pictureUpload, pictureData } = require('../utils/pictureUpload');
@@ -30,7 +30,7 @@ router.post('/profile-picture', authenticate, (req, res, next) => {
 
 const publicUser = (user) => {
   const data = user.toObject();
-  for (const field of ['password', 'refreshToken', 'resetToken', 'resetTokenExpiry', 'emailChangeCode', 'emailChangeExpiry']) delete data[field];
+  for (const field of ['password', 'refreshToken', 'refreshTokens', 'resetToken', 'resetTokenExpiry', 'emailChangeCode', 'emailChangeExpiry']) delete data[field];
   return data;
 };
 
@@ -97,11 +97,11 @@ router.post('/login', loginLimiter, [
 
     const accessToken = createToken(user);
     const refreshToken = createRefreshToken(user);
-    user.refreshToken = refreshToken;
-    user.lastLogin = new Date();
-    user.failedLoginAttempts = 0;
-    user.lockUntil = undefined;
-    await user.save();
+    const sessionUser = await User.findByIdAndUpdate(user._id, {
+      $addToSet: { refreshTokens: { $each: [user.refreshToken, refreshToken].filter(Boolean) } },
+      $set: { refreshToken, lastLogin: new Date(), failedLoginAttempts: 0 },
+      $unset: { lockUntil: 1 },
+    }, { returnDocument: 'after' });
 
     res.cookie('token', accessToken, {
       ...cookieOptions(),
@@ -117,7 +117,7 @@ router.post('/login', loginLimiter, [
 
     await ActivityLog.create({ user: user._id, action: 'Login', ipAddress: req.ip, browser: req.get('user-agent') });
 
-    const safeUser = publicUser(user);
+    const safeUser = publicUser(sessionUser);
     delete safeUser.password;
     delete safeUser.refreshToken;
     delete safeUser.resetToken;
@@ -135,7 +135,7 @@ router.post('/refresh', async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { algorithms: ['HS256'] });
     await lockInactiveUsers({ _id: decoded.id });
-    const user = await User.findOne({ _id: decoded.id, refreshToken });
+    const user = await User.findOne({ _id: decoded.id, $or: [{ refreshTokens: refreshToken }, { refreshToken }] });
     if (!isSessionUserActive(user)) return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
     const remainingSeconds = Math.floor(decoded.exp - Date.now() / 1000);
     if (!Number.isFinite(remainingSeconds) || remainingSeconds < 1) return errorResponse(res, 'Your session has expired. Please sign in again.', [], 401);
@@ -150,24 +150,20 @@ router.post('/refresh', async (req, res) => {
 });
 
 router.post('/logout', async (req, res) => {
-  const token = getAccessToken(req);
   let user;
-  if (token) {
+  const refreshToken = req.cookies?.refreshToken;
+  if (refreshToken) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret', { algorithms: ['HS256'] });
-      user = await User.findByIdAndUpdate(decoded.id, { refreshToken: null });
-    } catch (error) {
-      // An expired access token can still be logged out through its verified,
-      // stored refresh session. An expired access token never authorizes work.
-    }
-  }
-  if (!user && req.cookies?.refreshToken) {
-    try {
-      const refreshToken = req.cookies.refreshToken;
       const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh-secret', { algorithms: ['HS256'] });
-      user = await User.findOneAndUpdate({ _id: decoded.id, refreshToken }, { refreshToken: null });
+      user = await User.findOneAndUpdate(
+        { _id: decoded.id, $or: [{ refreshTokens: refreshToken }, { refreshToken }] },
+        { $pull: { refreshTokens: refreshToken } },
+      );
+      if (user?.refreshToken === refreshToken) {
+        await User.updateOne({ _id: user._id, refreshToken }, { $set: { refreshToken: null } });
+      }
     } catch (error) {
-      // Logout also clears local cookies when no valid session remains.
+      // Clear local cookies even if this browser's refresh session is invalid.
     }
   }
   if (user) await ActivityLog.create({ user: user._id, action: 'Logout', ipAddress: req.ip, browser: req.get('user-agent') });
@@ -240,7 +236,7 @@ router.post('/reset-password-code', loginLimiter, [
     const password = await bcrypt.hash(req.body.password, 10);
     const updated = await User.findOneAndUpdate({ _id: user._id, deleted: false, status: 'active', passwordResetCode: hash, passwordResetCodeExpiry: { $gt: new Date() }, passwordResetCodeAttempts: { $lte: 5 } }, {
       $set: { password, failedLoginAttempts: 0 },
-      $unset: { passwordResetCode: 1, passwordResetCodeExpiry: 1, passwordResetCodeAttempts: 1, resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, lockUntil: 1 },
+      $unset: { passwordResetCode: 1, passwordResetCodeExpiry: 1, passwordResetCodeAttempts: 1, resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, refreshTokens: 1, lockUntil: 1 },
     });
     if (!updated) return errorResponse(res, 'The code is invalid, expired, or already used.', [], 400);
     await PasswordResetRequest.updateMany({ user: user._id, status: { $in: ['PENDING', 'SENDING', 'APPROVED'] } }, { $set: { status: 'COMPLETED' }, $unset: { activeKey: 1, tokenHash: 1 } });
@@ -270,7 +266,7 @@ router.post('/reset-password', [
   const passwordHash = await bcrypt.hash(password, 10);
   const updated = await User.findOneAndUpdate(
     { _id: user._id, resetToken: hashSecret(token), resetTokenExpiry: { $gt: new Date() } },
-    { $set: { password: passwordHash, failedLoginAttempts: 0 }, $unset: { resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, lockUntil: 1, passwordResetCode: 1, passwordResetCodeExpiry: 1, passwordResetCodeAttempts: 1 } },
+    { $set: { password: passwordHash, failedLoginAttempts: 0 }, $unset: { resetToken: 1, resetTokenExpiry: 1, refreshToken: 1, refreshTokens: 1, lockUntil: 1, passwordResetCode: 1, passwordResetCodeExpiry: 1, passwordResetCodeAttempts: 1 } },
     { returnDocument: 'after' },
   );
   if (!updated) return errorResponse(res, 'This reset link is invalid or has already been used', [], 400);
