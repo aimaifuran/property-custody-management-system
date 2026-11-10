@@ -76,7 +76,7 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canRevie
   await linkLegacyRequests();
   const query = { deleted: false };
   if (req.user.role !== 'admin') Object.assign(query, ownRisFilter(req.user));
-  const ris = await listRecords(RequisitionIssueSlip, req, { baseFilter: query, searchFields: RIS_SEARCH_FIELDS });
+  const ris = await listRecords(RequisitionIssueSlip, req, { baseFilter: query, searchFields: RIS_SEARCH_FIELDS, populate: { path: 'iar', select: 'poNumber' } });
   const records = Array.isArray(ris) ? ris : ris.items;
   const accountIds = records.flatMap(record => [record.requestedBy?.user, record.receivedBy?.user]).filter(Boolean);
   const accounts = await User.find({ _id: { $in: accountIds } }).select('username firstName middleName lastName').lean();
@@ -84,7 +84,7 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canCreateRIS', 'canRevie
   const stocks = await Item.find({ stockNumber: { $in: records.flatMap(record => record.items.map(row => row.stockNumber).filter(Boolean)) } }).select('stockNumber displayStockNumber name category').lean();
   const displayNumbers = new Map(stocks.map(stock => [stock.stockNumber, stock.displayStockNumber || stock.stockNumber]));
   const names = new Map(stocks.map(stock => [stock.stockNumber, stock.name || (stock.category !== 'General' ? stock.category : '')]));
-  const reports = records.map(record => ({ ...record.toObject(), items: record.items.map(row => ({ ...row.toObject(), displayStockNumber: displayNumbers.get(row.stockNumber) || row.stockNumber })), recipientAccounts: [record.requestedBy?.user, record.receivedBy?.user].map(id => accountLabels.get(String(id))).filter(Boolean), itemNames: [...new Map(record.items.map(row => row.itemName || names.get(row.stockNumber) || row.description || '').filter(Boolean).map(name => [name.toLowerCase(), name])).values()] }));
+  const reports = records.map(record => ({ ...record.toObject(), poNumber: record.iar?.poNumber || '', items: record.items.map(row => ({ ...row.toObject(), displayStockNumber: displayNumbers.get(row.stockNumber) || row.stockNumber })), recipientAccounts: [record.requestedBy?.user, record.receivedBy?.user].map(id => accountLabels.get(String(id))).filter(Boolean), itemNames: [...new Map(record.items.map(row => row.itemName || names.get(row.stockNumber) || row.description || '').filter(Boolean).map(name => [name.toLowerCase(), name])).values()] }));
   return successResponse(res, 'RIS retrieved', Array.isArray(ris) ? reports : { ...ris, items: reports });
 });
 

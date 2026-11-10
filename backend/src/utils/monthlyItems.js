@@ -35,7 +35,9 @@ function collectMonthlyItems(sources) {
       rows.push({
         risNumber, responsibilityCenter: blankPlaceholder(record.responsibilityCenterCode),
         stockNumber: stockNumberOf(item), item: description, unit: item.unit || '',
-        quantity: number(item.quantity) ?? 0, unitCost: null, totalCost: null,
+        quantity: number(item.quantity) ?? 0,
+        unitCost: number(item.unitCost),
+        totalCost: number(item.totalCost) ?? ((number(item.quantity) ?? 0) * (number(item.unitCost) ?? 0)),
         source: 'IAR', sourceId: id(record._id), sourceRow: index, sourceNumber: record.iarNumber || '',
       });
     });
@@ -47,11 +49,31 @@ function collectMonthlyItems(sources) {
 function recapitulate(rows) {
   const groups = new Map();
   for (const row of rows) {
-    const key = JSON.stringify([row.stockNumber || '', row.item.trim().toLowerCase(), row.unit.toLowerCase()]);
-    const entry = groups.get(key) || { stockNumber: row.stockNumber || '', item: row.item, unit: row.unit, quantity: 0, unitCost: null, totalCost: null, accountCode: '' };
+    const item = String(row.item || '').trim();
+    const unit = String(row.unit || '').trim();
+    const key = JSON.stringify([item.toLowerCase().replace(/\s+/g, ' '), unit.toLowerCase()]);
+    const entry = groups.get(key) || {
+      stockNumber: '', item, unit, quantity: 0, unitCost: null, totalCost: 0, accountCode: '',
+      stockNumbers: new Set(), costQuantity: 0,
+    };
     entry.quantity += row.quantity;
+    if (row.stockNumber) entry.stockNumbers.add(String(row.stockNumber));
+    const rowTotal = number(row.totalCost);
+    const rowUnitCost = number(row.unitCost);
+    if (rowTotal != null) {
+      entry.totalCost += rowTotal;
+      if (rowUnitCost != null) entry.costQuantity += row.quantity;
+    }
     groups.set(key, entry);
   }
-  return [...groups.values()].sort((a, b) => a.item.localeCompare(b.item));
+  return [...groups.values()].map(entry => {
+    entry.stockNumber = [...entry.stockNumbers].join(', ');
+    entry.unitCost = entry.costQuantity ? entry.totalCost / entry.costQuantity : null;
+    if (!entry.stockNumbers.size) entry.stockNumber = '';
+    if (entry.totalCost === 0 && !entry.costQuantity) entry.totalCost = null;
+    delete entry.stockNumbers;
+    delete entry.costQuantity;
+    return entry;
+  }).sort((a, b) => a.item.localeCompare(b.item));
 }
 module.exports = { monthOf, collectMonthlyItems, recapitulate, iarRows };

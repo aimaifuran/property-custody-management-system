@@ -1723,8 +1723,16 @@ body { font-size: var(--app-text-size); }
 .ics-editor .ics-signatory-panel + .ics-signatory-panel { border-left: 1px solid #475569; }
 .form-document.ics-editor .ics-signatory-panel input {
   border: 0; border-bottom: 1px solid #475569; border-radius: 0;
-  background: transparent !important;
+  background: transparent !important; text-align: center !important;
 }
+.form-document.ics-editor .ics-signatory-panel .signatory-value {
+  display: flex !important; justify-content: center !important; text-align: center !important;
+}
+.form-document.ics-editor .ics-signatory-panel .signatory-value__text {
+  width: 100%; text-align: center !important;
+}
+.form-document.ics-editor select { appearance: none; background-image: none; }
+.form-document.par-editor select { appearance: none; background-image: none; }
 @media (max-width: 767px) {
   .ics-editor .ics-signatory-panel + .ics-signatory-panel { border-left: 0; border-top: 1px solid #475569; }
 }

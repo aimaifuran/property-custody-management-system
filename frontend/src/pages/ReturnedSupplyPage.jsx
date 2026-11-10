@@ -10,7 +10,7 @@ import useSavedReportPage from '../utils/useSavedReportPage';
 import NewFormBadge from '../components/NewFormBadge';
 import FormEditorHeader from '../components/FormEditorHeader';
 import UserAccountSelect from '../components/UserAccountSelect';
-import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
+import SavedReportsHeader, { filterReportsByPoAndItem } from '../components/SavedReportsHeader';
 import NewFormButton from '../components/NewFormButton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -67,7 +67,7 @@ export default function ReturnedSupplyPage() {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(sortSavedReports(records), search);
+  const filteredReports = filterReportsByPoAndItem(sortSavedReports(records), search);
     const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
     useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
@@ -166,7 +166,7 @@ export default function ReturnedSupplyPage() {
  return (
         <div className="space-y-6">
             <motion.div ref={recordsRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={createNew} editorRef={editorRef} /></SavedReportsHeader>
+                <SavedReportsHeader searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}><NewFormButton onNew={createNew} editorRef={editorRef} /></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No returned supply records yet.</p>}
                 <div className="mt-3 space-y-3">
                     {visibleRecords.map((record) => (

@@ -3,7 +3,7 @@ const { errorResponse } = require('../utils/response');
 const signatory = (section, titleKey = 'designation') => [`${section}.name`, `${section}.${titleKey}`, `${section}.date`];
 const rules = {
   iar: {
-    fields: ['entityName', 'fundCluster', 'supplierName', 'poNumber', 'poDate', 'responsibilityCenterCode', 'iarNumber', 'iarDate', 'invoiceNumber', 'invoiceDate', 'inspectionDate', 'inspectedBy', 'acceptanceDate', 'custodian'],
+    fields: ['entityName', 'fundCluster', 'supplierName', 'poNumber', 'responsibilityCenterCode', 'inspectionDate', 'inspectedBy', 'acceptanceDate', 'custodian'],
     items: ['stockPropertyNumber', 'description', 'unit', 'quantity'], positive: ['quantity'],
   },
   ics: {
@@ -16,7 +16,7 @@ const rules = {
   },
   ptr: {
     fields: ['entityName', 'fundCluster', 'fromAccountableOfficer', 'toAccountableOfficer', 'date', 'transferType', 'reasonForTransfer', ...signatory('approvedBy'), ...signatory('issuedBy'), ...signatory('receivedBy')],
-    items: ['dateAcquired', 'propertyNumber', 'description', 'amount', 'condition'], nonnegative: ['amount'],
+    items: ['propertyNumber', 'description', 'amount', 'condition'], nonnegative: ['amount'],
   },
   prs: {
     fields: ['lguName', 'purpose', ...signatory('returnedBy'), ...signatory('returnedTo')],

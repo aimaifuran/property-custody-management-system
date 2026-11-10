@@ -1,12 +1,10 @@
-import { todayManila } from './formDates.js';
-
 export function ptrItemFromAccountability(asset) {
   return {
     accountability: asset._id,
     inventory: asset.inventory?._id,
     property: asset.inventory?.property,
     serialNumber: asset.serialNumber || asset.inventory?.serialNumber || '',
-    dateAcquired: asset.inventory?.purchaseDate ? String(asset.inventory.purchaseDate).slice(0, 10) : todayManila(),
+    dateAcquired: asset.issueDate ? String(asset.issueDate).slice(0, 10) : '',
     propertyNumber: asset.propertyNumber || asset.inventory?.propertyNumber || asset.inventory?.item?.stockNumber || '',
     description: asset.inventory?.item?.description || '',
     amount: Number(asset.quantityRemaining || 0) * Number(asset.inventory?.unitCost || 0),

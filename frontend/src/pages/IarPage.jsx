@@ -21,7 +21,7 @@ import useSavedReportPage from '../utils/useSavedReportPage';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
-import SavedReportsHeader from '../components/SavedReportsHeader';
+import SavedReportsHeader, { filterReportsByPoAndItem } from '../components/SavedReportsHeader';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import { getStickySignatory, saveStickySignatory } from '../utils/stickySignatories';
@@ -156,6 +156,7 @@ export default function IarPage() {
     const [saveError, setSaveError] = useState('');
     const [sessionExpired, setSessionExpired] = useState(false);
     const [editingId, setEditingId] = useState(restoredDraft?.editingId || null);
+    const [issueMode, setIssueMode] = useState(false);
     const [editorOpen, setEditorOpen] = useState(true);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
@@ -225,19 +226,19 @@ export default function IarPage() {
     };
     useEffect(() => { load(); }, []);
     const filteredReports = useMemo(() => {
-      const keyword = search.trim().toLowerCase();
       const ordered = sortSavedReports(iar);
-      return keyword ? ordered.filter((report) => [report.iarDate, formatDate(report.iarDate || report.createdAt), report.iarNumber, report.entityName, report.supplierName, report.poNumber, report.invoiceNumber].some((value) => String(value || '').toLowerCase().includes(keyword))) : ordered;
+      return filterReportsByPoAndItem(ordered, search);
     }, [iar, search]);
     useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
     const totalPages = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
     const updateSearch = (value) => { setSearch(value); setPage(1); };
     const updatePerPage = (value) => { setPerPage(Number(value)); setPage(1); };
-    const startEdit = (item) => {
+    const startEdit = (item, issue = false) => {
         setSaveError('');
         setEditorOpen(true);
         setEditingId(item._id);
+        setIssueMode(issue);
         setForm(toForm(item));
     };
 
@@ -246,6 +247,7 @@ export default function IarPage() {
         setSessionExpired(false);
         setSaveError('');
         setEditingId(null);
+        setIssueMode(false);
         setForm(newForm());
     };
 
@@ -262,7 +264,6 @@ export default function IarPage() {
     const save = async (event) => {
         event.preventDefault();
         if (saving) return;
-        if (!form.iarNumber.trim()) { showSaveValidationError('Enter the IAR number before saving.', '[aria-label="IAR No."]'); return; }
         const payload = {
             ...form,
             iarNumber: form.iarNumber.trim(),
@@ -339,7 +340,8 @@ export default function IarPage() {
             title: 'Enter a 3 or 4 digit IAR number',
             autoComplete: 'off'
         } : {};
-        return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput required={key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial'} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR number' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></FormField>;
+        const optional = ['poDate', 'iarNumber', 'iarDate', 'invoiceNumber', 'invoiceDate'].includes(key);
+        return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput required={!optional && (key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial')} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Auto-assigned if blank' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></FormField>;
     };
 
     function formatDate(date) {
@@ -457,18 +459,17 @@ export default function IarPage() {
           <button type="button" aria-pressed={!editorOpen} onClick={() => setEditorOpen(false)} className={`rounded-xl border px-4 py-2 font-semibold ${!editorOpen ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>Saved Reports</button>
         </nav>
         {!editorOpen && <div ref={recordsRef} className="saved-records rounded-xl border border-white bg-[#eef7f1] p-4 shadow-[7px_7px_16px_rgba(47,90,66,0.12),-7px_-7px_16px_rgba(255,255,255,0.92)] sm:p-5">
-          <SavedReportsHeader search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}></SavedReportsHeader>
+          <SavedReportsHeader searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={updateSearch} perPage={perPage} onPerPage={updatePerPage} options={[5, 10, 20]}></SavedReportsHeader>
           {visibleReports.map((item) =>
             <div key={item._id} className={`saved-record mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-[#eef7f1] px-3 py-3 shadow-[4px_4px_10px_rgba(47,90,66,0.10),-4px_-4px_10px_rgba(255,255,255,0.85)] transition sm:px-4 ${updatedId === item._id ? 'ring-2 ring-emerald-300 animate-pulse' : ''}`}><NewFormBadge record={item} />
               <div>
-                <b className="text-sm tracking-tight text-[#285943]">IAR No. {item.iarNumber || 'Unassigned'}</b>
+                <b className="text-sm tracking-tight text-[#285943]">PO/JO No. {item.poNumber || '—'}</b>
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                  <span>{formatDate(item.createdAt || item.iarDate)}</span>
                   <span>{item.items?.length || 0} {(item.items?.length || 0) === 1 ? 'item' : 'items'} recorded</span>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <RecordActionButton action="edit" title="Update report" onClick={() => startEdit(item)} />
+                <RecordActionButton action="edit" label="Issue IAR" title="Issue IAR" onClick={() => startEdit(item, true)} />
                 {/* <button type="button" onClick={() => generateDoc(item)} className="mt-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Docx</button> */}
                 <RecordActionButton action="pdf" title="Download PDF" onClick={() => generatePdf(item)} />
                 <RecordActionButton action="print" title="Print report" onClick={() => generatePdf(item, true)} />
@@ -487,7 +488,7 @@ export default function IarPage() {
               {field('PO/JO No.', 'poNumber')}
               {field('PO/JO Date', 'poDate', 'date')}
               {field('Responsibility Center Code', 'responsibilityCenterCode')}
-              {field('IAR No.', 'iarNumber')}
+              {field('PO/JO No.', 'iarNumber')}
               {field('IAR Date', 'iarDate', 'date')}
               {field('Invoice No.', 'invoiceNumber')}
               {field('Invoice Date', 'invoiceDate', 'date')}
@@ -517,20 +518,20 @@ export default function IarPage() {
                     return <tr key={index}>
                       {['stockPropertyNumber', 'inventoryItemNo', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
                         <td className="p-2" key={key}>
-                          {key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={formNumberValue(key, item[key]) ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
-                            <input required={!['serialNumber', 'inventoryItemNo'].includes(key) && hasRowData(item, emptyItem())} aria-label={key === 'inventoryItemNo' ? 'Inventory Item No.' : key === 'serialNumber' ? 'Serial Number' : key} value={formNumberValue(key, item[key]) ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}
+                          {key === 'propertyPlantAndEquipment' ? <SearchInput disabled={issueMode} aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={formNumberValue(key, item[key]) ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2 disabled:bg-slate-100 disabled:text-slate-600" /> :
+                            <input disabled={issueMode} required={!['serialNumber', 'inventoryItemNo'].includes(key) && hasRowData(item, emptyItem())} aria-label={key === 'inventoryItemNo' ? 'Inventory Item No.' : key === 'serialNumber' ? 'Serial Number' : key} value={formNumberValue(key, item[key]) ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className="w-full rounded-xl border border-slate-200 px-2 py-2 disabled:bg-slate-100 disabled:text-slate-600" />}
                           {key === 'serialNumber' && Number(item.quantity) <= 1 && item.serialNumbers?.length > 0 && <p className="mt-1 break-words text-xs text-slate-500">Assigned: {item.serialNumbers[0]}</p>}
                         </td>
                       )}
                       <td className="p-2">
                         <div className="relative">
-                        <input required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} readOnly={hasSerialNumber} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className={`w-full rounded-xl border border-slate-200 px-2 py-2 ${hasSerialNumber ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`} />
+                        <input disabled={issueMode} required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} readOnly={hasSerialNumber} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className={`w-full rounded-xl border border-slate-200 px-2 py-2 disabled:bg-slate-100 disabled:text-slate-600 ${hasSerialNumber ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`} />
                         </div>
                       </td>
-                      {form.acceptanceStatus === 'Partial' && <td className="p-2"><input type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>}
-                      <td className="p-2"><input aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /></td>
+                      {form.acceptanceStatus === 'Partial' && <td className="p-2"><input disabled={issueMode} type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2 disabled:bg-slate-100 disabled:text-slate-600" /></td>}
+                      <td className="p-2"><input disabled={issueMode} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2 disabled:bg-slate-100 disabled:text-slate-600" /></td>
                       <td className="p-2"><input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" /></td>
-                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [firstItem()] }; })} /></td>
+                      {!issueMode && <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [firstItem()] }; })} /></td>}
                     </tr>;
                   })}
                 </tbody>
@@ -538,13 +539,13 @@ export default function IarPage() {
             </TableScroll>
             <p className="mt-2 text-sm text-slate-600">Inventory Item No. is used automatically in ICS, PAR, and the List of PPEs under New Property No. Assigned. Enter one unit per row when supplying this number; it is locked after saving. Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
             <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
-            <div className="mt-3 flex justify-end"><AddRowButton onClick={() => {
+            {!issueMode && <div className="mt-3 flex justify-end"><AddRowButton onClick={() => {
               setSaveError('');
               setForm(previous => {
                 const stockPropertyNumber = nextStockPropertyNumber(previous.items);
                 return { ...previous, items: [...previous.items, { ...emptyItem(), stockPropertyNumber, stockNumber: stockPropertyNumber }] };
               });
-            }} /></div>
+            }} /></div>}
             <div className="mt-6 grid gap-3 border-t pt-4 md:grid-cols-3">
               <h2 className="md:col-span-3 text-lg font-semibold">INSPECTION</h2>
               {field('Date Inspected', 'inspectionDate', 'date')}

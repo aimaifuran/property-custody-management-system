@@ -10,8 +10,6 @@ import IarSourceSelect from '../components/IarSourceSelect';
 import { hasRowData } from '../utils/formRows';
 import { lineAmount, sumAmounts } from '../utils/formAmounts';
 import OfficeSelect from '../components/OfficeSelect';
-import AddRowButton from '../components/AddRowButton';
-import DeleteRowButton from '../components/DeleteRowButton';
 import ValidatedForm from '../components/ValidatedForm';
 import { sortSavedReports } from '../utils/savedReportOrder';
 import useSavedReportPage from '../utils/useSavedReportPage';
@@ -20,7 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
-import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
+import SavedReportsHeader, { filterReportsByPoAndItem } from '../components/SavedReportsHeader';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -80,7 +78,7 @@ const toForm = (record) => ({
     fundCluster: record.fundCluster || '',
     parNumber: record.parNumber || '',
     items: record.items && record.items.length ? record.items.map(toFormItem) : [],
-    remarks: record.remarks || '',
+    remarks: '',
     receivedBy: toFormSignatory(record.receivedBy),
     issuedBy: toFormSignatory(record.issuedBy)
 });
@@ -102,7 +100,7 @@ export default function ParPage() {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(sortSavedReports(records), search);
+  const filteredReports = filterReportsByPoAndItem(sortSavedReports(records), search);
     const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
     useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
@@ -161,8 +159,6 @@ export default function ParPage() {
             return next;
         })
     }));
-
-    const addItem = () => update('items', [...form.items, emptyItem()]);
 
     const total = sumAmounts((form?.items || []).map(item => item.amount));
 
@@ -339,15 +335,15 @@ export default function ParPage() {
  return (
         <div className="space-y-6">
             {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
+                <SavedReportsHeader searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Property Acknowledgement Receipt records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
                         <div>
-                            <div className="mb-1 font-semibold text-slate-900">{reportItemNames(record)}</div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                <b>{record.parNumber || 'Unassigned PAR No.'}</b>
-                                <span className="text-sm text-slate-500">Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <div className="mb-1 font-semibold text-slate-900">PO/JO No. {record.iar?.poNumber || record.poNumber || '—'}</div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                                <span>{reportItemNames(record)}</span>
+                                <span>Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                         </div>
                         <div className="flex gap-2">
@@ -362,7 +358,7 @@ export default function ParPage() {
             </div>}
 
             {editorOpen && form && (
-                <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame scroll-mt-6 p-6">
+                <ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame par-editor scroll-mt-6 p-6">
                     <FormEditorHeader title="Property Acknowledgement Receipt" description="Linked RIS issuances for items with a unit cost of ₱50,000 or more are recorded here under the requester account." onClose={cancelEdit} />
                 {!editingId && !isUser && <IarSourceSelect type="par" setForm={setForm} />}
                     <fieldset disabled={readOnly} className="min-w-0">
@@ -382,7 +378,6 @@ export default function ParPage() {
                                     <th className="p-2">Date Acquired <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                     <th className="p-2">Unit Cost</th>
                                     <th className="p-2">Amount <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
-                                  <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -409,38 +404,33 @@ export default function ParPage() {
                                         <td className="p-2">
                                             <input aria-label="Amount" readOnly value={Number(item.amount || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
                                         </td>
-                                      <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} /></td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </TableScroll>
-                    <p className="mt-2 text-sm text-slate-600">Amount = quantity ? unit cost, rounded to two decimal places.</p>
-                    <div className="mt-3 flex justify-end"><AddRowButton onClick={addItem} /></div>
-
                     <div className="mt-4 flex justify-end">
                         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold">
                             Total: {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
                     </div>
-
+                    </fieldset>
                     <div className="mt-4">
                         <FormField className="block">
-                            <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks (optional)</span>
-                            <textarea value={form.remarks} onChange={(e) => update('remarks', e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" rows={3} />
+                            <span className="mb-1 block text-sm font-semibold text-slate-700">Remarks</span>
+                            <textarea readOnly aria-label="Remarks" value={form.remarks} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" rows={3} />
                         </FormField>
                     </div>
-
+                    <fieldset disabled={readOnly} className="min-w-0">
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
                         {signatoryFields('Received By', 'receivedBy')}
                         {signatoryFields('Issued By', 'issuedBy')}
                     </div>
-
                     </fieldset>
                     <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : readOnly ? 'Awaiting custodian acceptance' : ''}</p>
-                    <div className="flex justify-end">
-                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : readOnly)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept PAR Receipt' : readOnly ? 'Issued Form' : 'Save'}</button>
-                    </div>
+                    {isUser && <div className="flex justify-end">
+                      <button type="submit" disabled={saving || !!selectedRecord?.acceptedAt} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept PAR Receipt'}</button>
+                    </div>}
                 </ValidatedForm>
             )}
         </div>

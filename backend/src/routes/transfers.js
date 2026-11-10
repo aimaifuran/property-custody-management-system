@@ -44,7 +44,7 @@ const resolveReturnSlipItem = async (returnSlipId, returnSlipItemId, session = n
   const issuedLine = ris?.items.id(line.risItem);
   const inventoryId = accountability?.inventory?._id || issuedLine?.inventory;
   const inventory = inventoryId
-    ? await Inventory.findOne({ _id: inventoryId, deleted: false }).populate('item').session(session)
+    ? await Inventory.findOne({ _id: inventoryId, deleted: false }).populate([{ path: 'item' }, { path: 'inspectionAcceptanceReport', select: 'poNumber' }]).session(session)
     : null;
   const fromAccountableOfficer = slip.returnedBy?.name || (returnedBy && accountName(returnedBy));
   if (!fromAccountableOfficer) throw Object.assign(new Error('The PRS does not identify its returning accountable officer'), { status: 400 });
@@ -66,6 +66,8 @@ const resolveReturnSlipItem = async (returnSlipId, returnSlipItemId, session = n
       returnSlipItem: line._id,
       inventory: inventory?._id,
       property: inventory?.property,
+      poNumber: inventory?.inspectionAcceptanceReport?.poNumber || '',
+      dateAcquired: accountability?.issueDate || '',
       serialNumber: inventory?.serialNumber || '',
       dateAcquired: inventory?.purchaseDate || slip.returnedAt || slip.updatedAt,
       propertyNumber: propertyNumberFrom(line.propertyNumber, accountability?.propertyNumber, inventory?.propertyNumber, inventory?.item?.displayStockNumber, issuedLine?.stockNumber, inventory?.item?.stockNumber),
@@ -209,7 +211,7 @@ router.get('/', authenticate, authorize(['canViewRIS', 'canViewDashboard', 'canM
   const reports = await listRecords(PropertyTransferReport, req, {
     baseFilter: { deleted: false, ...(req.user.role === 'admin' ? {} : { $or: [{ fromUser: req.user._id }, { toUser: req.user._id }] }) },
     searchFields: PTR_SEARCH_FIELDS,
-    populate: { path: 'items.inventory', populate: { path: 'item' } },
+    populate: { path: 'items.inventory', populate: [{ path: 'item' }, { path: 'inspectionAcceptanceReport', select: 'poNumber' }] },
   });
   return successResponse(res, 'PTR retrieved', reports);
 });

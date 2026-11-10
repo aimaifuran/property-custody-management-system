@@ -12,7 +12,7 @@ const columns = {
 const captions = {
   entityName: 'Entity Name', lguName: 'Local Government Unit', fundCluster: 'Fund Cluster',
   supplierName: 'Supplier', poNumber: 'PO/JO No.', reqOffice: 'Requisitioning Office', rcc: 'Responsibility Center Code',
-  iarNumber: 'IAR No.', iarDate: 'IAR Date', invoiceNumber: 'Invoice No.', invoiceDate: 'Invoice Date',
+  iarNumber: 'PO/JO No.', iarDate: 'IAR Date', invoiceNumber: 'Invoice No.', invoiceDate: 'Invoice Date',
   inspectionDate: 'Inspection Date', acceptanceDate: 'Acceptance Date', inspectedBy: 'Inspection Officer/Committee', acceptedBy: 'Supply/Property Custodian',
   month: 'Month', propertyPlantAndEquipment: 'Property, Plant and Equipment', description: 'Description', propertyNumber: 'Property Number', serialNumber: 'S/N',
   icsNumber: 'ICS No.', parNumber: 'PAR No.', totalAmount: 'Total Amount', remarks: 'Remarks', purpose: 'Purpose', note: 'Note',
@@ -354,7 +354,7 @@ export function drawStandardFormHeaders(page, fonts, layout, valueFor, data, opt
     add('Supplier:', 'supplierName', left + inset, 716, leftWidth);
     add('PO/JO No./Date:', 'poNumber', left + inset, 684, leftWidth);
     add('Responsibility Center Code:', 'rcc', left + inset, 640, leftWidth);
-    add('IAR No.:', 'iarNumber', divider + inset, 716, rightWidth);
+    add('PO/JO No.:', 'iarNumber', divider + inset, 716, rightWidth);
     add('Date:', 'iarDate', divider + inset, 692, rightWidth);
     add('Invoice No.:', 'invoiceNumber', divider + inset, 668, rightWidth);
     add('Date:', 'invoiceDate', divider + inset, 644, rightWidth);

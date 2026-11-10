@@ -20,7 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
-import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
+import SavedReportsHeader, { filterReportsByPoAndItem } from '../components/SavedReportsHeader';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import RecordActionButton from '../components/RecordActionButton';
@@ -80,7 +80,7 @@ const toForm = (record) => ({
     fundCluster: record.fundCluster || '',
     icsNumber: record.icsNumber || '',
     items: record.items && record.items.length ? record.items.map(toFormItem) : [],
-    remarks: record.remarks || '',
+    remarks: '',
     receivedFrom: toFormSignatory(record.receivedFrom),
     receivedBy: toFormSignatory(record.receivedBy)
 });
@@ -102,7 +102,7 @@ export default function IcsPage() {
     const [page, setPage] = useState(1);
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
-  const filteredReports = filterReports(sortSavedReports(records), search);
+  const filteredReports = filterReportsByPoAndItem(sortSavedReports(records), search);
     const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
     useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
@@ -204,7 +204,7 @@ export default function IcsPage() {
     const signatoryFields = (label, section) => (
         <div className="form-signatory-panel ics-signatory-panel p-4">
             <h3 className="mb-5 font-semibold text-slate-700">{label}</h3>
-            <div className="mx-auto grid max-w-sm gap-4">
+            <div className="mx-auto grid w-full max-w-sm gap-4">
                 {section === 'receivedBy' && !editingId && <UserAccountSelect person={form[section]} onChange={person => setForm(previous => ({ ...previous, [section]: { ...previous[section], ...person, position: person.designation || person.office || '' } }))} />}
                 <label className="flex flex-col text-center">
                     <SignatoryValue  aria-label={`${label} name`} value={form[section].name} onChange={event => updateSignatory(section, 'name', event.target.value)} className="w-full text-center" formType="ics" role={section} field="name" managed={(!editingId) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
@@ -337,15 +337,15 @@ export default function IcsPage() {
  return (
         <div className="space-y-6">
             {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
+                <SavedReportsHeader searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {records.length === 0 && <p className="mt-3 text-sm text-slate-500">No Inventory Custodian Slip records yet.</p>}
                 {visibleRecords.map((record) => (
                     <div key={record._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === record._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={record} />
                         <div>
-                            <div className="mb-1 font-semibold text-slate-900">{reportItemNames(record)}</div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                <b>{record.icsNumber || 'Unassigned ICS No.'}</b>
-                                <span className="text-sm text-slate-500">Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <div className="mb-1 font-semibold text-slate-900">PO/JO No. {record.iar?.poNumber || record.poNumber || '—'}</div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                                <span>{reportItemNames(record)}</span>
+                                <span>Total: {Number(record.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                         </div>
                         <div className="flex gap-2">
@@ -424,7 +424,7 @@ export default function IcsPage() {
                                 </tr>
                                 <tr>
                                     <th scope="row" colSpan={2} className="text-left">REMARKS:</th>
-                                    <td colSpan={6}><textarea disabled={viewOnly} aria-label="Remarks" value={form.remarks} onChange={event => update('remarks', event.target.value)} className="w-full" rows={2} /></td>
+                                    <td colSpan={6}><textarea aria-label="Remarks" value={form.remarks} onChange={event => update('remarks', event.target.value)} className="w-full" rows={2} /></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -438,7 +438,7 @@ export default function IcsPage() {
                     </fieldset>
                     <p className="mt-4 text-sm text-slate-600">{selectedRecord?.acceptedAt ? `Accepted on ${new Date(selectedRecord.acceptedAt).toLocaleString()}` : linkedIssuance ? 'Awaiting custodian acceptance' : ''}</p>
                     <div className="flex justify-end">
-                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : false)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : viewOnly ? 'Save Estimated Useful Life' : 'Save'}</button>
+                      <button type="submit" disabled={saving || (isUser ? !!selectedRecord?.acceptedAt : false)} className="mt-5 rounded-xl bg-teal-600 px-4 py-2 text-white disabled:opacity-50">{isUser ? selectedRecord?.acceptedAt ? 'Receipt Accepted' : 'Accept ICS Receipt' : 'Save'}</button>
                     </div>
                 </ValidatedForm>
             )}

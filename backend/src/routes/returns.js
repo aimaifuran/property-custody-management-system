@@ -47,7 +47,7 @@ const returnedToSignatory = (values, fallback = {}) => {
 };
 
 router.get('/', authenticate, authorize(['canViewRIS', 'canViewDashboard', 'canManageInventory']), async (req, res) => {
-  const reports = await listRecords(PropertyReturnSlip, req, { baseFilter: { deleted: false, ...(req.user.role === 'admin' ? {} : { $or: [{ submittedBy: req.user._id }, { 'returnedBy.user': req.user._id }] }) }, searchFields: PRS_SEARCH_FIELDS });
+  const reports = await listRecords(PropertyReturnSlip, req, { baseFilter: { deleted: false, ...(req.user.role === 'admin' ? {} : { $or: [{ submittedBy: req.user._id }, { 'returnedBy.user': req.user._id }] }) }, searchFields: PRS_SEARCH_FIELDS, populate: { path: 'items.ris', select: 'iar', populate: { path: 'iar', select: 'poNumber' } } });
   return successResponse(res, 'PRS retrieved', reports);
 });
 

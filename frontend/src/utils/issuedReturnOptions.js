@@ -38,6 +38,6 @@ export function issuedReturnOptions(records) {
     const name = nameOf(item);
     const duplicate = counts.get(normalize(name)) > 1;
     const serial = item.serialNumber?.trim();
-    return { value: `${record._id}:${item._id}`, label: [duplicate && serial ? `${name} — Serial No. ${serial}` : name, formNumber(item.propertyNumber) ? `Property No. ${formNumber(item.propertyNumber)}` : '', item.iarNumber ? `IAR No. ${item.iarNumber}` : ''].filter(Boolean).join(' — ') };
+    return { value: `${record._id}:${item._id}`, label: [duplicate && serial ? `${name} — Serial No. ${serial}` : name, formNumber(item.propertyNumber) ? `Property No. ${formNumber(item.propertyNumber)}` : '', item.iarNumber ? `PO/JO No. ${item.iarNumber}` : ''].filter(Boolean).join(' — ') };
   });
 }

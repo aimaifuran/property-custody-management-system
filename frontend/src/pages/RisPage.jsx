@@ -11,7 +11,6 @@ import { createRisRow, risDraftRows, risItemName, risItemChoices, selectRisItem,
 import { todayManila } from '../utils/formDates';
 import { hasRowData } from '../utils/formRows';
 import { useLocation, useNavigate } from 'react-router-dom';
-import OfficeSelect from '../components/OfficeSelect';
 import { divisionForOffice, hasNoDivision } from '../utils/officeDivisions';
 import AddRowButton from '../components/AddRowButton';
 import DeleteRowButton from '../components/DeleteRowButton';
@@ -22,7 +21,7 @@ import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import EntityNameField from '../components/EntityNameField';
 import UserAccountSelect from '../components/UserAccountSelect';
-import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
+import SavedReportsHeader, { filterReportsByPoAndItem } from '../components/SavedReportsHeader';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -479,7 +478,7 @@ export default function RisPage() {
   const [approvedPerPage, setApprovedPerPage] = useState(5);
   const [approvedSearch, setApprovedSearch] = useState('');
   const isApprovedRecord = record => ['APPROVED', 'ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status);
-  const filteredReports = sortSavedReports(filterReports(ris.filter(record => !isApprovedRecord(record)), search));
+  const filteredReports = sortSavedReports(filterReportsByPoAndItem(ris.filter(record => !isApprovedRecord(record)), search));
   const issuedIarDraftKeys = new Set(ris.filter(record => ['ISSUED', 'ACCOUNTABILITY_LOCKED'].includes(record.status)).flatMap(record =>
     (record.items || []).filter(item => Number(item.quantityIssued || 0) > 0).flatMap(item => {
       const inventoryId = item.inventory?._id || item.inventory;
@@ -499,7 +498,7 @@ export default function RisPage() {
     return !issued && stock && Number(stock.quantityOnHand) > 0;
   });
   const selectedIarDrafts = availableIarDrafts.filter(row => checkedIarDraftIds.includes(row._id));
-  const filteredIarDrafts = availableIarDrafts.filter(row => `${row.iarNumber} ${row.propertyPlantAndEquipment || ''} ${row.stockNumber} ${row.description} ${row.item || ''} ${row.serialNumber || ''} ${(row.serialNumbers || []).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
+  const filteredIarDrafts = filterReportsByPoAndItem(availableIarDrafts, search);
   const iarDraftPageCount = Math.max(1, Math.ceil(filteredIarDrafts.length / iarDraftPerPage));
   const visibleIarDrafts = filteredIarDrafts.slice((iarDraftPage - 1) * iarDraftPerPage, iarDraftPage * iarDraftPerPage);
   useEffect(() => { setIarDraftPage(current => Math.min(current, iarDraftPageCount)); }, [iarDraftPageCount]);
@@ -507,11 +506,7 @@ export default function RisPage() {
     if (new URLSearchParams(location.search).get('focus') !== 'iar-drafts' || pageLoading || risView !== 'requests') return;
     requestAnimationFrame(() => iarDraftsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }, [location.key, location.search, pageLoading, risView, iarDrafts.length]);
-  const issuedKeyword = approvedSearch.trim().toLocaleLowerCase().replace(/\s+/g, ' ');
-  const approvedReports = sortSavedReports(ris.filter(isApprovedRecord).filter(record => {
-    const searchable = [record.requestedBy?.name, record.receivedBy?.name, ...(record.recipientAccounts || []), ...(record.itemNames || []), ...(record.items || []).flatMap(item => [item.itemName, item.description, item.stockNumber, item.serialNumber])];
-    return !issuedKeyword || searchable.some(value => String(value || '').toLocaleLowerCase().replace(/\s+/g, ' ').includes(issuedKeyword));
-  }));
+  const approvedReports = sortSavedReports(filterReportsByPoAndItem(ris.filter(isApprovedRecord), approvedSearch));
   const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingRis?._id);
   useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
   useSavedReportPage(approvedReports, savedUpdate, approvedPerPage, setApprovedPage);
@@ -544,7 +539,7 @@ export default function RisPage() {
 
     if (iarResult.status === 'fulfilled') {
       setIarDrafts((iarResult.value.data.data || []).filter(report => report.status === 'LOGGED_TO_STOCKS').flatMap(report =>
-        (report.items || []).map((item, index) => ({ ...item, _id: item._id || `${report._id}-${index}`, iarNumber: report.iarNumber, iarId: report._id, iarDate: report.iarDate || report.acceptanceDate, supplierName: report.supplierName, entityName: report.entityName, fundCluster: report.fundCluster, responsibilityCenterCode: report.responsibilityCenterCode }))
+        (report.items || []).map((item, index) => ({ ...item, _id: item._id || `${report._id}-${index}`, iarNumber: report.iarNumber, poNumber: report.poNumber, iarId: report._id, iarDate: report.iarDate || report.acceptanceDate, supplierName: report.supplierName, entityName: report.entityName, fundCluster: report.fundCluster, responsibilityCenterCode: report.responsibilityCenterCode }))
       ));
       setIarDraftError('');
     } else {
@@ -1011,9 +1006,9 @@ export default function RisPage() {
       </nav>
       {risView === 'requests' && <div className="flex w-full flex-wrap items-center gap-3 lg:ml-auto lg:w-auto">
         <FormField className="relative min-w-0 flex-1 lg:w-80 lg:flex-none">
-          <span className="sr-only">Search IAR, stock number, or item</span>
+          <span className="sr-only">Search PO/JO number or item name</span>
           <Search size={18} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="search" placeholder="Search IAR, stock number, or item" value={search} onChange={event => { setSearch(event.target.value); setIarDraftPage(1); }} className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm" />
+          <input type="search" placeholder="Search PO/JO No. or item name" value={search} onChange={event => { setSearch(event.target.value); setIarDraftPage(1); }} className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm" />
         </FormField>
       </div>}
       </div>}
@@ -1025,10 +1020,10 @@ export default function RisPage() {
         </>} />
         {iarDraftError && <p role="alert" className="mt-3 text-sm text-rose-700">{iarDraftError}</p>}
         <div className="mt-4 space-y-3">
-          {visibleIarDrafts.map(row => { const serialNumber = row.serialNumber || (row.serialNumbers || []).join(', '); return <article key={row._id} data-iar-selected={checkedIarDraftIds.includes(row._id)} className="saved-record flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex min-w-0 items-center gap-3"><input type="checkbox" aria-label={`Select IAR ${row.iarNumber || ""}: ${row.propertyPlantAndEquipment || row.description || row.item || "Item"}`} checked={checkedIarDraftIds.includes(row._id)} onChange={event => setCheckedIarDraftIds(previous => event.target.checked ? [...new Set([...previous, row._id])] : previous.filter(id => id !== row._id))} className="h-5 w-5 shrink-0 accent-emerald-700" /><div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">IAR No. {row.iarNumber || '—'}</div><div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-words font-medium text-slate-900"><span>{row.propertyPlantAndEquipment || row.description || row.item || 'Item'}</span>{serialNumber && <span className="text-sm font-normal text-slate-600">S/N: {serialNumber}</span>}</div></div></div><div className="iar-draft-actions flex shrink-0 items-center gap-2"><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Drafts</span></div></article>; })}
+          {visibleIarDrafts.map(row => { const serialNumber = row.serialNumber || (row.serialNumbers || []).join(', '); return <article key={row._id} data-iar-selected={checkedIarDraftIds.includes(row._id)} className="saved-record flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex min-w-0 items-center gap-3"><input type="checkbox" aria-label={`Select PO/JO ${row.poNumber || ""}: ${row.propertyPlantAndEquipment || row.description || row.item || "Item"}`} checked={checkedIarDraftIds.includes(row._id)} onChange={event => setCheckedIarDraftIds(previous => event.target.checked ? [...new Set([...previous, row._id])] : previous.filter(id => id !== row._id))} className="h-5 w-5 shrink-0 accent-emerald-700" /><div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">PO/JO No. {row.poNumber || '—'}</div><div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-words font-medium text-slate-900"><span>{row.propertyPlantAndEquipment || row.description || row.item || 'Item'}</span>{serialNumber && <span className="text-sm font-normal text-slate-600">S/N: {serialNumber}</span>}</div></div></div><div className="iar-draft-actions flex shrink-0 items-center gap-2"><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Drafts</span></div></article>; })}
         </div>
         <Pagination page={iarDraftPage} pageCount={iarDraftPageCount} perPage={iarDraftPerPage} onPageChange={setIarDraftPage} onPerPageChange={value => { setIarDraftPerPage(value); setIarDraftPage(1); }} />
-        {!iarDraftError && !visibleIarDrafts.length && <p className="mt-4 text-slate-500">{iarDrafts.length ? 'No drafts with available stock.' : 'No items from IAR have been recorded in stock yet.'}</p>}
+        {!iarDraftError && !visibleIarDrafts.length && <p className="mt-4 text-slate-500">{availableIarDrafts.length ? 'No items match that PO/JO number or item name.' : iarDrafts.length ? 'No drafts with available stock.' : 'No items from IAR have been recorded in stock yet.'}</p>}
       </section>}
       {risView === 'requests' && (editingRis || ((!filteredIarDrafts.length || selectedIarDraftId) && creatingRis)) ? (<>
       <ValidatedForm as={motion.form} validationSelector={decision === 'reject' ? '[data-rejection-reason]' : undefined}
@@ -1051,7 +1046,7 @@ export default function RisPage() {
           </div>
 
           <div className="ris-header-fields mt-4 grid gap-3 sm:grid-cols-2">
-            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <FormField key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span>{key === 'office' ? <OfficeSelect aria-label={label} readOnly={isUser} value={form.office} onChange={event => updateForm({ office: event.target.value, division: divisionForOffice(event.target.value) })} className="w-full rounded-lg border px-2 py-2" /> : <input required={key !== 'division'} type="text" aria-label={label} readOnly={isUser || key === 'responsibilityCenterCode' || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2" />}</FormField>)}
+            {[['division', 'Division'], ['responsibilityCenterCode', 'Responsibility Center Code'], ['office', 'Office'], ['risNumber', 'RIS No.']].map(([key, label]) => <FormField key={key} className="block min-w-0"><span className="mb-1 block font-semibold">{label}:</span><input required={key !== 'division'} type="text" aria-label={label} readOnly={key === 'division' || key === 'office' || isUser || key === 'responsibilityCenterCode' || (key === 'risNumber' && !editingRis)} value={form[key]} onChange={event => updateForm({ [key]: event.target.value })} className="w-full rounded-lg border px-2 py-2 read-only:bg-slate-100" /></FormField>)}
           </div>
 
           <TableScroll showHint={false} className="mt-4 overflow-x-auto border border-slate-700">
@@ -1272,7 +1267,7 @@ export default function RisPage() {
       {[{ key: 'drafts', title: 'Requests', records: visibleRis, page, pageCount, perPage, search, setPage, setPerPage, setSearch },
         { key: 'approved', title: 'Issued Items', records: visibleApproved, page: approvedPage, pageCount: approvedPageCount, perPage: approvedPerPage, search: approvedSearch, setPage: setApprovedPage, setPerPage: setApprovedPerPage, setSearch: setApprovedSearch }].filter(group => user?.role !== 'admin' || (risView === 'approved' && group.key === 'approved')).map(group => (
       <section key={group.key} aria-label={group.title} ref={group.key === 'drafts' ? recordsRef : undefined} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <SavedReportsHeader title={group.title} searchPlaceholder={group.key === 'approved' ? 'Search user accounts or items' : 'Search reports'} search={group.search} onSearch={value => { group.setSearch(value); group.setPage(1); }} perPage={group.perPage} onPerPage={value => { group.setPerPage(value); group.setPage(1); }}></SavedReportsHeader>
+        <SavedReportsHeader title={group.title} searchPlaceholder="Search PO/JO No. or item name" search={group.search} onSearch={value => { group.setSearch(value); group.setPage(1); }} perPage={group.perPage} onPerPage={value => { group.setPerPage(value); group.setPage(1); }}></SavedReportsHeader>
         {group.key === 'drafts' && stockLoadError ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {stockLoadError}
@@ -1284,10 +1279,10 @@ export default function RisPage() {
             <div key={item._id} className={`saved-record rounded-xl border p-4 ${group.key === 'approved' ? 'ris-approved-record' : ''} ${updatedId === item._id ? 'border-emerald-400 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="break-words font-semibold text-slate-900">{(item.itemNames?.length ? item.itemNames : [...new Set((item.items || []).map(row => row.itemName || row.description).filter(Boolean))]).join(', ') || 'No items selected'}</h3>
+                  <h3 className="break-words font-semibold text-slate-900">PO/JO No. {item.poNumber || '—'}</h3>
                   {group.key !== 'approved' && <div className="mt-1 break-words text-sm text-slate-700">Requested by: {item.requestedBy?.name || 'N/A'}</div>}
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-                    <span>RIS {item.risNumber}</span>
+                    <span>Item Name: {(item.itemNames?.length ? item.itemNames : [...new Set((item.items || []).map(row => row.itemName || row.description).filter(Boolean))]).join(', ') || 'No items selected'}</span>
                     {item.purpose && <span>{item.purpose}</span>}
                   </div>
                 </div>

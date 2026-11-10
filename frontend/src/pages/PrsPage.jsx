@@ -22,7 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import FormEditorHeader from '../components/FormEditorHeader';
 import { exportOfficialFormPdf } from '../utils/exportOfficialFormPdf';
 import UserAccountSelect from '../components/UserAccountSelect';
-import SavedReportsHeader, { filterReports } from '../components/SavedReportsHeader';
+import SavedReportsHeader, { filterReports, filterReportsByPoAndItem } from '../components/SavedReportsHeader';
 import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
@@ -99,7 +99,7 @@ const toForm = (record) => ({
     purposeOther: FIXED_PURPOSES.includes(record.purpose) ? '' : (record.purpose || ''),
     items: record.items && record.items.length ? record.items.map((item) => ({
         accountability: item.accountability || '',
-        ris: item.ris || '',
+        ris: item.ris?._id || item.ris || '',
         risItem: item.risItem || '',
         quantity: item.quantity ?? '',
         unit: item.unit || '',
@@ -164,7 +164,9 @@ export default function PrsPage() {
     const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
   const recordPool = !isUser ? (requestView ? returnRequests : reports.filter(record => !returnRequests.some(request => request._id === record._id))) : reports;
-  const filteredReports = filterReports(requestView ? sortSavedReports(recordPool) : sortReturnedReports(recordPool), search);
+  const filteredReports = requestView
+    ? filterReports(sortSavedReports(recordPool), search)
+    : filterReportsByPoAndItem(sortReturnedReports(recordPool), search);
     const { editorRef, recordsRef, updatedId, savedUpdate, markUpdated, scrollToRecords } = useUpdateFormNavigation(editingId);
     useSavedReportPage(filteredReports, savedUpdate, perPage, setPage);
 
@@ -522,7 +524,7 @@ export default function PrsPage() {
                 })}
             </nav>
             {!editorOpen && <div ref={recordsRef} className="saved-records rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <SavedReportsHeader title={requestView ? 'Request Return' : 'Saved Reports'} searchPlaceholder={requestView ? 'Search users or return items' : 'Search reports'} search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
+                <SavedReportsHeader title={requestView ? 'Request Return' : 'Saved Reports'} searchPlaceholder={requestView ? 'Search users or return items' : 'Search PO/JO No. or item name'} search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader>
                 {filteredReports.length === 0 && <p className="mt-3 text-sm text-slate-500">{requestView ? 'No pending return requests found.' : 'No Property Return Slips found.'}</p>}
                 {visibleReports.map((item) => (
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
@@ -537,7 +539,7 @@ export default function PrsPage() {
                                 })()}</span>
                                 <span className="font-semibold">{item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</span>
                             </div>
-                            <div className="mt-1 text-sm text-slate-600">{(item.items || []).map((entry, index) => <div key={entry._id || index}>{entry.itemName || entry.description || formNumber(entry.propertyNumber) || 'Item'} - Qty {entry.quantity ?? 0}</div>)}</div>
+                            <div className="mt-1 text-sm text-slate-600">{[...new Set((item.items || []).map(entry => entry.ris?.iar?.poNumber || entry.poNumber).filter(Boolean))].map((poNumber, index) => <div key={`${poNumber}-${index}`}>PO/JO No. {poNumber}</div>)}</div>
                         </div>
                         <div className="flex gap-2">
                             {requestView ? <button type="button" onClick={() => startEdit(item)} className="prs-review-request rounded-xl px-4 py-2 text-sm font-semibold text-white">Review Request</button> : <>

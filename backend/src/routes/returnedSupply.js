@@ -18,7 +18,7 @@ const RETURNED_SUPPLY_SEARCH_FIELDS = [
 ];
 
 router.get('/', authenticate, authorize(['canViewDashboard', 'canManageInventory']), async (req, res) => {
-  const records = await listRecords(ReturnedSupply, req, { baseFilter: { deleted: false }, searchFields: RETURNED_SUPPLY_SEARCH_FIELDS, populate: 'prs' });
+  const records = await listRecords(ReturnedSupply, req, { baseFilter: { deleted: false }, searchFields: RETURNED_SUPPLY_SEARCH_FIELDS, populate: ['prs', { path: 'ris', select: 'iar', populate: { path: 'iar', select: 'poNumber' } }] });
   return successResponse(res, 'Returned supply retrieved', records);
 });
 
