@@ -127,6 +127,8 @@ These controls are shared patterns, not buttons available on every page. For exa
 
 **Information:** Entity name, fund cluster, supplier, PO/JO number and date, responsibility center code, IAR number and date, invoice number and date; item stock/property number, description, unit, quantity, classification, costs, and applicable serial details; inspection date and officer/committee; receipt date, acceptance status, partial acceptance details when applicable, and supply/property custodian.
 
+**Numbering:** IAR No. is optional and entered manually when available. Leaving it blank is allowed and does not assign an automatic number. When supplied, it must be 3–4 digits (up to `9999`), preserves leading zeros, and duplicates are rejected. It is separate from PO/JO No.
+
 **Buttons:** New Form opens a receipt; Add item adds delivery lines; Save IAR posts a new receipt; Update IAR saves allowed corrections; Edit opens a saved report; PDF and Print produce the document; Close exits the editor.
 
 **Result and defense:** A stock receipt establishes the source of available stock. It creates the related Property Card and RIS draft. It does not immediately assign the whole delivery to an employee through ICS/PAR. Posted receipt quantities and costs have restrictions to prevent changing the original stock movement.

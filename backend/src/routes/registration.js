@@ -16,7 +16,7 @@ router.post('/', limiter, async (req, res) => {
     const value = body[field];
     if (value != null && typeof value !== 'string') return errorResponse(res, 'Enter valid registration details.', [], 400);
     details[field] = (value || '').trim();
-    if (field !== 'middleName' && !details[field]) return errorResponse(res, `${field} is required.`, [], 400);
+    if (!['middleName', 'division'].includes(field) && !details[field]) return errorResponse(res, `${field} is required.`, [], 400);
     if (details[field].length > (['firstName', 'middleName', 'lastName'].includes(field) ? 100 : 150)) return errorResponse(res, `${field} is too long.`, [], 400);
   }
   details.email = details.email.toLowerCase();

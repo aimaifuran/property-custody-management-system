@@ -1,6 +1,5 @@
 import FormField from '../components/FormField';
 import { formNumber, formNumberData } from '../utils/formNumbers';
-import FormNumberInput from '../components/FormNumberInput';
 import DateInput from '../components/DateInput';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SignatoryValue from '../components/SignatoryValue';
@@ -54,6 +53,13 @@ const toDateInputValue = (date) => {
     const parsed = new Date(date);
     if (Number.isNaN(parsed.getTime())) return '';
     return parsed.toISOString().slice(0, 10);
+};
+
+const displayDateValue = value => {
+    const date = toDateInputValue(value);
+    if (!date) return '';
+    const [year, month, day] = date.split('-');
+    return `${month}/${day}/${year}`;
 };
 
 const toFormItem = (item = {}) => ({
@@ -149,16 +155,6 @@ export default function ParPage() {
         const signatory = { ...prev[section], [key]: value };
         return { ...prev, [section]: signatory };
     });
-
-    const updateItem = (index, key, value) => setForm((prev) => ({
-        ...prev,
-        items: prev.items.map((item, i) => {
-            if (i !== index) return item;
-            const next = { ...item, [key]: value };
-            if (key === 'quantity' || key === 'unitCost') next.amount = lineAmount(next.quantity, next.unitCost);
-            return next;
-        })
-    }));
 
     const total = sumAmounts((form?.items || []).map(item => item.amount));
 
@@ -383,27 +379,13 @@ export default function ParPage() {
                             <tbody>
                                 {form.items.map((item, index) => (
                                     <tr key={index}>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} data-positive="true" min="0" step="any" aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <FormNumberInput required={hasRowData(item, emptyItem())} aria-label="Property Number" value={item.propertyNumber} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <DateInput required={hasRowData(item, emptyItem())} aria-label="Date Acquired" type="date" value={item.dateAcquired} onChange={(e) => updateItem(index, 'dateAcquired', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input aria-label="Amount" readOnly value={Number(item.amount || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
+                                        <td className="break-words p-2">{item.quantity}</td>
+                                        <td className="break-words p-2">{item.unit}</td>
+                                        <td className="break-words p-2">{item.description}</td>
+                                        <td className="break-words p-2">{item.propertyNumber}</td>
+                                        <td className="break-words p-2">{displayDateValue(item.dateAcquired)}</td>
+                                        <td className="break-words p-2 text-right tabular-nums">{item.unitCost}</td>
+                                        <td className="break-words p-2 text-right tabular-nums">{Number(item.amount || 0).toFixed(2)}</td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -5,6 +5,7 @@ const officeDivisions = {
   'Department of Trade and Industry': "Mayor's Office",
   'Tourism Office': "Mayor's Office",
   'Business Permit and Licensing Office': "Mayor's Office",
+  'Public Employment Service Office': "Mayor's Office",
   CATEMO: 'Municipal Administrator',
   'Carigara Traffic Enforcer and Management Office': 'Municipal Administrator',
   'Person with Disability': 'Municipal Social Welfare and Development',

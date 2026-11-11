@@ -611,14 +611,14 @@ export default function PrsPage() {
                                 <th className="p-2">Material Record No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Unit Value <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Total Value</th>
-                              <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>
+                                {!readOnly && <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>}
                             </tr>
                         </thead>
                         <tbody>
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <SearchInput aria-label="Property No." required={hasRowData(item, emptyItem()) && Boolean(accountId(form.returnedBy))} disabled={issuedLoading || Boolean(issuedError)}
+                                        {readOnly ? item.propertyNumber : <SearchInput aria-label="Property No." required={hasRowData(item, emptyItem()) && Boolean(accountId(form.returnedBy))} disabled={issuedLoading || Boolean(issuedError)}
                                             placeholder="Search Property No."
                                             value={item.propertySearch ?? item.propertyNumber}
                                             options={availableReturnOptions(returnItemOptions, form.items, index)}
@@ -629,30 +629,30 @@ export default function PrsPage() {
                                             const issued = record?.items.find(row => row._id === itemId);
                                             const quantity = issued ? Number(issued.quantityRemaining) : '';
                                             setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, propertySearch: undefined, returnLines: issued?.returnLines, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
-                                        }} className="w-48 rounded-xl border border-slate-200 px-2 py-2" />
+                                            }} className="w-48 rounded-xl border border-slate-200 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input aria-label="Issued Items" value={item.ris && item.risItem ? returnItemOptions.find(option => option.value === `${item.ris}:${item.risItem}`)?.itemName || item.description : ''} readOnly className="w-full min-w-48 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        {readOnly ? returnItemOptions.find(option => option.value === `${item.ris}:${item.risItem}`)?.itemName || item.description : <input aria-label="Issued Items" value={item.ris && item.risItem ? returnItemOptions.find(option => option.value === `${item.ris}:${item.risItem}`)?.itemName || item.description : ''} readOnly className="w-full min-w-48 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Description" value={item.description} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        {readOnly ? item.description : <input required={hasRowData(item, emptyItem())} aria-label="Description" value={item.description} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} data-positive="true" aria-label="Quantity" type="number" min="0" step="any" value={item.quantity} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        {readOnly ? item.quantity : <input required={hasRowData(item, emptyItem())} data-positive="true" aria-label="Quantity" type="number" min="0" step="any" value={item.quantity} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        {readOnly ? item.unit : <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Material Record No." value={item.mrNumber} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        {readOnly ? item.mrNumber : <input required={hasRowData(item, emptyItem())} aria-label="Material Record No." value={item.mrNumber} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        {readOnly ? item.unitValue : <input required={hasRowData(item, emptyItem())} aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                        {readOnly ? item.totalValue : <input required={hasRowData(item, emptyItem())} aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}
                                     </td>
-                                  <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} /></td>
+                                  {!readOnly && <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [emptyItem()] }; })} /></td>}
                                 </tr>
                             ))}
                         </tbody>

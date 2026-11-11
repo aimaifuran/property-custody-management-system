@@ -155,7 +155,7 @@ export default function PropertyRecordsPage() {
               <td className="border border-slate-200 px-3 py-2.5">{row.description || '—'}</td>
               <td className="border border-slate-200 px-3 py-2.5">{dateLabel(row.recordedAt)}</td>
               <td className="border border-slate-200 px-3 py-2.5 text-right">{amountLabel(Number(row.unitCost || 0) * Number(row.quantityIssued || 0))}</td>
-              <td className="border border-slate-200 px-3 py-2.5 text-center"><button type="button" aria-label={`Edit ${row.itemName || row.description || 'property record'}`} title="Edit" onClick={() => setEditing({ ...row, propertyNumberInput: '', descriptionInput: '' })} className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"><Pencil size={15} aria-hidden="true" />Edit</button></td>
+              <td className="border border-slate-200 px-3 py-2.5 text-center"><button type="button" aria-label={`Edit ${row.itemName || row.description || 'property record'}`} title="Edit" onClick={() => setEditing({ ...row, propertyNumberInput: '', descriptionInput: '' })} className="inline-flex items-center justify-center rounded-lg bg-amber-600 p-2 text-white hover:bg-amber-700"><Pencil size={16} aria-hidden="true" /></button></td>
             </tr>)}</tbody>
           </table></TableScroll></div> : <div className="py-16 text-center text-sm text-slate-500">No issued property records found for this account.</div>}</div>
         </>}

@@ -3,6 +3,8 @@ import { Building2, Camera, Mail, Pencil, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import OfficeSelect from '../components/OfficeSelect';
+import { divisionForOffice } from '../utils/officeDivisions';
 import './UsersPage.css';
 
 const emptyProfile = { firstName: '', middleName: '', lastName: '', office: '', division: '', position: '', email: '', password: '', confirmation: '' };
@@ -90,7 +92,7 @@ export default function ProfilePage() {
                         <p>Update your name, office, and account details. Leave password blank to keep your current password.</p>
                         <fieldset disabled={saving}>
                             <div className="grid gap-x-4 sm:grid-cols-2">
-                              {[['firstName', 'First name', true], ['middleName', 'Middle name', false], ['lastName', 'Last name / Suffix', true], ['position', 'Position', false], ['office', 'Office', true], ['division', 'Division', true]].map(([key, label, required]) => <label key={key}>{label}<input type="text" aria-label={label} required={required} maxLength={key === 'position' ? 150 : 200} value={credentials[key]} onChange={event => setCredentials(previous => ({ ...previous, [key]: event.target.value }))} /></label>)}
+                              {[['firstName', 'First name', true], ['middleName', 'Middle name', false], ['lastName', 'Last name / Suffix', true], ['position', 'Position', false], ['office', 'Office', true], ['division', 'Division', false]].map(([key, label, required]) => <label key={key}>{label}{key === 'office' ? <OfficeSelect required={required} aria-label={label} value={credentials.office} onChange={event => setCredentials(previous => ({ ...previous, office: event.target.value, division: divisionForOffice(event.target.value) }))} /> : <input type="text" aria-label={label} required={required} readOnly={key === 'division'} maxLength={key === 'position' ? 150 : 200} value={credentials[key]} onChange={event => setCredentials(previous => ({ ...previous, [key]: event.target.value }))} />}</label>)}
                             </div>
                             <label>Email<input type="email" autoComplete="email" required value={credentials.email} onChange={event => setCredentials({ ...credentials, email: event.target.value })} /></label>
                             <label>New password<input type="password" autoComplete="new-password" minLength={8} value={credentials.password} onChange={event => setCredentials({ ...credentials, password: event.target.value })} /></label>

@@ -1718,6 +1718,13 @@ body { font-size: var(--app-text-size); }
 .ics-editor .ics-items-table tbody td:nth-child(5) input,
 .ics-editor .ics-items-table tfoot textarea { text-align: left; }
 .ics-editor .ics-items-table tfoot th { padding: 8px; white-space: nowrap; }
+.form-document.ics-editor .ics-plain-textarea {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  resize: none;
+}
 
 .ics-editor .ics-signatories { border: 1px solid #475569; border-top: 0; }
 .ics-editor .ics-signatory-panel + .ics-signatory-panel { border-left: 1px solid #475569; }
@@ -1727,6 +1734,7 @@ body { font-size: var(--app-text-size); }
 }
 .form-document.ics-editor .ics-signatory-panel .signatory-value {
   display: flex !important; justify-content: center !important; text-align: center !important;
+  border-bottom: 1px solid #000;
 }
 .form-document.ics-editor .ics-signatory-panel .signatory-value__text {
   width: 100%; text-align: center !important;

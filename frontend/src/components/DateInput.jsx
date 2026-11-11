@@ -114,8 +114,8 @@ function CalendarInput({ value = '', onChange, className = '', readOnly, disable
     <input {...props} ref={input} type="text" inputMode="numeric" placeholder="MM/DD/YYYY" maxLength={10}
       value={text} readOnly={readOnly} disabled={disabled} className={`${className} pr-10`}
       onChange={event => emit(event, event.target.value, parseDisplayDate(event.target.value))} />
-    {!readOnly && !disabled && <button type="button" aria-label={`Choose ${props['aria-label'] || 'date'}`} aria-expanded={open}
-      className="absolute inset-y-0 right-2 flex items-center px-1 text-slate-600" onClick={openCalendar}><CalendarDays size={17} /></button>}
+    {!readOnly && <button type="button" disabled={disabled} aria-label={`Choose ${props['aria-label'] || 'date'}`} aria-expanded={open}
+      className="absolute inset-y-0 right-2 flex items-center px-1 text-slate-600 disabled:cursor-not-allowed disabled:opacity-60" onClick={openCalendar}><CalendarDays size={17} /></button>}
     {open && anchor && createPortal(<div ref={panel} role="dialog" aria-label="Choose date" className="date-picker-popover fixed z-[110] w-[272px] rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-xl"
       style={{ left: Math.max(8, Math.min(anchor.right - popoverWidth, window.innerWidth - popoverWidth - 8)), top: popoverTop }}>
       <div className="relative mb-2 flex items-center gap-1">

@@ -19,6 +19,7 @@ export async function buildRisPdf(data, { onDraw } = {}) {
   const { regular, bold, titleBold, titleRegular } = await embedFormFonts(document, ['regular', 'bold']);
   const { signatureRegular, signatureBold } = await embedSignatureFonts(document);
   const size = FORM_PDF_FONT_SIZE, leading = 12, padding = 4;
+  const designationFontSize = 8, designationLeading = 10;
   const minimumRowHeight = 20;
   const items = Array.isArray(data.items) ? data.items : [];
   const valuesFor = item => [risStockNumber(item), item.unit, item.description ?? item.item, item.quantityRequested, item.isAvailable == null ? '' : item.isAvailable ? '/' : '', item.isAvailable === false ? '/' : '', Number(item.quantityIssued) > 0 ? item.quantityIssued : '', item.remarks];
@@ -28,17 +29,17 @@ export async function buildRisPdf(data, { onDraw } = {}) {
   const proseWidth = WIDTH - stockWidth - unitWidth - requestedWidth - issuedWidth - WIDTH * .14;
   const descriptionWidth = Math.max(95, Math.min(WIDTH * .35, proseWidth - 45));
   const COLUMNS = [stockWidth, unitWidth, descriptionWidth, requestedWidth, WIDTH * .07, WIDTH * .07, issuedWidth, proseWidth - descriptionWidth];
-  const wrap = (value, width, font = regular) => {
+  const wrap = (value, width, font = regular, fontSize = size) => {
     const lines = [];
     for (const paragraph of asText(value).split(/\r?\n/)) {
       let line = '';
       for (const word of paragraph.split(/\s+/).filter(Boolean)) {
-        if (line && font.widthOfTextAtSize(`${line} ${word}`, size) > width) { lines.push(line); line = ''; }
+        if (line && font.widthOfTextAtSize(`${line} ${word}`, fontSize) > width) { lines.push(line); line = ''; }
         for (const [partIndex, part] of (word.match(/[^/_-]+[/_-]?|[/_-]/g) || [word]).entries()) {
           let separator = partIndex === 0 && line ? ' ' : '';
-          if (line && font.widthOfTextAtSize(line + separator + part, size) > width) { lines.push(line); line = ''; separator = ''; }
+          if (line && font.widthOfTextAtSize(line + separator + part, fontSize) > width) { lines.push(line); line = ''; separator = ''; }
           for (const character of `${separator}${part}`) {
-            if (line && font.widthOfTextAtSize(line + character, size) > width) { lines.push(line); line = ''; }
+            if (line && font.widthOfTextAtSize(line + character, fontSize) > width) { lines.push(line); line = ''; }
             line += character;
           }
         }
@@ -49,16 +50,16 @@ export async function buildRisPdf(data, { onDraw } = {}) {
   };
   let page;
   const box = (x, top, width, height) => page.drawRectangle({ x, y: top - height, width, height, borderWidth: .65, borderColor: rgb(0, 0, 0) });
-  const draw = (value, x, top, width, height, { font = regular, fontSize = size, align = 'left', section = '', fieldRole, lines = wrap(value, width - 8, font) } = {}) => {
+  const draw = (value, x, top, width, height, { font = regular, fontSize = size, lineLeading = leading, align = 'left', section = '', fieldRole, lines = wrap(value, width - 8, font, fontSize) } = {}) => {
     const ascent = font.heightAtSize(fontSize, { descender: false });
     const textHeight = font.heightAtSize(fontSize), descent = textHeight - ascent;
-    const blockHeight = textHeight + (lines.length - 1) * leading;
+    const blockHeight = textHeight + (lines.length - 1) * lineLeading;
     const first = top - (height - blockHeight) / 2 - ascent;
     lines.forEach((line, index) => {
       if (!line) return;
       const textWidth = font.widthOfTextAtSize(line, fontSize);
       const left = align === 'center' ? x + (width - textWidth) / 2 : align === 'right' ? x + width - textWidth - 4 : x + 4;
-      const y = first - index * leading;
+      const y = first - index * lineLeading;
       page.drawText(line, { x: left, y, size: fontSize, font });
       onDraw?.({ text: line, x: left, y, width: textWidth, size: fontSize, ascent, descent, padding, page: document.getPageCount(), section, fieldRole, bounds: { x, top, width, height } });
     });
@@ -77,7 +78,7 @@ export async function buildRisPdf(data, { onDraw } = {}) {
   const designations = people.map(person => signatoryText(person.designation || person.position));
   const dates = people.map(person => dateText(person.date));
   const nameHeight = Math.max(22, ...names.map(value => wrap(value, personWidth - 8, signatureRegular).length * leading + 8));
-  const designationHeight = Math.max(22, ...designations.map(value => wrap(value, personWidth - 8, signatureRegular).length * leading + 8));
+  const designationHeight = Math.max(22, ...designations.map(value => wrap(value, personWidth - 8, signatureRegular, designationFontSize).length * designationLeading + 8));
   const purposeHeight = Math.max(54, fieldHeight('Purpose:', data.purpose, WIDTH));
   const footerHeight = purposeHeight + 22 + 28 + nameHeight + designationHeight + 22;
   const rowBottom = MARGIN + footerHeight;
@@ -145,7 +146,7 @@ export async function buildRisPdf(data, { onDraw } = {}) {
     top -= purposeHeight;
     for (const [label, values, height, headings, section] of [['', ['REQUESTED BY:', 'APPROVED BY:', 'ISSUED BY:', 'RECEIVED BY:'], 22, true, 'signatory:heading'], ['SIGNATURE:', ['', '', '', ''], 28, false, 'signatory:signature'], ['PRINTED NAME:', names, nameHeight, false, 'signatory:name'], ['DESIGNATION:', designations, designationHeight, false, 'signatory:designation'], ['DATE:', dates, 22, false, 'signatory:date']]) {
       box(MARGIN, top, signatureLabelWidth, height); draw(label, MARGIN, top, signatureLabelWidth, height, { font: signatureRegular, align: 'center', section, fieldRole: 'label' });
-      values.forEach((value, index) => { const x = MARGIN + signatureLabelWidth + index * personWidth; box(x, top, personWidth, height); draw(value, x, top, personWidth, height, { font: headings ? signatureBold : signatureRegular, align: 'center', section, fieldRole: 'value' }); });
+      values.forEach((value, index) => { const x = MARGIN + signatureLabelWidth + index * personWidth; box(x, top, personWidth, height); draw(value, x, top, personWidth, height, { font: headings ? signatureBold : signatureRegular, fontSize: section === 'signatory:designation' ? designationFontSize : size, lineLeading: section === 'signatory:designation' ? designationLeading : leading, align: 'center', section, fieldRole: 'value', ...(section === 'signatory:designation' ? { lines: wrap(value, personWidth - 8, signatureRegular, designationFontSize) } : {}) }); });
       top -= height;
     }
   };

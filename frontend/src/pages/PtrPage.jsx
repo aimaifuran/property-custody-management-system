@@ -398,6 +398,20 @@ export default function PtrPage() {
     const save = async (event) => {
         event.preventDefault();
         if (saving) return;
+        if (!form.transferTypeChoice) {
+            toast.error('Select a Transfer Type before saving the PTR.');
+            const transferTypeInput = editorRef.current?.querySelector('[name="transferType"]');
+            transferTypeInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            transferTypeInput?.focus({ preventScroll: true });
+            return;
+        }
+        if (form.transferTypeChoice === 'Other' && !form.transferTypeOther.trim()) {
+            toast.error('Enter the Transfer Type in the Other field.');
+            const otherTypeInput = editorRef.current?.querySelector('[aria-label="Other transfer type"]');
+            otherTypeInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            otherTypeInput?.focus({ preventScroll: true });
+            return;
+        }
         if (returnDraftItem && !form.toUser) return toast.error('Search and select the new accountable officer.');
         if (!isUser && !editingId && !returnDraftItem) {
             if (form.items.some(item => !item.accountability)) return toast.error('Search and select an issued item for each PTR row.');
@@ -708,7 +722,7 @@ export default function PtrPage() {
                 </div>
 
                 <div className="mt-6">
-                    <span className="mb-2 block text-sm font-semibold text-slate-700">Transfer Type</span>
+                    <span className="mb-2 block text-sm font-semibold text-slate-700">Transfer Type <span className="text-red-600" aria-hidden="true">*</span></span>
                     <div className="flex flex-wrap gap-4">
                         {[...FIXED_TRANSFER_TYPES, 'Other'].map((option) => (
                             <label key={option} className="flex items-center gap-2 text-sm">
@@ -725,7 +739,7 @@ export default function PtrPage() {
                         ))}
                     </div>
                     {form.transferTypeChoice === 'Other' && (
-                        <input required
+                        <input aria-label="Other transfer type"
                             readOnly={Boolean(returnDraftItem)}
                             value={form.transferTypeOther}
                             onChange={(e) => update('transferTypeOther', e.target.value)}

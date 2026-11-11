@@ -146,7 +146,7 @@ Ordinary user requests enter an administrator approval queue. Approval sends a o
 
 **Operational effect:** The stock-receipt operation records IAR, inventory balances, ledger entries, Property Card, and the related RIS draft together. Posted quantities, costs, stock numbers, and types cannot be changed into a different receipt. Additional stock should use another IAR.
 
-**Numbering:** New IAR numbers are 3–4 digits, such as `001`, up to `9999`. A valid manually entered number is supported, but duplicates are rejected. The final automatic number is allocated on saving.
+**Numbering:** IAR No. is optional and entered manually when available. Leaving it blank is allowed and does not assign an automatic number. When supplied, it must be 3–4 digits (up to `9999`), preserves leading zeros, and duplicates are rejected. This is separate from the PO/JO No.
 
 **Defense explanation:** Receipt verification establishes the source of stock and reduces the possibility of issuing an item that was never properly recorded.
 

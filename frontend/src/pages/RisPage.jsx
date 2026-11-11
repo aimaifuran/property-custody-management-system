@@ -1094,7 +1094,7 @@ export default function RisPage() {
               return (
               <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable ris-table-grid--item-picker border-b border-slate-300 last:border-b-0">
                 <div className="flex-col gap-1 border-r border-slate-300 p-1">
-                  <SearchInput required disabled={risTableReadOnly} onFocus={() => window.dispatchEvent(new Event('ris-stock-search'))} aria-label={`Item, row ${index + 1}`} placeholder={choices.length ? 'Search item name' : 'No available items'} value={selectedStock ? risItemName(selectedStock) : item.itemName || ''}
+                  {risTableReadOnly ? <div aria-label={`Item, row ${index + 1}`} className="min-h-9 break-words px-2 py-2 text-sm">{selectedStock ? risItemName(selectedStock) : item.itemName || ''}</div> : <SearchInput required onFocus={() => window.dispatchEvent(new Event('ris-stock-search'))} aria-label={`Item, row ${index + 1}`} placeholder={choices.length ? 'Search item name' : 'No available items'} value={selectedStock ? risItemName(selectedStock) : item.itemName || ''}
                     options={choices.map(choice => ({ value: choice.key, label: choice.name }))}
                     onChange={name => {
                       const choice = choices.find(option => option.name.toLowerCase() === name.trim().toLowerCase());
@@ -1103,28 +1103,28 @@ export default function RisPage() {
                     onSelect={option => {
                       const choice = choices.find(choice => choice.key === option.value);
                       selectRequestItem(index, choice);
-                    }} className="w-full rounded-lg border bg-transparent px-2 py-2 text-sm" />
+                    }} className="w-full rounded-lg border bg-transparent px-2 py-2 text-sm" />}
                   {unavailable && <span className="text-xs text-red-700" role="status">Select an available item again.</span>}
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input readOnly aria-label={`Stock Number, row ${index + 1}`} value={risStockNumber(selectedStock || item)} className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none" />
+                  {risTableReadOnly ? <div aria-label={`Stock Number, row ${index + 1}`} className="min-h-9 px-2 py-2 text-sm">{risStockNumber(selectedStock || item)}</div> : <input readOnly aria-label={`Stock Number, row ${index + 1}`} value={risStockNumber(selectedStock || item)} className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none" />}
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
+                  {risTableReadOnly ? <div aria-label={`Unit, row ${index + 1}`} className="min-h-9 px-2 py-2 text-sm">{item.unit}</div> : <input required={hasRowData(item, createRow())}
                     aria-label={`Unit, row ${index + 1}`} value={item.unit} readOnly={risTableReadOnly}
                     onChange={(e) => updateItem(index, 'unit', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
+                  />}
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
+                  {risTableReadOnly ? <div aria-label={`Description, row ${index + 1}`} className="min-h-9 break-words px-2 py-2 text-sm">{item.description}</div> : <input required={hasRowData(item, createRow())}
                     aria-label={`Description, row ${index + 1}`} value={item.description} readOnly={risTableReadOnly}
                     onChange={(e) => updateItem(index, 'description', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
+                  />}
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input required={hasRowData(item, createRow())}
+                  {risTableReadOnly ? <div aria-label={`Quantity requested, row ${index + 1}`} className="min-h-9 px-2 py-2 text-sm">{item.quantityRequested}</div> : <input required={hasRowData(item, createRow())}
                     type="number"
                     min="0"
                     max={item.stockNumber ? Number(item.stockAvailable || 0) : undefined}
@@ -1139,32 +1139,32 @@ export default function RisPage() {
                       }) }));
                     }}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
+                  />}
                 </div>
                 <div className="border-r border-slate-300 p-1 flex items-center justify-center">
-                  <input
+                  {risTableReadOnly ? <span aria-label={`Available yes, row ${index + 1}`} className="text-sm">{item.isAvailable === true ? '✓' : ''}</span> : <input
                     type="radio" disabled={isUser || risTableReadOnly}
                     name={`ris-yes-${index}`}
                     checked={item.isAvailable === true}
                     onChange={() => updateItem(index, 'isAvailable', true)}
                     className="h-4 w-4"
-                  />
+                  />}
                 </div>
                 <div className="border-r border-slate-300 p-1 flex items-center justify-center">
-                  <input
+                  {risTableReadOnly ? <span aria-label={`Available no, row ${index + 1}`} className="text-sm">{item.isAvailable === false ? '✓' : ''}</span> : <input
                     type="radio" disabled={isUser || risTableReadOnly}
                     name={`ris-no-${index}`}
                     checked={item.isAvailable === false}
                     onChange={() => updateItem(index, 'isAvailable', false)}
                     className="h-4 w-4"
-                  />
+                  />}
                 </div>
                 <div className="border-r border-slate-300 p-1">
-                  <input readOnly type="number" min="0" step="1"
+                  {risTableReadOnly ? <div aria-label={`Actual quantity, row ${index + 1}`} className="min-h-9 px-2 py-2 text-sm">{availableQuantity}</div> : <input readOnly type="number" min="0" step="1"
                     aria-label={`Available stock, row ${index + 1}`} value={availableQuantity}
                     title="Current available stock"
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
-                  />
+                  />}
                 </div>
                 <div className="border-r border-slate-300 p-1">
                   <input
@@ -1214,32 +1214,32 @@ export default function RisPage() {
             ].map(([label, section]) => (
               <fieldset disabled={isUser} key={section} className="form-signatory-panel min-w-0 rounded-xl border border-slate-700 p-4">
                 <h3 className="mb-3 text-sm font-semibold">{label}</h3>
-                {user?.role === 'admin' && ['requestedBy', 'receivedBy'].includes(section) && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, ...(section === 'requestedBy' ? { office: person.office || person.designation || prev.office, division: hasNoDivision(person.office || person.designation) ? '' : person.division ?? divisionForOffice(person.office || person.designation), receivedBy: { ...prev.receivedBy, user: person.user, offlineRecipient: person.offlineRecipient, name: person.name, designation: person.designation } } : {}) }))} />}
+                {user?.role === 'admin' && section === 'requestedBy' && <UserAccountSelect person={form[section]} onChange={person => setForm(prev => ({ ...prev, [section]: person, office: person.office || person.designation || prev.office, division: hasNoDivision(person.office || person.designation) ? '' : person.division ?? divisionForOffice(person.office || person.designation), receivedBy: { ...prev.receivedBy, user: person.user, offlineRecipient: person.offlineRecipient, name: person.name, designation: person.designation } }))} />}
                 <div className="grid gap-3 md:grid-cols-3">
                   <FormField className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Name</span>
-                    <SignatoryValue
+                    {section === 'receivedBy' ? <div aria-label={`${label} name`} className="min-h-9 px-1 py-1 text-sm">{form[section].name}</div> : <SignatoryValue
                       aria-label={`${label} name`} value={form[section].name}
                       onChange={(e) => updateSignatory(section, 'name', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
-                    formType="ris" role={section} field="name" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
+                    formType="ris" role={section} field="name" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />}
                   </FormField>
                   <FormField className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Designation</span>
-                    <SignatoryValue
+                    {section === 'receivedBy' ? <div aria-label={`${label} designation`} className="min-h-9 px-1 py-1 text-sm">{form[section].designation}</div> : <SignatoryValue
                       aria-label={`${label} designation`} value={form[section].designation}
                       onChange={(e) => updateSignatory(section, 'designation', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
-                    formType="ris" role={section} field="designation" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />
+                    formType="ris" role={section} field="designation" managed={(!editingRis) && !form[section].user && !form[section].offlineRecipient && !(['requestedBy', 'receivedBy', 'returnedBy'].includes(section) && form[section].name)} />}
                   </FormField>
                   <FormField className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
-                    <DateInput required
+                    {section === 'receivedBy' ? <div aria-label={`${label} date`} className="min-h-9 px-1 py-1 text-sm">{formatDate(form[section].date)}</div> : <DateInput required
                       type="date"
                       aria-label={`${label} date`} value={form[section].date}
                       onChange={(e) => updateSignatory(section, 'date', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
-                    />
+                    />}
                   </FormField>
                 </div>
               </fieldset>

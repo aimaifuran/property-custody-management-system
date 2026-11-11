@@ -1,6 +1,5 @@
 import FormField from '../components/FormField';
 import { formNumber, formNumberData } from '../utils/formNumbers';
-import FormNumberInput from '../components/FormNumberInput';
 import DateInput from '../components/DateInput';
 import UserAccountSelect from '../components/UserAccountSelect';
 import SignatoryValue from '../components/SignatoryValue';
@@ -388,26 +387,14 @@ export default function IcsPage() {
                             <tbody>
                                 {form.items.map((item, index) => (
                                     <tr key={index}>
+                                        <td className="break-words p-2">{item.quantity}</td>
+                                        <td className="break-words p-2">{item.unit}</td>
+                                        <td className="break-words p-2 text-right tabular-nums">{item.unitCost}</td>
+                                        <td className="break-words p-2 text-right tabular-nums">{Number(item.totalCost || 0).toFixed(2)}</td>
+                                        <td className="break-words p-2">{item.description}</td>
+                                        <td className="break-words p-2">{item.inventoryItemNo}</td>
                                         <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} data-positive="true" min="0" step="any" readOnly={linkedIssuance || viewOnly} aria-label="Quantity" type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} readOnly={viewOnly} aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} readOnly={linkedIssuance || viewOnly} aria-label="Unit Cost" type="number" min="0" step="any" value={item.unitCost} onChange={(e) => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} aria-label="Total Cost" readOnly value={Number(item.totalCost || 0).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} readOnly={viewOnly} pattern=".*\S.*" title="Enter an item description" aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <FormNumberInput required={hasRowData(item, emptyItem())} readOnly={linkedIssuance || viewOnly} aria-label="Inventory Item No." value={item.inventoryItemNo} onChange={(e) => updateItem(index, 'inventoryItemNo', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                        </td>
-                                        <td className="p-2">
-                                            <input required={hasRowData(item, emptyItem())} aria-label="Estimated Useful Life" value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                            <textarea required={hasRowData(item, emptyItem())} aria-label="Estimated Useful Life" rows={1} value={item.estimatedUsefulLife} onChange={(e) => updateItem(index, 'estimatedUsefulLife', e.target.value)} className="ics-plain-textarea w-full px-2 py-2" />
                                         </td>
                                       <td className="p-2 text-center">{!linkedIssuance && !viewOnly && <DeleteRowButton index={index} onClick={() => setForm(previous => ({ ...previous, items: previous.items.filter((_, rowIndex) => rowIndex !== index) }))} />}</td>
                                     </tr>
@@ -424,7 +411,7 @@ export default function IcsPage() {
                                 </tr>
                                 <tr>
                                     <th scope="row" colSpan={2} className="text-left">REMARKS:</th>
-                                    <td colSpan={6}><textarea aria-label="Remarks" value={form.remarks} onChange={event => update('remarks', event.target.value)} className="w-full" rows={2} /></td>
+                                    <td colSpan={6}><textarea aria-label="Remarks" value={form.remarks} onChange={event => update('remarks', event.target.value)} className="ics-plain-textarea w-full px-2 py-2" rows={2} /></td>
                                 </tr>
                             </tfoot>
                         </table>

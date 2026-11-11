@@ -37,9 +37,9 @@ const rules = {
   suppliers: { fields: ['name', 'address', 'contactNumber'] },
   properties: { fields: ['propertyName', 'category', 'acquisitionDate', 'acquisitionCost', 'supplier', 'purchaseOrderNumber', 'sourceOfFund', 'location', 'description', 'quantity'], positiveFields: ['quantity'], nonnegativeFields: ['acquisitionCost'] },
   settings: { fields: ['organizationName', 'governmentAgency', 'address', 'telephone', 'systemName', 'lguName'] },
-  profile: { fields: ['firstName', 'lastName', 'office', 'division'] },
+  profile: { fields: ['firstName', 'lastName', 'office'] },
   users: { fields: ['firstName', 'lastName', 'email', 'username', 'office'] },
-  'monthly-item-reports': { fields: ['lgu', 'fund', 'serialNumber', 'reportDate', 'custodian', 'accountingStaff', 'postedDate'] },
+  'monthly-item-reports': { fields: ['lgu', 'serialNumber', 'reportDate', 'custodian', 'accountingStaff', 'postedDate'] },
   'ppe-station-reports': {
     fields: ['governmentUnit', 'accountGroup', 'date', 'preparedBy', 'preparedDesignation', 'reviewedBy', 'reviewedDesignation'],
     array: 'rows', items: ['article', 'description', 'propertyNumber', 'accountablePerson'], nonnegative: ['unitCost', 'totalCost'],
