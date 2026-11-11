@@ -14,7 +14,7 @@ const ActivityLog = require('../models/ActivityLog');
 const { successResponse, errorResponse } = require('../utils/response');
 const { authenticate, authorize } = require('../middlewares/auth');
 const { listRecords } = require('../utils/paginate');
-const { reserveDocumentNumber, recordManualIarNumber, isValidIarNumber, iarNumberError } = require('../utils/documentNumber');
+const { recordManualIarNumber, isValidIarNumber, iarNumberError } = require('../utils/documentNumber');
 const router = express.Router();
 
 const IAR_SEARCH_FIELDS = [
@@ -111,12 +111,10 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
   }
   if (payload.status && !['APPROVED', 'LOGGED_TO_STOCKS', 'INSPECTED_ACCEPTED'].includes(payload.status)) return errorResponse(res, 'Only inspected and accepted deliveries can be posted. Draft or rejected IARs cannot add stock.', [], 400);
 
-  const automaticNumber = payload.autoNumber === true || !String(payload.iarNumber || '').trim();
   delete payload.autoNumber;
-  if (!automaticNumber) {
-    payload.iarNumber = String(payload.iarNumber).trim();
-    if (!isValidIarNumber(payload.iarNumber)) return errorResponse(res, iarNumberError().message, [], 400);
-  }
+  payload.iarNumber = String(payload.iarNumber || '').trim();
+  if (payload.iarNumber && !isValidIarNumber(payload.iarNumber)) return errorResponse(res, iarNumberError().message, [], 400);
+  if (!payload.iarNumber) delete payload.iarNumber;
   payload.purchaseDate = payload.purchaseDate || payload.poDate || null;
   payload.iarDate = payload.iarDate || payload.date || null;
   // Keep older clients and previously-used field names compatible with the
@@ -169,8 +167,7 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
         if (!Number.isFinite(entry.unitCost) || entry.unitCost < 0) throw new Error(`Set a valid unit cost for ${entry.stockNumber}`);
         if (!['SUPPLY', 'ASSET'].includes(entry.itemType)) throw new Error(`Select Supply or Asset for ${entry.stockNumber}`);
       }
-      if (automaticNumber) payload.iarNumber = await reserveDocumentNumber(InspectionAcceptanceReport, 'iarNumber', new Date(), session);
-      else await recordManualIarNumber(payload.iarNumber, session);
+      if (payload.iarNumber) await recordManualIarNumber(payload.iarNumber, session);
       const [report] = await InspectionAcceptanceReport.create([payload], { session });
       for (const entry of report.items) {
         const acceptedQuantity = entry.acceptedQuantity ?? entry.quantity;
@@ -233,7 +230,7 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
               serialNumber: unitSerial, quantity: receiptQuantity,
               acquisitionDate: report.acceptanceDate || report.poDate, acquisitionCost: lineAmount(receiptQuantity, entry.unitCost),
               supplier: report.supplierName, purchaseOrderNumber: report.poNumber, sourceOfFund: report.fundCluster,
-              status: 'AVAILABLE', events: [{ action: 'IAR receipt', status: 'AVAILABLE', remarks: report.iarNumber }],
+              status: 'AVAILABLE', events: [{ action: 'IAR receipt', status: 'AVAILABLE', remarks: report.iarNumber || report.poNumber || 'IAR receipt' }],
             };
             if (unitCount === 1 && requestedPropertyNumber) {
               const duplicateInventory = await Inventory.exists({ _id: { $ne: inventory._id }, deleted: { $ne: true }, propertyNumber: requestedPropertyNumber }).session(session);
@@ -266,7 +263,7 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
             sourceType: 'IAR', sourceDocument: report._id, sourceLine: entry._id, sourceKey: `IAR:${report._id}:${entry._id}:${inventory._id}`, postedBy: req.user._id, transactionDate: new Date(),
             type: 'incoming',
             quantity: receiptQuantity,
-            reference: report.iarNumber,
+            reference: report.iarNumber || report.poNumber || `IAR-${report._id}`,
             description: 'IAR acceptance',
             runningBalance: newBalance,
           }], { session });
@@ -279,7 +276,7 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
       await ActivityLog.create([{
         user: req.user._id,
         action: 'IAR created',
-        details: `IAR ${report.iarNumber} created; stock and RIS draft recorded`,
+        details: `${report.iarNumber ? `IAR ${report.iarNumber}` : 'IAR without a number'} created; stock and RIS draft recorded`,
         ipAddress: req.ip,
         browser: req.get('user-agent'),
       }], { session });

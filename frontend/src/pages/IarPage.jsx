@@ -81,7 +81,12 @@ const initial = {
 };
 
 const firstItem = () => ({ ...emptyItem(), stockPropertyNumber: '001', stockNumber: '001' });
-const newForm = () => withCurrentDates({ ...initial, submissionKey: crypto.randomUUID(), inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [firstItem()] });
+const newForm = () => ({
+    ...withCurrentDates({ ...initial, submissionKey: crypto.randomUUID(), inspectedBy: getStickySignatory('inspectedBy').name ?? '', custodian: getStickySignatory('custodian').name ?? '', items: [firstItem()] }),
+    poDate: '',
+    iarDate: '',
+    invoiceDate: '',
+});
 
 const readDraft = key => {
     try {
@@ -268,7 +273,6 @@ export default function IarPage() {
             ...form,
             iarNumber: form.iarNumber.trim(),
             ...(form.acceptanceStatus === 'Partial' ? { acceptanceQuantity: form.items.reduce((sum, item) => sum + Number(item.acceptedQuantity || 0), 0) } : {}),
-            ...(!editingId ? { autoNumber: false } : {}),
             items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => {
                 const { unitCost, ...receivedItem } = item;
                 return {
@@ -341,7 +345,7 @@ export default function IarPage() {
             autoComplete: 'off'
         } : {};
         const optional = ['poDate', 'iarNumber', 'iarDate', 'invoiceNumber', 'invoiceDate'].includes(key);
-        return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput required={!optional && (key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial')} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Auto-assigned if blank' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></FormField>;
+        return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput required={!optional && (key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial')} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR No.' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2" /></FormField>;
     };
 
     function formatDate(date) {
@@ -488,7 +492,7 @@ export default function IarPage() {
               {field('PO/JO No.', 'poNumber')}
               {field('PO/JO Date', 'poDate', 'date')}
               {field('Responsibility Center Code', 'responsibilityCenterCode')}
-              {field('PO/JO No.', 'iarNumber')}
+              {field('IAR No.', 'iarNumber')}
               {field('IAR Date', 'iarDate', 'date')}
               {field('Invoice No.', 'invoiceNumber')}
               {field('Invoice Date', 'invoiceDate', 'date')}

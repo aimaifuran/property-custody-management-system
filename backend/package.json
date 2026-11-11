@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "seed": "node seed.js",
     "seed:examples": "node seed-examples.js",
+    "migrate:iar-number-index": "node migrate-iar-number-index.js",
     "vercel-build": "node vercel-seed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

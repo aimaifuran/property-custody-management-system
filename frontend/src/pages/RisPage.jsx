@@ -498,6 +498,7 @@ export default function RisPage() {
     return !issued && stock && Number(stock.quantityOnHand) > 0;
   });
   const selectedIarDrafts = availableIarDrafts.filter(row => checkedIarDraftIds.includes(row._id));
+  const risTableReadOnly = Boolean(editingRis || selectedIarDraftId);
   const filteredIarDrafts = filterReportsByPoAndItem(availableIarDrafts, search);
   const iarDraftPageCount = Math.max(1, Math.ceil(filteredIarDrafts.length / iarDraftPerPage));
   const visibleIarDrafts = filteredIarDrafts.slice((iarDraftPage - 1) * iarDraftPerPage, iarDraftPage * iarDraftPerPage);
@@ -1015,14 +1016,27 @@ export default function RisPage() {
       <>
       {risView === 'requests' && user?.role === 'admin' && <section ref={iarDraftsRef} aria-label="Drafts" className="saved-records scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <SavedReportsHeader title="Items recorded from IAR" actions={<>
+          <label className="flex shrink-0 items-center gap-2 rounded-lg border border-white/70 px-3 py-2 text-sm font-semibold text-white">
+            <input
+              type="checkbox"
+              aria-label="Select all available IAR drafts"
+              checked={availableIarDrafts.length > 0 && availableIarDrafts.every(row => checkedIarDraftIds.includes(row._id))}
+              disabled={!availableIarDrafts.length}
+              onChange={event => setCheckedIarDraftIds(previous => event.target.checked
+                ? [...new Set([...previous, ...availableIarDrafts.map(row => row._id)])]
+                : previous.filter(id => !availableIarDrafts.some(row => row._id === id)))}
+              className="h-4 w-4 accent-emerald-700"
+            />
+            Select all
+          </label>
           <button type="button" disabled={selectedIarDrafts.length !== 1} title="Check one item for single issuance" onClick={() => openIarDrafts(selectedIarDrafts)} className="shrink-0 rounded-lg border border-white bg-white px-4 py-2 font-semibold text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50">Single Issuance</button>
           <button type="button" disabled={selectedIarDrafts.length < 2} title="Check two or more items for multiple issuance" onClick={() => openIarDrafts(selectedIarDrafts)} className="shrink-0 rounded-lg border border-white bg-white px-4 py-2 font-semibold text-emerald-900 disabled:cursor-not-allowed disabled:opacity-50">Multiple Issuance{selectedIarDrafts.length > 1 ? ` (${selectedIarDrafts.length})` : ''}</button>
         </>} />
         {iarDraftError && <p role="alert" className="mt-3 text-sm text-rose-700">{iarDraftError}</p>}
-        <div className="mt-4 space-y-3">
+        <div className="mt-0 space-y-3">
           {visibleIarDrafts.map(row => { const serialNumber = row.serialNumber || (row.serialNumbers || []).join(', '); return <article key={row._id} data-iar-selected={checkedIarDraftIds.includes(row._id)} className="saved-record flex w-full items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex min-w-0 items-center gap-3"><input type="checkbox" aria-label={`Select PO/JO ${row.poNumber || ""}: ${row.propertyPlantAndEquipment || row.description || row.item || "Item"}`} checked={checkedIarDraftIds.includes(row._id)} onChange={event => setCheckedIarDraftIds(previous => event.target.checked ? [...new Set([...previous, row._id])] : previous.filter(id => id !== row._id))} className="h-5 w-5 shrink-0 accent-emerald-700" /><div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wide text-slate-500">PO/JO No. {row.poNumber || '—'}</div><div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-words font-medium text-slate-900"><span>{row.propertyPlantAndEquipment || row.description || row.item || 'Item'}</span>{serialNumber && <span className="text-sm font-normal text-slate-600">S/N: {serialNumber}</span>}</div></div></div><div className="iar-draft-actions flex shrink-0 items-center gap-2"><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Drafts</span></div></article>; })}
         </div>
-        <Pagination page={iarDraftPage} pageCount={iarDraftPageCount} perPage={iarDraftPerPage} onPageChange={setIarDraftPage} onPerPageChange={value => { setIarDraftPerPage(value); setIarDraftPage(1); }} />
+        <Pagination compact page={iarDraftPage} pageCount={iarDraftPageCount} perPage={iarDraftPerPage} onPageChange={setIarDraftPage} onPerPageChange={value => { setIarDraftPerPage(value); setIarDraftPage(1); }} />
         {!iarDraftError && !visibleIarDrafts.length && <p className="mt-4 text-slate-500">{availableIarDrafts.length ? 'No items match that PO/JO number or item name.' : iarDrafts.length ? 'No drafts with available stock.' : 'No items from IAR have been recorded in stock yet.'}</p>}
       </section>}
       {risView === 'requests' && (editingRis || ((!filteredIarDrafts.length || selectedIarDraftId) && creatingRis)) ? (<>
@@ -1080,7 +1094,7 @@ export default function RisPage() {
               return (
               <div key={`ris-row-${index}`} className="ris-table-grid ris-table-grid--editable ris-table-grid--item-picker border-b border-slate-300 last:border-b-0">
                 <div className="flex-col gap-1 border-r border-slate-300 p-1">
-                  <SearchInput required onFocus={() => window.dispatchEvent(new Event('ris-stock-search'))} aria-label={`Item, row ${index + 1}`} placeholder={choices.length ? 'Search item name' : 'No available items'} value={selectedStock ? risItemName(selectedStock) : item.itemName || ''}
+                  <SearchInput required disabled={risTableReadOnly} onFocus={() => window.dispatchEvent(new Event('ris-stock-search'))} aria-label={`Item, row ${index + 1}`} placeholder={choices.length ? 'Search item name' : 'No available items'} value={selectedStock ? risItemName(selectedStock) : item.itemName || ''}
                     options={choices.map(choice => ({ value: choice.key, label: choice.name }))}
                     onChange={name => {
                       const choice = choices.find(option => option.name.toLowerCase() === name.trim().toLowerCase());
@@ -1097,14 +1111,14 @@ export default function RisPage() {
                 </div>
                 <div className="border-r border-slate-300 p-1">
                   <input required={hasRowData(item, createRow())}
-                    aria-label={`Unit, row ${index + 1}`} value={item.unit}
+                    aria-label={`Unit, row ${index + 1}`} value={item.unit} readOnly={risTableReadOnly}
                     onChange={(e) => updateItem(index, 'unit', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
                 </div>
                 <div className="border-r border-slate-300 p-1">
                   <input required={hasRowData(item, createRow())}
-                    aria-label={`Description, row ${index + 1}`} value={item.description}
+                    aria-label={`Description, row ${index + 1}`} value={item.description} readOnly={risTableReadOnly}
                     onChange={(e) => updateItem(index, 'description', e.target.value)}
                     className="w-full border-0 bg-transparent px-2 py-2 text-sm outline-none"
                   />
@@ -1114,7 +1128,7 @@ export default function RisPage() {
                     type="number"
                     min="0"
                     max={item.stockNumber ? Number(item.stockAvailable || 0) : undefined}
-                    step="1" data-positive="true" aria-label={`Quantity requested, row ${index + 1}`} value={item.quantityRequested}
+                    step="1" data-positive="true" aria-label={`Quantity requested, row ${index + 1}`} value={item.quantityRequested} readOnly={risTableReadOnly}
                     onChange={event => {
                       const value = event.target.value;
                       if (item.stockNumber && Number(value) > Number(item.stockAvailable || 0)) toast.error(`Requested quantity exceeds available stock (${item.stockAvailable || 0}).`, { id: 'ris-stock-limit' });
@@ -1129,7 +1143,7 @@ export default function RisPage() {
                 </div>
                 <div className="border-r border-slate-300 p-1 flex items-center justify-center">
                   <input
-                    type="radio" disabled={isUser}
+                    type="radio" disabled={isUser || risTableReadOnly}
                     name={`ris-yes-${index}`}
                     checked={item.isAvailable === true}
                     onChange={() => updateItem(index, 'isAvailable', true)}
@@ -1138,7 +1152,7 @@ export default function RisPage() {
                 </div>
                 <div className="border-r border-slate-300 p-1 flex items-center justify-center">
                   <input
-                    type="radio" disabled={isUser}
+                    type="radio" disabled={isUser || risTableReadOnly}
                     name={`ris-no-${index}`}
                     checked={item.isAvailable === false}
                     onChange={() => updateItem(index, 'isAvailable', false)}
@@ -1160,14 +1174,14 @@ export default function RisPage() {
                   />
                 </div>
                 <div className="flex items-center justify-center p-1">
-                  <DeleteRowButton index={index} onClick={() => deleteRow(index)} />
+                  {!risTableReadOnly && <DeleteRowButton index={index} onClick={() => deleteRow(index)} />}
                 </div>
               </div>
             ); })}
           </TableScroll>
 
           <div className="mt-3 flex justify-end">
-            {!singleIssuance && <AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" />}
+            {!singleIssuance && !risTableReadOnly && <AddRowButton onClick={addRow} disabled={savingRis} label="Add Item to Request" />}
           </div>
 
           <div className="mt-4 grid gap-4 border border-slate-700 p-4 md:grid-cols-2">

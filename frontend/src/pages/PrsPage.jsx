@@ -1,6 +1,5 @@
 import FormField from '../components/FormField';
 import { formNumber, formNumberData } from '../utils/formNumbers';
-import FormNumberInput from '../components/FormNumberInput';
 import DateInput from '../components/DateInput';
 import { pendingUserReturns } from '../utils/usePendingReturns';
 import { issuedReturnOptions, availableReturnOptions, groupUnserializedReturns, expandReturnRows } from '../utils/issuedReturnOptions';
@@ -134,6 +133,7 @@ export default function PrsPage() {
 
     const [reports, setReports] = useState([]);
     const [processing, setProcessing] = useState('');
+    const [purposeInvalid, setPurposeInvalid] = useState(false);
     const [conditions, setConditions] = useState({});
     const [issuedRecords, setIssuedRecords] = useState([]);
     const [approvedRecords, setApprovedRecords] = useState([]);
@@ -255,7 +255,10 @@ export default function PrsPage() {
     const pageCount = Math.max(1, Math.ceil(filteredReports.length / perPage));
     const visibleReports = filteredReports.slice((page - 1) * perPage, page * perPage);
 
-    const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+    const update = (key, value) => {
+        if (key === 'purposeChoice') setPurposeInvalid(false);
+        setForm((prev) => ({ ...prev, [key]: value }));
+    };
 
     const updateSignatory = (section, key, value) => setForm((prev) => {
         const signatory = { ...prev[section], [key]: value, ...(key === 'name' ? { user: undefined } : {}) };
@@ -292,6 +295,7 @@ export default function PrsPage() {
 
     const cancelEdit = () => {
         setEditingId(null);
+        setPurposeInvalid(false);
         setForm(makeForm()); setDecision('receive'); setRejectionReason('');
         refreshNumberPreview();
     };
@@ -300,6 +304,12 @@ export default function PrsPage() {
         event.preventDefault();
         if (readOnly && !canReceive) return;
         if (processing) return;
+        if (!isUser && !canReceive && !form.purposeChoice) {
+            setPurposeInvalid(true);
+            toast.error('Select a purpose before saving the PRS.');
+            requestAnimationFrame(() => editorRef.current?.querySelector('input[name="purpose"]')?.focus());
+            return;
+        }
         if (!readOnly && accountId(form.returnedBy) && (issuedLoading || issuedError)) return toast.error('Wait for the issued items to load, or retry loading them.');
         if (!readOnly && accountId(form.returnedBy) && form.items.some(item => !item.accountability && (!item.ris || !item.risItem))) return toast.error('Select an issued item in each row. A recorded request must be issued before it can be returned.');
         const purpose = form.purposeChoice === 'Other' ? form.purposeOther : form.purposeChoice;
@@ -308,7 +318,7 @@ export default function PrsPage() {
             ...(!editingId ? { autoNumber: true } : {}),
             lguName: form.lguName,
             purpose,
-            items: expandReturnRows(form.items.filter(item => hasRowData(item, emptyItem()))).map(({ issuedSearch: _issuedSearch, ...item }) => ({
+            items: expandReturnRows(form.items.filter(item => hasRowData(item, emptyItem()))).map(({ issuedSearch: _issuedSearch, propertySearch: _propertySearch, ...item }) => ({
                 ...item,
                 quantity: Number(item.quantity || 0),
                 unitValue: Number(item.unitValue || 0)
@@ -530,16 +540,8 @@ export default function PrsPage() {
                     <div key={item._id} className={`saved-record mt-3 flex items-center justify-between rounded-xl border p-3 ${updatedId === item._id ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-200 animate-pulse' : 'border-slate-200'}`}><NewFormBadge record={item} />
                         <div>
                             <b>{item.returnedBy?.name || 'Unnamed return'}</b>
-                            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-                                <span>{(() => {
-                                    const date = new Date(item.status === 'RETURNED'
-                                        ? item.returnedTo?.date || item.returnedAt || item.createdAt
-                                        : item.returnedBy?.date || item.createdAt);
-                                    return Number.isNaN(date.getTime()) ? 'Date not recorded' : date.toLocaleDateString();
-                                })()}</span>
-                                <span className="font-semibold">{item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</span>
-                            </div>
-                            <div className="mt-1 text-sm text-slate-600">{[...new Set((item.items || []).map(entry => entry.ris?.iar?.poNumber || entry.poNumber).filter(Boolean))].map((poNumber, index) => <div key={`${poNumber}-${index}`}>PO/JO No. {poNumber}</div>)}</div>
+                            <div className="mt-1 text-sm text-slate-600">{(item.items || []).map((entry, index) => <div key={`${entry._id || entry.risItem || index}`}>{entry.itemName || entry.description || 'Item'} - PO/JO No. {entry.ris?.iar?.poNumber || entry.poNumber || '—'}</div>)}</div>
+                            <div className="mt-1 text-sm font-semibold text-slate-600">{item.status === 'PENDING' ? 'Awaiting confirmation' : item.status === 'REJECTED' ? 'Rejected' : 'Returned'}</div>
                         </div>
                         <div className="flex gap-2">
                             {requestView ? <button type="button" onClick={() => startEdit(item)} className="prs-review-request rounded-xl px-4 py-2 text-sm font-semibold text-white">Review Request</button> : <>
@@ -561,7 +563,7 @@ export default function PrsPage() {
                     <EntityNameField value={form.lguName} onChange={value => update('lguName', value)} isNew={!editingId} />
                 </div>
 
-                <div className="mt-6">
+                <div className={`mt-6 rounded-xl border p-3 transition-colors ${purposeInvalid ? 'border-rose-500 bg-rose-50 ring-2 ring-rose-200' : 'border-transparent'}`} aria-invalid={purposeInvalid}>
                     <span className="mb-2 block text-sm font-semibold text-slate-700">Purpose</span>
                     <div className="flex flex-wrap gap-4">
                         {[...FIXED_PURPOSES, 'Other'].map((option) => (
@@ -601,11 +603,11 @@ export default function PrsPage() {
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-left">
-                                <th className="p-2">Issued Item</th>
+                                <th className="p-2">Property No.</th>
+                                <th className="p-2">Issued Items</th>
+                                <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
-                                <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
-                                <th className="p-2">Property Number</th>
                                 <th className="p-2">Material Record No. <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Unit Value <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
                                 <th className="p-2">Total Value</th>
@@ -616,36 +618,36 @@ export default function PrsPage() {
                             {form.items.map((item, index) => (
                                 <tr key={index}>
                                     <td className="p-2">
-                                        <SearchInput aria-label="Issued item to return" required={hasRowData(item, emptyItem()) && Boolean(accountId(form.returnedBy))} disabled={issuedLoading || Boolean(issuedError)}
-                                            placeholder="Search issued item"
-                                            value={item.issuedSearch ?? (item.ris && item.risItem ? returnItemOptions.find(option => option.value === `${item.ris}:${item.risItem}`)?.label || item.description || '' : '')}
+                                        <SearchInput aria-label="Property No." required={hasRowData(item, emptyItem()) && Boolean(accountId(form.returnedBy))} disabled={issuedLoading || Boolean(issuedError)}
+                                            placeholder="Search Property No."
+                                            value={item.propertySearch ?? item.propertyNumber}
                                             options={availableReturnOptions(returnItemOptions, form.items, index)}
-                                            onChange={text => setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? { ...emptyItem(), issuedSearch: text } : row) }))}
+                                            onChange={text => setForm(previous => ({ ...previous, items: previous.items.map((row, i) => i === index ? { ...emptyItem(), propertySearch: text } : row) }))}
                                             onSelect={option => {
                                             const [risId, itemId] = option.value.split(':');
                                             const record = eligibleRecords.find(row => row._id === risId);
                                             const issued = record?.items.find(row => row._id === itemId);
                                             const quantity = issued ? Number(issued.quantityRemaining) : '';
-                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, issuedSearch: undefined, returnLines: issued?.returnLines, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
-                                        }} className="w-64 rounded-xl border border-slate-200 px-2 py-2" />
+                                            setForm(prev => ({ ...prev, returnedBy: record ? { ...prev.returnedBy, user: record.requestedBy?.user || record.receivedBy?.user, offlineRecipient: record.requestedBy?.offlineRecipient || record.receivedBy?.offlineRecipient, name: record.requestedBy?.name || record.receivedBy?.name || '', designation: record.requestedBy?.designation || record.receivedBy?.designation || prev.returnedBy.designation } : prev.returnedBy, items: prev.items.map((row, i) => i === index ? { ...row, propertySearch: undefined, returnLines: issued?.returnLines, accountability: issued?.accountability || '', ris: risId || '', risItem: itemId || '', ...(issued ? { description: issued.description || '', unit: issued.unit || '', mrNumber: record.risNumber || '', propertyNumber: issued.propertyNumber || '', unitValue: issued.unitCost, quantity, totalValue: quantity * issued.unitCost } : {}) } : row) }));
+                                        }} className="w-48 rounded-xl border border-slate-200 px-2 py-2" />
+                                    </td>
+                                    <td className="p-2">
+                                        <input aria-label="Issued Items" value={item.ris && item.risItem ? returnItemOptions.find(option => option.value === `${item.ris}:${item.risItem}`)?.itemName || item.description : ''} readOnly className="w-full min-w-48 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
+                                    </td>
+                                    <td className="p-2">
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Description" value={item.description} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} data-positive="true" aria-label="Quantity" type="number" min="0" step="any" value={item.quantity} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} onChange={(e) => updateItem(index, 'unit', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit" value={item.unit} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Description" value={item.description} onChange={(e) => updateItem(index, 'description', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Material Record No." value={item.mrNumber} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
-                                        <FormNumberInput aria-label="Property Number" value={item.propertyNumber} readOnly={Boolean(item.ris && item.risItem)} onChange={(e) => updateItem(index, 'propertyNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2 read-only:bg-slate-50 read-only:text-slate-600" />
-                                    </td>
-                                    <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Material Record No." value={item.mrNumber} onChange={(e) => updateItem(index, 'mrNumber', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
-                                    </td>
-                                    <td className="p-2">
-                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} onChange={(e) => updateItem(index, 'unitValue', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />
+                                        <input required={hasRowData(item, emptyItem())} aria-label="Unit Value" type="number" min="0" step="any" value={item.unitValue} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />
                                     </td>
                                     <td className="p-2">
                                         <input required={hasRowData(item, emptyItem())} aria-label="Total Value" readOnly value={item.totalValue} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />

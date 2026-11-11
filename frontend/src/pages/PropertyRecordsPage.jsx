@@ -108,8 +108,8 @@ export default function PropertyRecordsPage() {
     try {
       await axios.patch(`/users/${selectedUser._id}/records/${editing.risId}/${editing.itemId}`, {
         accountability: editing.accountability,
-        poNumber: editing.poNumber,
-        description: editing.description,
+        propertyNumber: editing.propertyNumberInput,
+        description: editing.descriptionInput,
       });
       const { data } = await axios.get(`/users/${selectedUser._id}/records`);
       setRecords(data.data || {});
@@ -155,7 +155,7 @@ export default function PropertyRecordsPage() {
               <td className="border border-slate-200 px-3 py-2.5">{row.description || '—'}</td>
               <td className="border border-slate-200 px-3 py-2.5">{dateLabel(row.recordedAt)}</td>
               <td className="border border-slate-200 px-3 py-2.5 text-right">{amountLabel(Number(row.unitCost || 0) * Number(row.quantityIssued || 0))}</td>
-              <td className="border border-slate-200 px-3 py-2.5 text-center"><button type="button" aria-label={`Edit ${row.itemName || row.description || 'property record'}`} title="Edit" onClick={() => setEditing({ ...row, poNumber: row.poNumber || '' })} className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"><Pencil size={15} aria-hidden="true" />Edit</button></td>
+              <td className="border border-slate-200 px-3 py-2.5 text-center"><button type="button" aria-label={`Edit ${row.itemName || row.description || 'property record'}`} title="Edit" onClick={() => setEditing({ ...row, propertyNumberInput: '', descriptionInput: '' })} className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700"><Pencil size={15} aria-hidden="true" />Edit</button></td>
             </tr>)}</tbody>
           </table></TableScroll></div> : <div className="py-16 text-center text-sm text-slate-500">No issued property records found for this account.</div>}</div>
         </>}
@@ -174,6 +174,6 @@ export default function PropertyRecordsPage() {
         </div>
       </footer>}
     </section>
-    {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={saveRecord} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold">Edit property record</h2><button type="button" onClick={() => setEditing(null)} aria-label="Close"><X size={20}/></button></div><div className="space-y-4"><label className="block text-sm font-medium">P.O./JO No.<input aria-label="P.O./JO No." value={editing.poNumber || ''} onChange={event => setEditing({ ...editing, poNumber: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label><label className="block text-sm font-medium">Description<textarea required value={editing.description || ''} onChange={event => setEditing({ ...editing, description: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} className="rounded-lg border px-4 py-2">Cancel</button><button type="submit" disabled={saving} className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button></div></form></div>}
+    {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={saveRecord} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold">Edit property record</h2><button type="button" onClick={() => setEditing(null)} aria-label="Close"><X size={20}/></button></div><div className="space-y-4"><div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><p className="mb-2 font-semibold">Current record</p><p><span className="font-medium">Property No.:</span> {shownPropertyNumber(editing) || '—'}</p><p className="mt-1"><span className="font-medium">Description:</span> {editing.description || '—'}</p></div><label className="block text-sm font-medium">Property No.<input aria-label="Property No." value={editing.propertyNumberInput} onChange={event => setEditing({ ...editing, propertyNumberInput: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label><label className="block text-sm font-medium">Description<textarea required aria-label="Description" value={editing.descriptionInput} onChange={event => setEditing({ ...editing, descriptionInput: event.target.value })} className="mt-1 w-full rounded-lg border p-2" /></label></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} className="rounded-lg border px-4 py-2">Cancel</button><button type="submit" disabled={saving} className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button></div></form></div>}
   </div>;
 }

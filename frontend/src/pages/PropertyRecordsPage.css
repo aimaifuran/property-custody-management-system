@@ -45,5 +45,6 @@
   .property-records-table tbody { display: table-row-group !important; }
   .property-records-table tr { display: table-row !important; }
   .property-records-table th, .property-records-table td { display: table-cell !important; width: auto !important; min-width: 0 !important; overflow-wrap: anywhere; }
+  .property-records-print .property-records-table :is(th, td):nth-child(6) { display: none !important; }
   .app-shell main .property-records-table :is(th, td) { border-width: 1px !important; border-style: solid !important; border-color: #64748b !important; }
 }

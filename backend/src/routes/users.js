@@ -78,9 +78,9 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
   const ReturnedSupply = require('../models/ReturnedSupply');
   const PpeList = require('../models/PpeList');
   const Item = require('../models/Item');
-  const { poNumber, description, accountability } = req.body || {};
+  const { propertyNumber, description, accountability } = req.body || {};
   if (![req.params.id, req.params.risId, req.params.itemId].every(mongoose.isValidObjectId)) return errorResponse(res, 'Invalid property record', [], 400);
-  if (typeof poNumber !== 'string' || typeof description !== 'string' || !description.trim()) return errorResponse(res, 'Enter a P.O./JO No. and description', [], 400);
+  if (typeof propertyNumber !== 'string' || typeof description !== 'string' || !description.trim()) return errorResponse(res, 'Enter a Property No. and description', [], 400);
   const user = await User.findOne({ _id: req.params.id, deleted: false, role: 'user' });
   if (!user) return errorResponse(res, 'User account not found', [], 404);
   const asset = accountability ? await Accountability.findOne({ _id: accountability, user: user._id, deleted: false }).lean() : null;
@@ -95,7 +95,7 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
   const ownedAsset = asset ? await Accountability.findById(asset._id) : await Accountability.findOne({ ris: ris._id, risItem: item._id, user: user._id, deleted: false });
   const inventoryId = ownedAsset?.inventory || item.inventory;
   const inventory = inventoryId ? await Inventory.findById(inventoryId) : null;
-  const nextPoNumber = poNumber.trim();
+  const nextPropertyNumber = propertyNumber.trim();
   const nextDescription = description.trim();
 
   let linkedIars = [];
@@ -106,6 +106,11 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
   }
   if (!linkedIars.length) return errorResponse(res, 'The source IAR for this property record could not be found', [], 404);
 
+  if (inventory) {
+    inventory.propertyNumber = nextPropertyNumber;
+    await inventory.save();
+  }
+
   item.description = nextDescription;
   ris.lastEditedAt = new Date();
   await ris.save();
@@ -115,13 +120,11 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
     const linkedProperty = await Property.findById(inventory.property);
     if (linkedProperty) {
       linkedProperty.description = nextDescription;
-      linkedProperty.purchaseOrderNumber = nextPoNumber;
       await linkedProperty.save();
     }
   }
 
   for (const iar of linkedIars) {
-    iar.poNumber = nextPoNumber;
     const linkedReceiptRows = [];
     for (const [receiptItemIndex, receiptItem] of iar.items.entries()) {
       const matches = inventory && (
@@ -130,6 +133,7 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
         || (!receiptItem.inventory && !(receiptItem.inventories || []).length && [receiptItem.stockNumber, receiptItem.stockPropertyNumber].some(number => String(number || '') === String(item.stockNumber || '')))
       );
       if (!matches) continue;
+      receiptItem.inventoryItemNo = nextPropertyNumber;
       receiptItem.description = nextDescription;
       receiptItem.item = nextDescription;
       linkedReceiptRows.push(receiptItemIndex);
@@ -160,22 +164,34 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
     for (const Model of [InventoryCustodianSlip, PropertyAcknowledgementReceipt]) {
       const forms = await Model.find({ deleted: false, 'items.inventory': inventory._id });
       for (const form of forms) {
-        for (const formItem of form.items) if (String(formItem.inventory || '') === String(inventory._id)) formItem.description = nextDescription;
+        for (const formItem of form.items) if (String(formItem.inventory || '') === String(inventory._id)) {
+          if ('inventoryItemNo' in formItem) formItem.inventoryItemNo = nextPropertyNumber;
+          if ('propertyNumber' in formItem) formItem.propertyNumber = nextPropertyNumber;
+          formItem.description = nextDescription;
+        }
         form.lastEditedAt = new Date();
         await form.save();
       }
     }
     const cards = await PropertyCard.find({ deleted: false, $or: [{ inventory: inventory._id }, { 'items.inventory': inventory._id }] });
     for (const card of cards) {
-      card.poNumber = nextPoNumber;
-      if (String(card.inventory || '') === String(inventory._id)) card.description = nextDescription;
-      for (const cardItem of card.items || []) if (String(cardItem.inventory || '') === String(inventory._id)) cardItem.description = nextDescription;
+      if (String(card.inventory || '') === String(inventory._id)) {
+        card.propertyNumber = nextPropertyNumber;
+        card.description = nextDescription;
+      }
+      for (const cardItem of card.items || []) if (String(cardItem.inventory || '') === String(inventory._id)) {
+        cardItem.propertyNumber = nextPropertyNumber;
+        cardItem.description = nextDescription;
+      }
       card.lastEditedAt = new Date();
       await card.save();
     }
     const transfers = await PropertyTransferReport.find({ deleted: false, 'items.inventory': inventory._id });
     for (const report of transfers) {
-      for (const line of report.items) if (String(line.inventory || '') === String(inventory._id)) line.description = nextDescription;
+      for (const line of report.items) if (String(line.inventory || '') === String(inventory._id)) {
+        line.propertyNumber = nextPropertyNumber;
+        line.description = nextDescription;
+      }
       report.lastEditedAt = new Date();
       await report.save();
     }
@@ -184,11 +200,14 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
   if (ownedAsset) {
     const linkedReturns = await PropertyReturnSlip.find({ deleted: false, 'items.accountability': ownedAsset._id });
     for (const slip of linkedReturns) {
-      for (const line of slip.items) if (String(line.accountability || '') === String(ownedAsset._id)) line.description = nextDescription;
+      for (const line of slip.items) if (String(line.accountability || '') === String(ownedAsset._id)) {
+        line.propertyNumber = nextPropertyNumber;
+        line.description = nextDescription;
+      }
       await slip.save();
     }
   }
-  await ReturnedSupply.updateMany({ ris: ris._id, risItem: item._id }, { $set: { description: nextDescription } });
+  await ReturnedSupply.updateMany({ ris: ris._id, risItem: item._id }, { $set: { propertyNumber: nextPropertyNumber, description: nextDescription } });
   return successResponse(res, 'Property record updated', { risId: ris._id, itemId: item._id });
 });
 router.get('/password-reset-requests', authenticate, adminOnly, async (req, res) => {

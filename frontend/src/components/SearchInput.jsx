@@ -16,7 +16,7 @@ export default function SearchInput({ options = [], value = '', onChange, onSele
     ? options.filter(option => `${option.label} ${option.keywords || ''}`.toLocaleLowerCase().includes(query)).slice(0, 20)
     : openOnFocus && anchor ? options.slice(0, 20) : [];
   const open = Boolean(anchor && matches.length);
-  const choose = option => { onChange(option.label); onSelect?.(option); setAnchor(null); setActive(-1); };
+  const choose = option => { onChange(option.inputValue ?? option.label); onSelect?.(option); setAnchor(null); setActive(-1); };
   return <>
     <input {...props} value={value} autoComplete="off" role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={open ? id : undefined} aria-activedescendant={open && active >= 0 ? `${id}-${active}` : undefined}
       onFocus={event => { onFocus?.(event); setAnchor(event.currentTarget.getBoundingClientRect()); setActive(-1); }}

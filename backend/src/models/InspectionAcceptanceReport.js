@@ -10,7 +10,7 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
   poNumber: { type: String, trim: true },
   poDate: { type: Date },
   responsibilityCenterCode: { type: String, trim: true },
-  iarNumber: { type: String, unique: true, trim: true },
+  iarNumber: { type: String, unique: true, sparse: true, trim: true },
   iarDate: { type: Date },
   invoiceNumber: { type: String, trim: true },
   invoiceDate: { type: Date },
