@@ -33,6 +33,7 @@ const receivedItem = (entry, stock) => {
     ...entry,
     stockNumber,
     stockPropertyNumber: String(entry.stockPropertyNumber || stockNumber).trim(),
+    inventoryItemNo: String(entry.inventoryItemNo || '').trim(),
     item: entry.item || entry.description,
     itemType: (entry.itemType === undefined ? stock?.itemType : entry.itemType) || 'ASSET',
     quantity,
@@ -208,8 +209,9 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
         const unitCount = individuallyTracked ? acceptedQuantity : 1;
         const serialNumbers = await require('../utils/allocateUnitSerials')(entry.serialNumber, acceptedQuantity, session);
         entry.serialNumbers = serialNumbers;
-        const requestedPropertyNumber = String(entry.inventoryItemNo || entry.propertyNumber || '').trim() || undefined;
-        if (entry.inventoryItemNo && Number(entry.quantity) !== 1) throw new Error('Enter each item with an Inventory Item No. on a separate row with quantity 1');
+        const inventoryItemNo = String(entry.inventoryItemNo || '').trim();
+        const requestedPropertyNumber = String(inventoryItemNo || entry.propertyNumber || '').trim() || undefined;
+        if (inventoryItemNo && Number(entry.quantity) !== 1) throw new Error('Enter each item with an Inventory Item No. on a separate row with quantity 1');
         for (let unitIndex = 0; unitIndex < unitCount; unitIndex++) {
         const receiptQuantity = individuallyTracked ? 1 : acceptedQuantity;
         const unitSerial = serialNumbers[unitIndex] || undefined;
@@ -229,8 +231,11 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
           }], { session });
           if (entry.itemType === 'ASSET' && requestedPropertyNumber) {
             const Property = require('../models/Property');
+            const duplicateInventory = await Inventory.exists({ _id: { $ne: inventory._id }, deleted: { $ne: true }, propertyNumber: requestedPropertyNumber }).session(session);
+            const duplicateProperty = await Property.exists({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: { $ne: true } }).session(session);
+            const propertyCode = duplicateInventory || duplicateProperty ? `AUTO-${inventory._id}` : requestedPropertyNumber;
             const propertyData = {
-              propertyCode: requestedPropertyNumber, inventory: inventory._id, iar: report._id,
+              propertyCode, inventory: inventory._id, iar: report._id,
               propertyName: entry.propertyPlantAndEquipment || entry.description,
               description: entry.description, category: entry.propertyPlantAndEquipment || 'Other Property',
               serialNumber: unitSerial, quantity: receiptQuantity,
@@ -238,15 +243,14 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
               supplier: report.supplierName, purchaseOrderNumber: report.poNumber, sourceOfFund: report.fundCluster,
               status: 'AVAILABLE', events: [{ action: 'IAR receipt', status: 'AVAILABLE', remarks: report.iarNumber || report.poNumber || 'IAR receipt' }],
             };
-            if (unitCount === 1 && requestedPropertyNumber) {
-              const duplicateInventory = await Inventory.exists({ _id: { $ne: inventory._id }, deleted: { $ne: true }, propertyNumber: requestedPropertyNumber }).session(session);
-              const duplicateProperty = await Property.exists({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: { $ne: true } }).session(session);
-              if (duplicateInventory || duplicateProperty) throw new Error('Each asset must have a unique property number');
-            }
             // A soft-deleted record may hold the unique property-code index.
             // Reuse that archived property record so the administrator can use
-            // the same inventory number again after records were cleared.
-            let property = await Property.findOne({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: true }).session(session);
+            // the same inventory number again after records were cleared. A
+            // repeated Inventory Item No. remains on the IAR and inventory;
+            // the property registry gets its own unique code.
+            let property = duplicateInventory || duplicateProperty
+              ? null
+              : await Property.findOne({ propertyCode: requestedPropertyNumber.toUpperCase(), deleted: true }).session(session);
             if (property) {
               Object.assign(property, propertyData, { deleted: false });
               await property.save({ session });

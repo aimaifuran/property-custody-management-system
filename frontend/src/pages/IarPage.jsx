@@ -543,7 +543,7 @@ export default function IarPage() {
                 </tbody>
               </table>
             </TableScroll>
-            <p className="mt-2 text-sm text-slate-600">Inventory Item No. is used automatically in ICS, PAR, and the List of PPEs under New Property No. Assigned. Enter one unit per row when supplying this number; it is locked after saving. Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
+            <p className="mt-2 text-sm text-slate-600">Inventory Item No. is optional and may be reused. When provided, it is used in ICS, PAR, and the List of PPEs under New Property No. Assigned. Enter one unit per row when supplying this number; it is locked after saving. Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
             <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
             {!issueMode && <div className="mt-3 flex justify-end"><AddRowButton onClick={() => {
               setSaveError('');
