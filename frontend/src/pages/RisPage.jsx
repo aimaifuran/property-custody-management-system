@@ -1234,12 +1234,12 @@ export default function RisPage() {
                   </FormField>
                   <FormField className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">Date</span>
-                    {section === 'receivedBy' ? <div aria-label={`${label} date`} className="min-h-9 px-1 py-1 text-sm">{formatDate(form[section].date)}</div> : <DateInput required
+                    <DateInput required
                       type="date"
                       aria-label={`${label} date`} value={form[section].date}
                       onChange={(e) => updateSignatory(section, 'date', e.target.value)}
                       className="w-full border-0 border-b border-slate-700 bg-transparent px-1 py-1 outline-none"
-                    />}
+                    />
                   </FormField>
                 </div>
               </fieldset>
