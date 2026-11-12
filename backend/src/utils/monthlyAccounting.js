@@ -1,5 +1,5 @@
 const rowKey = row => JSON.stringify([row.source, row.sourceId, row.sourceRow]);
-const manualRows = rows => rows.map(row => ({ ...row, unitCost: row.accountingManual ? row.unitCost ?? null : null, totalCost: row.accountingManual ? row.totalCost ?? null : null }));
+const manualRows = rows => rows.map(row => ({ ...row }));
 const applyAccounting = (rows, entries) => {
   if (entries === undefined) return manualRows(rows);
   if (!Array.isArray(entries) || entries.length > 500) throw new Error('Invalid accounting rows');
@@ -13,6 +13,10 @@ const applyAccounting = (rows, entries) => {
     }
     return [rowKey(entry), amounts];
   }));
-  return manualRows(rows).map(row => values.has(rowKey(row)) ? { ...row, ...values.get(rowKey(row)), accountingManual: true } : row);
+  return manualRows(rows).map(row => {
+    const amounts = values.get(rowKey(row));
+    if (!amounts || (amounts.unitCost == null && amounts.totalCost == null)) return row;
+    return { ...row, ...(amounts.unitCost == null ? {} : { unitCost: amounts.unitCost }), ...(amounts.totalCost == null ? {} : { totalCost: amounts.totalCost }), accountingManual: true };
+  });
 };
 module.exports = { rowKey, manualRows, applyAccounting };

@@ -12,7 +12,7 @@ import { getStickySignatory, saveStickySignatory } from '../utils/stickySignator
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Eye, RefreshCw, Save, X } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import RecordActionButton from '../components/RecordActionButton';
 import { useAuth } from '../contexts/AuthContext';
 import { buildPpePdf, PPE_COLUMNS, PPE_TITLE, ppeTotal, ppeDate, ppePeriod } from '../utils/ppeListPdf';
@@ -28,9 +28,7 @@ export default function MonthlyItemsReportPage() {
   const [month, setMonth] = useState(currentMonth);
   const [form, setForm] = useState(() => withCurrentDates(emptyReport));
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [preview, setPreview] = useState('');
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const dirty = useRef(false);
@@ -66,18 +64,8 @@ export default function MonthlyItemsReportPage() {
     document.addEventListener('visibilitychange', load);
     return () => { controller.abort(); clearInterval(interval); window.removeEventListener('focus', load); document.removeEventListener('visibilitychange', load); };
   }, [month, refresh]);
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
   const selectMonth = value => { dirty.current = false; setLoading(true); if (value === month) setRefresh(previous => previous + 1); else setMonth(value); };
   const update = (key, value) => { if (['custodian', 'accountingStaff'].includes(key)) saveStickySignatory(key, { name: value }, 'name'); dirty.current = true; setForm(previous => ({ ...previous, [key]: value })); };
-  const save = async event => {
-    event.preventDefault(); setSaving(true);
-    try {
-      const payload = { ...Object.fromEntries(metadataFields.map(key => [key, form[key]])), accountingRows: form.rows.map(row => ({ source: row.source, sourceId: row.sourceId, sourceRow: row.sourceRow, unitCost: row.accountingManual ? row.unitCost : null, totalCost: row.accountingManual ? row.totalCost : null })) };
-      const { data } = await axios.put(`/monthly-item-reports/${form._id}`, payload);
-      setForm(data.data); dirty.current = false; toast.success('Report details saved'); setRefresh(value => value + 1);
-    } catch (err) { toast.error(err.response?.data?.message || 'Unable to save report details.'); }
-    finally { setSaving(false); }
-  };
   const exportRecord = async (record, mode) => {
     const printWindow = mode === 'print' ? window.open('', '_blank') : null;
     if (mode === 'print' && !printWindow) return toast.error('Allow pop-ups to open the printable report.');
@@ -85,8 +73,7 @@ export default function MonthlyItemsReportPage() {
     try {
       const bytes = await buildPpePdf(record);
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-      if (mode === 'preview') setPreview(url);
-      else if (mode === 'print') {
+      if (mode === 'print') {
         printWindow.document.title = 'Monthly Items Report - Print';
         const frame = printWindow.document.createElement('iframe');
         frame.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0';
@@ -102,11 +89,12 @@ export default function MonthlyItemsReportPage() {
     } catch (err) { printWindow?.close(); toast.error(err.message || 'Unable to generate report.'); }
     finally { setExporting(false); }
   };
+  const money = value => value === '' || value == null ? '' : Number(value).toFixed(2);
   const field = (key, label, type = 'text', required = true) => ['custodian', 'accountingStaff'].includes(key) ? <FormField className="block text-sm"><span className="mb-1 block font-semibold">{label}</span><SignatoryValue formType="monthly" role={key} value={form[key]} managed={true} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} aria-label={label} /></FormField> : <FormField className="block text-sm"><span className="mb-1 block font-semibold">{label}</span><input type={type} required={required} readOnly={!canEdit} value={form[key] || ''} maxLength={key === 'serialNumber' ? 100 : type === 'text' ? 200 : undefined} onChange={event => update(key, event.target.value)} className="w-full border px-2 py-1" /></FormField>;
   if (loading) return <PageSkeleton />;
  return <div className="space-y-6">
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    {loading ? <Skeleton className="h-4 w-20" /> : !error && <ValidatedForm ref={editor} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ppe-list-form">
+    {loading ? <Skeleton className="h-4 w-20" /> : !error && <ValidatedForm ref={editor} onSubmit={event => event.preventDefault()} className="form-document form-frame ppe-list-form">
       <FormEditorHeader title="Monthly Items Report" description={`${PPE_TITLE} · ${ppePeriod(form)}`} />
       <div className="monthly-report-month-controls"><FormField className="text-sm font-semibold"><span>Month</span><input type="month" min="2000-01" max="2100-12" value={month} onChange={event => { if (event.target.value) selectMonth(event.target.value); }} className="mt-1 block rounded-lg border bg-white px-3 py-2" /></FormField><button type="button" disabled={loading} onClick={() => setRefresh(value => value + 1)} className="rounded-lg border bg-white p-2" aria-label="Refresh recorded items"><RefreshCw size={18} /></button></div>
 
@@ -114,9 +102,8 @@ export default function MonthlyItemsReportPage() {
       <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{PPE_COLUMNS.map(([key, , width]) => <col key={key} style={{ width: `${width}%` }} />)}</colgroup><thead><tr><th colSpan={6}>To be filled up by the Supply and/or Property Division/Unit</th><th colSpan={2}>To be filled up by the Accounting Division/Unit</th></tr><tr>{PPE_COLUMNS.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead><tbody>{form.rows.length === 0 ? <tr><td colSpan={8} className="py-6">No recorded items for the selected month.</td></tr> : form.rows.map((row, index) => <tr key={`${row.source}-${row.sourceId}-${row.sourceRow ?? index}`}>{PPE_COLUMNS.map(([key]) => <td key={key} className={`break-words ${['unitCost', 'amount'].includes(key) ? 'text-right tabular-nums' : ''}`} title={key === 'item' ? `${row.source}: ${row.sourceNumber || 'Recorded item'}` : undefined}>{['unitCost', 'amount'].includes(key) ? row[key === 'amount' ? 'totalCost' : key] ?? '' : key === 'responsibilityCenter' && ['-', '—'].includes(String(row[key] || '').trim()) ? '' : formNumberValue(key, row[key])}</td>)}</tr>)}</tbody><tfoot><tr><td colSpan={5} /><th>TOTAL</th><td /><td>{form.rows.length ? ppeTotal(form.rows) : ''}</td></tr></tfoot></table></TableScroll>
       <section className="mt-5"><h3 className="mb-2 text-sm font-semibold">Recapitulation</h3><TableScroll className="overflow-x-auto"><table className="ppe-input-table w-full min-w-[800px] table-fixed border-collapse text-xs"><thead><tr>{recapColumns.map(([key, label]) => <th key={key} style={{ width: key === 'item' ? '36%' : undefined }}>{label}</th>)}</tr></thead><tbody>{form.recapitulation.map((row, index) => <tr key={index}>{recapColumns.map(([key]) => <td key={key} className="break-words">{['unitCost', 'totalCost'].includes(key) ? '' : formNumberValue(key, row[key])}</td>)}</tr>)}</tbody></table></TableScroll></section>
       <div className="mt-5 grid gap-4 md:grid-cols-[3fr_1fr]"><section className="border border-slate-400 p-3"><p className="mb-3 text-sm">I hereby certify to the correctness of the above information.</p>{field('custodian', 'Supply and/or Property Custodian')}<p className="mt-2 text-center text-xs">Signature over Printed Name of Supply<br />and/or Property Custodian</p></section><section className="border border-slate-400 p-3"><p className="mb-3 text-sm">Posted by:</p>{field('accountingStaff', 'Designated Accounting Staff')}{field('postedDate', 'Date', 'date')}</section></div>
-      <div className="mt-5 flex flex-wrap items-center justify-end gap-3"><button type="button" disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'preview')} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2">{exporting ? <Skeleton className="h-4 w-24" /> : <><Eye size={16} /> Print Preview</>}</button><RecordActionButton action="pdf" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'print')} />{canEdit && <button disabled={saving || !form._id || !form.rows.length} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-white"><Save size={16} />Save Details</button>}</div>
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-3"><RecordActionButton action="pdf" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting || !form.rows.length} onClick={() => exportRecord(form, 'print')} /></div>
     </ValidatedForm>}
 
-    {preview && <div className="fixed inset-0 z-[60] flex flex-col bg-slate-900/70 p-3" role="dialog" aria-modal="true" aria-label="Monthly Items Report print preview"><div className="flex items-center justify-between rounded-t-lg bg-white p-3"><span className="font-semibold">Print Preview - A4 portrait</span><button type="button" aria-label="Close print preview" onClick={() => setPreview('')}><X size={20} /></button></div><iframe src={preview} title="Monthly Items Report PDF preview" className="min-h-0 flex-1 bg-white" /></div>}
   </div>;
 }

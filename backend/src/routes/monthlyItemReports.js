@@ -15,11 +15,17 @@ router.get('/', async (req, res) => {
   const month = req.query.month || monthOf(new Date());
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2000 || Number(month.slice(0, 4)) > 2100) return errorResponse(res, 'Select a valid month between 2000 and 2100', [], 400);
   const records = await syncMonthlyItems(month);
+  const sourceRows = new Map(records.flatMap(record => record.rows).map(row => [rowKey(row), row]));
   const manual = await PpeList.find({ automatic: false }).sort(SAVED_REPORT_SORT).lean();
   const issuedRows = new Set(records.flatMap(record => record.rows).map(rowKey));
   const savedReports = manual.map(record => {
     const rows = iarRows(record.rows).filter(row => row.sourceId ? issuedRows.has(rowKey(row)) : Boolean(row.risNumber?.trim()));
-    return { ...record, rows: manualRows(rows), recapitulation: recapitulate(rows) };
+    const restoredRows = rows.map(row => {
+      const source = sourceRows.get(rowKey(row));
+      if (!source) return row;
+      return row.accountingManual ? { ...source, ...row } : { ...source, ...row, unitCost: source.unitCost ?? row.unitCost, totalCost: source.totalCost ?? row.totalCost };
+    });
+    return { ...record, rows: manualRows(restoredRows), recapitulation: recapitulate(restoredRows) };
   });
   return successResponse(res, 'Monthly item reports synchronized', { report: records.find(record => record.month === month), records: sortSavedReports([...savedReports, ...records.filter(record => record.rows.length > 0)]) });
 });
@@ -49,7 +55,14 @@ router.put('/:id', validateAdminForm('monthly-item-reports'), async (req, res) =
   try {
     const existing = await PpeList.findById(req.params.id).lean();
     if (!existing) return errorResponse(res, 'Monthly report not found', [], 404);
-    payload.rows = applyAccounting(iarRows(existing.rows), req.body.accountingRows);
+    const currentReports = await syncMonthlyItems(existing.month);
+    const sourceRows = new Map((currentReports.find(record => record.month === existing.month)?.rows || []).map(row => [rowKey(row), row]));
+    const currentRows = iarRows(existing.rows).map(row => {
+      const source = sourceRows.get(rowKey(row));
+      if (!source) return row;
+      return row.accountingManual ? { ...source, ...row } : { ...source, ...row, unitCost: source.unitCost ?? row.unitCost, totalCost: source.totalCost ?? row.totalCost };
+    });
+    payload.rows = applyAccounting(currentRows, req.body.accountingRows);
     payload.recapitulation = recapitulate(payload.rows);
     const report = await PpeList.findOneAndUpdate({ _id: req.params.id }, { $set: { ...payload, lastEditedAt: new Date() } }, { new: true, runValidators: true });
     if (!report) return errorResponse(res, 'Monthly report not found', [], 404);
