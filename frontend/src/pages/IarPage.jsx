@@ -44,6 +44,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 
 const emptyItem = () => ({
+    isPpe: false,
     serialNumber: '',
     propertyNumber: '',
     stockPropertyNumber: '',
@@ -128,6 +129,7 @@ const toForm = (record) => ({
     custodian: record.custodian || record.receivedBy || record.acceptedBy || '',
     items: record.items && record.items.length ? record.items.map((item) => ({
         itemType: item.itemType || 'ASSET',
+        isPpe: item.isPpe ?? Boolean(item.inventoryItemNo),
         serialNumber: item.serialNumber || '',
         serialNumbers: item.serialNumbers || [],
         propertyNumber: item.propertyNumber || '',
@@ -177,6 +179,7 @@ export default function IarPage() {
     };
     const updateItem = (index, key, value) => {
       setSaveError('');
+      if (key === 'isPpe') value = Boolean(value);
       value = formatItemText(key, value);
       if (key === 'propertyPlantAndEquipment') value = capitalizeInitialLetter(value);
       setForm((prev) => {
@@ -187,6 +190,12 @@ export default function IarPage() {
         } : item);
         if (key === 'serialNumber' && String(value || '').trim()) {
           items[index] = { ...items[index], quantity: 1, acceptedQuantity: 1 };
+        }
+        if (key === 'isPpe') {
+          items[index] = {
+            ...items[index],
+            ...(value ? { itemType: 'ASSET', quantity: 1, acceptedQuantity: 1 } : { inventoryItemNo: '' })
+          };
         }
         if (['quantity', 'serialNumber'].includes(key)) {
           const stockPropertyNumber = singleStockPropertyNumber(items[index]);
@@ -503,19 +512,20 @@ export default function IarPage() {
             <p className="mt-4 text-sm text-slate-600">Type an item name to see matching suggestions. Enter the description and serial number separately for each unit. For a new item name, enter a new Stock/Property No.</p>
             {stockError && <p role="alert" className="mt-2 text-sm text-rose-700">{stockError}</p>}
             <TableScroll className="mt-6 overflow-x-auto">
-              <table className="min-w-full text-sm">
+              <table className="min-w-[1080px] text-sm">
                 <thead>
                     <tr className="bg-slate-50 text-left">
-                    <th className="min-w-[230px] p-2"><span className="whitespace-nowrap">Stock/Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></span></th>
-                    <th className="min-w-[200px] p-2">Inventory Item No.</th>
-                    <th className="min-w-[230px] p-2">Property, Plant and Equipment</th>
-                    <th className="p-2">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
-                    <th className="min-w-[180px] p-2">Serial Number</th>
-                    <th className="p-2">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
-                    <th className="p-2">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
-                    {form.acceptanceStatus === 'Partial' && <th className="p-2">Accepted Qty</th>}
-                    <th className="p-2">Unit Cost</th>
-                    <th className="p-2">Total Cost</th>
+                    <th className="min-w-[150px] p-1.5"><span className="whitespace-nowrap">Stock/Property No. <span className="required-marker text-red-600" aria-hidden="true">*</span></span></th>
+                    <th className="w-[68px] p-1.5 text-center">PPEs?</th>
+                    <th className="min-w-[130px] p-1.5">Inventory Item No.</th>
+                    <th className="min-w-[170px] p-1.5">Property, Plant and Equipment</th>
+                    <th className="min-w-[125px] p-1.5">Description <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="min-w-[120px] p-1.5">Serial Number</th>
+                    <th className="min-w-[75px] p-1.5">Unit <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    <th className="min-w-[75px] p-1.5">Quantity <span className="required-marker text-red-600" aria-hidden="true">*</span></th>
+                    {form.acceptanceStatus === 'Partial' && <th className="min-w-[85px] p-1.5">Accepted Qty</th>}
+                    <th className="min-w-[90px] p-1.5">Unit Cost</th>
+                    <th className="min-w-[95px] p-1.5">Total Cost</th>
                     {!issueMode && <th className="w-12 p-2"><span className="sr-only">Row actions</span></th>}
                   </tr>
                 </thead>
@@ -523,27 +533,29 @@ export default function IarPage() {
                   {form.items.map((item, index) => {
                     const hasSerialNumber = Boolean(String(item.serialNumber || '').trim());
                     return <tr key={index}>
-                      {['stockPropertyNumber', 'inventoryItemNo', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
-                        <td className="p-2" key={key}>
+                      <td className="p-1.5">{issueMode ? formNumberValue('stockPropertyNumber', item.stockPropertyNumber) ?? '' : <input disabled={issueMode} required={hasRowData(item, emptyItem())} aria-label="stockPropertyNumber" value={formNumberValue('stockPropertyNumber', item.stockPropertyNumber) ?? ''} onChange={event => updateItem(index, 'stockPropertyNumber', event.target.value)} onBlur={() => updateItem(index, 'stockPropertyNumber', singleStockPropertyNumber(item))} className="w-full rounded-lg border border-slate-200 px-2 py-1.5 disabled:bg-slate-100 disabled:text-slate-600" />}</td>
+                      <td className="p-1.5 text-center align-middle"><input type="checkbox" aria-label={`PPE item row ${index + 1}`} checked={Boolean(item.isPpe)} disabled={issueMode} onChange={event => updateItem(index, 'isPpe', event.target.checked)} className="relative top-2" /></td>
+                      {['inventoryItemNo', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
+                        <td className="p-1.5" key={key}>
                           {issueMode ? formNumberValue(key, item[key]) ?? '' : key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={formNumberValue(key, item[key]) ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
-                            <input disabled={issueMode} required={!['serialNumber', 'inventoryItemNo'].includes(key) && hasRowData(item, emptyItem())} aria-label={key === 'inventoryItemNo' ? 'Inventory Item No.' : key === 'serialNumber' ? 'Serial Number' : key} value={formNumberValue(key, item[key]) ?? ''} onChange={event => updateItem(index, key, event.target.value)} onBlur={key === 'stockPropertyNumber' ? () => updateItem(index, key, singleStockPropertyNumber(item)) : undefined} className="w-full rounded-xl border border-slate-200 px-2 py-2 disabled:bg-slate-100 disabled:text-slate-600" />}
+                            <input disabled={issueMode || (key === 'inventoryItemNo' && !item.isPpe) || (key === 'serialNumber' && Number(item.quantity) > 1)} required={key === 'inventoryItemNo' ? Boolean(item.isPpe) : !['serialNumber'].includes(key) && hasRowData(item, emptyItem())} aria-label={key === 'inventoryItemNo' ? 'Inventory Item No.' : key === 'serialNumber' ? 'Serial Number' : key} value={formNumberValue(key, item[key]) ?? ''} onChange={event => updateItem(index, key, event.target.value)} className={`w-full rounded-lg border border-slate-200 px-2 py-1.5 disabled:bg-slate-100 disabled:text-slate-600 ${(key === 'inventoryItemNo' && !item.isPpe) || (key === 'serialNumber' && Number(item.quantity) > 1) ? 'pointer-events-none' : ''}`} />}
                         </td>
                       )}
-                      <td className="p-2">
+                      <td className="p-1.5">
                         <div className="relative">
-                        {issueMode ? item.quantity : <input required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" step="1" value={item.quantity} readOnly={hasSerialNumber} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className={`w-full rounded-xl border border-slate-200 px-2 py-2 ${hasSerialNumber ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`} />}
+                        {issueMode ? item.quantity : <input required={hasRowData(item, emptyItem())} aria-label="Quantity" type="number" min="1" max={item.isPpe ? 1 : undefined} step="1" value={item.quantity} readOnly={hasSerialNumber || Boolean(item.isPpe)} onChange={(e) => updateItem(index, 'quantity', e.target.value)} className={`w-full rounded-xl border border-slate-200 px-2 py-2 ${hasSerialNumber || item.isPpe ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`} />}
                         </div>
                       </td>
-                      {form.acceptanceStatus === 'Partial' && <td className="p-2">{issueMode ? item.acceptedQuantity ?? '' : <input type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}</td>}
-                      <td className="p-2">{issueMode ? item.unitCost : <input aria-label="Unit Cost" type="number" inputMode="decimal" min="0" step="any" value={item.unitCost} onKeyDown={event => { if (['e', 'E', '+', '-'].includes(event.key)) event.preventDefault(); }} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-xl border border-slate-200 px-2 py-2" />}</td>
-                      <td className="p-2">{issueMode ? lineAmount(item.quantity, item.unitCost).toFixed(2) : <input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-2" />}</td>
+                      {form.acceptanceStatus === 'Partial' && <td className="p-1.5">{issueMode ? item.acceptedQuantity ?? '' : <input type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" />}</td>}
+                      <td className="p-1.5">{issueMode ? item.unitCost : <input aria-label="Unit Cost" type="number" inputMode="decimal" min="0" step="any" value={item.unitCost} onKeyDown={event => { if (['e', 'E', '+', '-'].includes(event.key)) event.preventDefault(); }} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" />}</td>
+                      <td className="p-1.5">{issueMode ? lineAmount(item.quantity, item.unitCost).toFixed(2) : <input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5" />}</td>
                       {!issueMode && <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [firstItem()] }; })} /></td>}
                     </tr>;
                   })}
                 </tbody>
               </table>
             </TableScroll>
-            <p className="mt-2 text-sm text-slate-600">Inventory Item No. is optional and may be reused. When provided, it is used in ICS, PAR, and the List of PPEs under New Property No. Assigned. Enter one unit per row when supplying this number; it is locked after saving. Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
+            <p className="mt-2 text-sm text-slate-600">Check PPEs? for PPE items that need an Inventory Item No.; those rows require an item number and quantity 1. Leave it unchecked to bypass the item number and enter a larger quantity. Serial number is optional. Adding one sets Quantity to 1 and locks it; enter each serialized item on a separate row. Row cost = quantity x unit cost. A blank cost uses the existing stock price when saved, or zero for a new item. Costs and quantities are locked after receipt is posted.</p>
             <div className="mt-3 text-right font-semibold">Total: {sumAmounts(form.items.map(item => lineAmount(item.quantity, item.unitCost))).toFixed(2)}</div>
             {!issueMode && <div className="mt-3 flex justify-end"><AddRowButton onClick={() => {
               setSaveError('');

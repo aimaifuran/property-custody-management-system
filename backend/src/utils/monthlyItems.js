@@ -19,6 +19,7 @@ function collectMonthlyItems(sources) {
     const rows = groups.get(month) || [];
     (record.items || []).forEach((item, index) => {
       const description = item.description || item.item || '';
+      const itemName = item.propertyPlantAndEquipment || item.itemName || '';
       if (!description.trim()) return;
       const inventories = new Set([item.inventory, ...(item.inventories || [])].map(id).filter(Boolean));
       const references = issued.filter(ris => (ris.items || []).some(line => {
@@ -34,7 +35,7 @@ function collectMonthlyItems(sources) {
       const risNumber = [...new Set(references.map(ris => ris.risNumber).filter(Boolean))].join(', ');
       rows.push({
         risNumber, responsibilityCenter: blankPlaceholder(record.responsibilityCenterCode),
-        stockNumber: stockNumberOf(item), item: description, unit: item.unit || '',
+        stockNumber: stockNumberOf(item), item: description, itemName, unit: item.unit || '',
         quantity: number(item.quantity) ?? 0,
         unitCost: number(item.unitCost),
         totalCost: number(item.totalCost) ?? ((number(item.quantity) ?? 0) * (number(item.unitCost) ?? 0)),
@@ -49,15 +50,15 @@ function collectMonthlyItems(sources) {
 function recapitulate(rows) {
   const groups = new Map();
   for (const row of rows) {
-    const item = String(row.item || '').trim();
-    const unit = String(row.unit || '').trim();
-    const key = JSON.stringify([item.toLowerCase().replace(/\s+/g, ' '), unit.toLowerCase()]);
+    const item = String(row.itemName || row.item || '').trim();
+    const unit = 'pc';
+    const key = item.toLowerCase().replace(/\s+/g, ' ');
     const entry = groups.get(key) || {
       stockNumber: '', item, unit, quantity: 0, unitCost: null, totalCost: 0, accountCode: '',
-      stockNumbers: new Set(), costQuantity: 0,
+      costQuantity: 0,
     };
     entry.quantity += row.quantity;
-    if (row.stockNumber) entry.stockNumbers.add(String(row.stockNumber));
+    if (!entry.stockNumber && row.stockNumber) entry.stockNumber = String(row.stockNumber);
     const rowTotal = number(row.totalCost);
     const rowUnitCost = number(row.unitCost);
     if (rowTotal != null) {
@@ -67,11 +68,8 @@ function recapitulate(rows) {
     groups.set(key, entry);
   }
   return [...groups.values()].map(entry => {
-    entry.stockNumber = [...entry.stockNumbers].join(', ');
     entry.unitCost = entry.costQuantity ? entry.totalCost / entry.costQuantity : null;
-    if (!entry.stockNumbers.size) entry.stockNumber = '';
     if (entry.totalCost === 0 && !entry.costQuantity) entry.totalCost = null;
-    delete entry.stockNumbers;
     delete entry.costQuantity;
     return entry;
   }).sort((a, b) => a.item.localeCompare(b.item));

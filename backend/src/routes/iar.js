@@ -26,6 +26,10 @@ const IAR_SEARCH_FIELDS = [
 const receivedItem = (entry, stock) => {
   const stockNumber = String(entry.stockNumber || entry.stockPropertyNumber || '').trim();
   const quantity = Number(entry.quantity);
+  // Older clients represented PPE tracking by supplying an Inventory Item No.
+  const isPpe = entry.isPpe === undefined
+    ? Boolean(String(entry.inventoryItemNo || '').trim())
+    : Boolean(entry.isPpe);
   // Cost is optional on the official IAR. Preserve a real zero for Inventory,
   // whose numeric field rejects an empty input string or an omitted value.
   const unitCost = Number((entry.unitCost === undefined ? stock?.cost : entry.unitCost) || 0);
@@ -33,9 +37,10 @@ const receivedItem = (entry, stock) => {
     ...entry,
     stockNumber,
     stockPropertyNumber: String(entry.stockPropertyNumber || stockNumber).trim(),
-    inventoryItemNo: String(entry.inventoryItemNo || '').trim(),
+    isPpe,
+    inventoryItemNo: isPpe ? String(entry.inventoryItemNo || '').trim() : '',
     item: entry.item || entry.description,
-    itemType: (entry.itemType === undefined ? stock?.itemType : entry.itemType) || 'ASSET',
+    itemType: isPpe ? 'ASSET' : (entry.itemType === undefined ? stock?.itemType : entry.itemType) || 'ASSET',
     quantity,
     unitCost,
     totalCost: lineAmount(quantity, unitCost),
@@ -76,7 +81,7 @@ router.put('/:id', authenticate, validateAdminForm('iar'), authorize('canManageI
   }
   delete payload.autoNumber;
   if (existing.status === 'LOGGED_TO_STOCKS' && payload.items) {
-    const stockFields = rows => rows.map(row => [row.stockPropertyNumber || row.stockNumber, Number(row.quantity), Number(row.unitCost || 0), row.itemType || 'ASSET', row.serialNumber || '', row.acceptedQuantity ?? row.quantity, String(row.inventoryItemNo || '').trim()]);
+    const stockFields = rows => rows.map(row => [row.stockPropertyNumber || row.stockNumber, Number(row.quantity), Number(row.unitCost || 0), row.itemType || 'ASSET', row.serialNumber || '', row.acceptedQuantity ?? row.quantity, Boolean(row.isPpe ?? String(row.inventoryItemNo || '').trim()), String(row.inventoryItemNo || '').trim()]);
     if (JSON.stringify(stockFields(existing.items)) !== JSON.stringify(stockFields(payload.items.map((entry, index) => ({ ...entry, acceptedQuantity: entry.acceptedQuantity ?? existing.items[index]?.acceptedQuantity ?? entry.quantity }))))) return errorResponse(res, 'Received stock numbers, inventory item numbers, quantities, costs and item types are locked. Record additional receipts with a new IAR.', [], 409);
   }
   for (const field of ['status', 'propertyCards', 'requisition', 'inventoryCustodianSlip', 'propertyAcknowledgementReceipt']) delete payload[field];
@@ -158,6 +163,8 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
     const item = `Item ${index + 1}`;
     if (!entry.stockNumber) return errorResponse(res, `${item}: enter a stock/property number`, [], 400);
     if (!Number.isInteger(entry.quantity) || entry.quantity <= 0) return errorResponse(res, `${item}: enter a positive whole quantity`, [], 400);
+    if (entry.isPpe && !entry.inventoryItemNo) return errorResponse(res, `${item}: Inventory Item No. is required for PPEs`, [], 400);
+    if (entry.isPpe && entry.quantity !== 1) return errorResponse(res, `${item}: PPE quantity must be 1`, [], 400);
     if (!Number.isFinite(entry.unitCost) || entry.unitCost < 0) return errorResponse(res, `${item}: enter a valid unit cost of zero or more`, [], 400);
     if (!['SUPPLY', 'ASSET'].includes(entry.itemType)) return errorResponse(res, `${item}: select Supply or Asset`, [], 400);
   }
@@ -210,8 +217,9 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
         const serialNumbers = await require('../utils/allocateUnitSerials')(entry.serialNumber, acceptedQuantity, session);
         entry.serialNumbers = serialNumbers;
         const inventoryItemNo = String(entry.inventoryItemNo || '').trim();
-        const requestedPropertyNumber = String(inventoryItemNo || entry.propertyNumber || '').trim() || undefined;
-        if (inventoryItemNo && Number(entry.quantity) !== 1) throw new Error('Enter each item with an Inventory Item No. on a separate row with quantity 1');
+        const requestedPropertyNumber = entry.isPpe ? inventoryItemNo || undefined : undefined;
+        if (entry.isPpe && !inventoryItemNo) throw new Error('Enter an Inventory Item No. for PPE items');
+        if (entry.isPpe && Number(entry.quantity) !== 1) throw new Error('PPE quantity must be 1');
         for (let unitIndex = 0; unitIndex < unitCount; unitIndex++) {
         const receiptQuantity = individuallyTracked ? 1 : acceptedQuantity;
         const unitSerial = serialNumbers[unitIndex] || undefined;

@@ -39,6 +39,7 @@ const inspectionAcceptanceReportSchema = new mongoose.Schema({
     property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
     serialNumbers: [String],
     serialNumber: { type: String, trim: true },
+    isPpe: Boolean,
     itemType: { type: String, enum: ['SUPPLY', 'ASSET'], default: 'ASSET' },
     stockNumber: String,
     stockPropertyNumber: String,

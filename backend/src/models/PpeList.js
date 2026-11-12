@@ -5,6 +5,7 @@ const rowSchema = new mongoose.Schema({
   responsibilityCenter: { type: String, trim: true, maxlength: 100 },
   stockNumber: { type: String, trim: true, maxlength: 100 },
   item: { type: String, required: true, trim: true, maxlength: 1000 },
+  itemName: { type: String, trim: true, maxlength: 1000 },
   unit: { type: String, trim: true, maxlength: 50 },
   quantity: { type: Number, required: true, min: 0 },
   unitCost: { type: Number, min: 0, default: null },

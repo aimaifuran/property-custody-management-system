@@ -88,6 +88,10 @@ function getAdminFormErrors(type, body = {}, method = 'POST') {
         else if (/date$/i.test(key) && Number.isNaN(Date.parse(entry[key]))) add(`${prefix}${key}`, 'Enter a valid date.');
       }
       if (entry) {
+        if (type === 'iar' && entry.isPpe) {
+          if (missing(entry.inventoryItemNo)) add(`${prefix}inventoryItemNo`, 'Inventory Item No. is required for PPE items.');
+          if (Number(entry.quantity) !== 1) add(`${prefix}quantity`, 'PPE quantity must be 1.');
+        }
         if (type === 'iar' && !missing(entry.serialNumber) && Number(entry.quantity) !== 1) {
           add(`${prefix}quantity`, 'Quantity must be 1 when a serial number is provided. Enter each serialized item on a separate row.');
         }
