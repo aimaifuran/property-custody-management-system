@@ -135,6 +135,9 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
   payload.acceptedBy = payload.acceptedBy || payload.custodian || null;
   if (!Array.isArray(payload.items) || !payload.items.length || payload.items.some(entry => !entry || typeof entry !== 'object')) return errorResponse(res, 'Enter at least one received item', [], 400);
   const receivedEntries = payload.items;
+  if (receivedEntries.some(entry => entry.unitCost == null || String(entry.unitCost).trim() === '')) {
+    return errorResponse(res, 'Enter a unit cost for each IAR item before saving.', [], 400);
+  }
   for (const entry of receivedEntries) entry.serialNumber = String(entry.serialNumber || '').trim();
   const accepted = receivedEntries.map(entry => {
     if (entry.acceptanceStatus === 'Rejected') return 0;
@@ -212,7 +215,10 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
           item.cost = entry.unitCost;
           await item.save({ session });
         }
-        const individuallyTracked = entry.itemType === 'ASSET' || !!entry.serialNumber;
+        // Only PPE-numbered or serialized items need one Inventory record per
+        // physical unit. Unchecked, unnumbered quantities are kept as bulk stock
+        // even when the catalog classifies that stock as an asset.
+        const individuallyTracked = Boolean(entry.isPpe || entry.serialNumber);
         const unitCount = individuallyTracked ? acceptedQuantity : 1;
         const serialNumbers = await require('../utils/allocateUnitSerials')(entry.serialNumber, acceptedQuantity, session);
         entry.serialNumbers = serialNumbers;
@@ -302,6 +308,12 @@ router.post('/', authenticate, validateAdminForm('iar'), authorize('canManageIAR
       return report;
     });
   } catch (error) {
+    console.error('IAR stock transaction failed', {
+      code: error.code,
+      codeName: error.codeName,
+      errorLabels: error.errorLabels,
+      message: error.message,
+    });
     if (error.code === 11000 && payload.submissionKey) {
       const existing = await InspectionAcceptanceReport.findOne({ submissionKey: payload.submissionKey });
       if (existing) return successResponse(res, 'IAR already saved', existing);

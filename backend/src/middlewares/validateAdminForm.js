@@ -4,7 +4,7 @@ const signatory = (section, titleKey = 'designation') => [`${section}.name`, `${
 const rules = {
   iar: {
     fields: ['entityName', 'fundCluster', 'supplierName', 'poNumber', 'responsibilityCenterCode', 'inspectionDate', 'inspectedBy', 'acceptanceDate', 'custodian'],
-    items: ['stockPropertyNumber', 'description', 'unit', 'quantity'], positive: ['quantity'],
+    items: ['stockPropertyNumber', 'description', 'unit', 'quantity', 'unitCost'], positive: ['quantity'],
   },
   ics: {
     fields: ['entityName', 'fundCluster', 'office', ...signatory('receivedFrom', 'position'), ...signatory('receivedBy', 'position')],

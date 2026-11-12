@@ -520,7 +520,10 @@ export default function IarPage() {
           <ClientPagination showPageSize={false} page={page} pageCount={totalPages} perPage={perPage} onPageChange={setPage} onPerPageChange={updatePerPage} />
         </div>}
         <div className="space-y-6">
-          {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={save} onKeyDown={handleIarEnter} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => { const message = `${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`; setSaveError(message); toast.error(message, { id: 'iar-save-validation' }); }} className="form-document form-frame scroll-mt-6 p-6">
+          {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={event => {
+            if (!event.nativeEvent.submitter) { event.preventDefault(); return; }
+            save(event);
+          }} onKeyDown={handleIarEnter} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => { const message = `${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`; setSaveError(message); toast.error(message, { id: 'iar-save-validation' }); }} className="form-document form-frame scroll-mt-6 p-6">
             <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock. Property Card history is created when an item is issued to a user.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
@@ -572,7 +575,7 @@ export default function IarPage() {
                         </div>
                       </td>
                       {form.acceptanceStatus === 'Partial' && <td className="p-1.5">{issueMode ? item.acceptedQuantity ?? '' : <input type="number" aria-label="Accepted quantity" required={hasRowData(item, emptyItem())} min="0" max={item.quantity || undefined} step="1" value={item.acceptedQuantity ?? ''} onChange={event => updateItem(index, 'acceptedQuantity', event.target.value)} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" />}</td>}
-                      <td className="p-1.5">{issueMode ? item.unitCost : <input aria-label="Unit Cost" type="number" inputMode="decimal" min="0" step="any" value={item.unitCost} onKeyDown={event => { if (['e', 'E', '+', '-'].includes(event.key)) event.preventDefault(); }} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" />}</td>
+                      <td className="p-1.5">{issueMode ? item.unitCost : <input aria-label="Unit Cost" type="number" inputMode="decimal" min="0" step="any" required={hasRowData(item, emptyItem())} value={item.unitCost} onKeyDown={event => { if (['e', 'E', '+', '-'].includes(event.key)) event.preventDefault(); }} onChange={e => updateItem(index, 'unitCost', e.target.value)} className="w-full rounded-lg border border-slate-200 px-2 py-1.5" />}</td>
                       <td className="p-1.5">{issueMode ? lineAmount(item.quantity, item.unitCost).toFixed(2) : <input aria-label="Total Cost" readOnly value={lineAmount(item.quantity, item.unitCost).toFixed(2)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5" />}</td>
                       {!issueMode && <td className="p-2 text-center"><DeleteRowButton index={index} onClick={() => setForm(previous => { const items = previous.items.filter((_, rowIndex) => rowIndex !== index); return { ...previous, items: items.length ? items : [firstItem()] }; })} /></td>}
                     </tr>;
