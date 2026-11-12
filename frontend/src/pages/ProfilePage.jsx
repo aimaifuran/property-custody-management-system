@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import OfficeSelect from '../components/OfficeSelect';
 import { divisionForOffice } from '../utils/officeDivisions';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_PATTERN } from '../utils/passwordPolicy';
 import './UsersPage.css';
 
 const emptyProfile = { firstName: '', middleName: '', lastName: '', office: '', division: '', position: '', email: '', password: '', confirmation: '' };
@@ -95,8 +96,8 @@ export default function ProfilePage() {
                               {[['firstName', 'First name', true], ['middleName', 'Middle name', false], ['lastName', 'Last name / Suffix', true], ['position', 'Position', false], ['office', 'Office', true], ['division', 'Division', false]].map(([key, label, required]) => <label key={key}>{label}{key === 'office' ? <OfficeSelect required={required} aria-label={label} value={credentials.office} onChange={event => setCredentials(previous => ({ ...previous, office: event.target.value, division: divisionForOffice(event.target.value) }))} /> : <input type="text" aria-label={label} required={required} readOnly={key === 'division'} maxLength={key === 'position' ? 150 : 200} value={credentials[key]} onChange={event => setCredentials(previous => ({ ...previous, [key]: event.target.value }))} />}</label>)}
                             </div>
                             <label>Email<input type="email" autoComplete="email" required value={credentials.email} onChange={event => setCredentials({ ...credentials, email: event.target.value })} /></label>
-                            <label>New password<input type="password" autoComplete="new-password" minLength={8} value={credentials.password} onChange={event => setCredentials({ ...credentials, password: event.target.value })} /></label>
-                            <label>Confirm new password<input type="password" autoComplete="new-password" required={Boolean(credentials.password)} value={credentials.confirmation} onChange={event => setCredentials({ ...credentials, confirmation: event.target.value })} /></label>
+                            <label>New password<input type="password" autoComplete="new-password" minLength={8} maxLength={72} pattern={PASSWORD_POLICY_PATTERN} title={PASSWORD_POLICY_MESSAGE} value={credentials.password} onChange={event => setCredentials({ ...credentials, password: event.target.value })} /></label>
+                            <label>Confirm new password<input type="password" autoComplete="new-password" minLength={8} maxLength={72} pattern={PASSWORD_POLICY_PATTERN} title={PASSWORD_POLICY_MESSAGE} required={Boolean(credentials.password)} value={credentials.confirmation} onChange={event => setCredentials({ ...credentials, confirmation: event.target.value })} /></label>
                             {accountError && <p role="alert" className="user-editor-error">{accountError}</p>}
                             <div className="profile-account-settings-actions"><button type="submit" className="user-create-button">Save</button><button type="button" onClick={() => { setEditing(false); setCredentials(emptyProfile); }}>Cancel</button></div>
                         </fieldset>

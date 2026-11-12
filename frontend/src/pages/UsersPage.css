@@ -290,8 +290,8 @@
 .profile-account-settings > p { margin: 8px 0 16px; color: #64796c; }
 .profile-account-settings fieldset { border: 0; padding: 0; min-width: 0; }
 .profile-account-settings label { display: block; margin: 14px 0; }
-.app-shell .my-profile-page .profile-account-settings input { display: block; box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 6px; padding: 10px 12px; border: 1px solid #9bbba6; border-radius: 8px; background: #f8fbf7; color: #29493c; }
-.app-shell .my-profile-page .profile-account-settings input:focus { border-color: #326b50; outline: 2px solid #74a37a; outline-offset: 2px; background: #fff; }
+.app-shell .my-profile-page .profile-account-settings :is(input, .office-select) { display: block; box-sizing: border-box; width: 100%; min-height: 44px; margin-top: 6px; padding: 10px 12px; border: 1px solid #9bbba6; border-radius: 8px; background-color: #f8fbf7; color: #29493c; }
+.app-shell .my-profile-page .profile-account-settings :is(input, .office-select):focus { border-color: #326b50; outline: 2px solid #74a37a; outline-offset: 2px; background-color: #fff; }
 .profile-account-settings-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
 
 /* Four account cards per page, adapting to the available screen width. */

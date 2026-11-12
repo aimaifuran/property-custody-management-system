@@ -6,6 +6,7 @@ const User = require('../models/User');
 const RegistrationRequest = require('../models/RegistrationRequest');
 const { authenticate, adminOnly } = require('../middlewares/auth');
 const { successResponse, errorResponse } = require('../utils/response');
+const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require('../utils/passwordPolicy');
 const router = express.Router();
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
 
@@ -21,7 +22,7 @@ router.post('/', limiter, async (req, res) => {
   }
   details.email = details.email.toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email) || !/^[A-Za-z0-9._-]{3,50}$/.test(details.username)) return errorResponse(res, 'Enter a valid email and a username of 3–50 letters, numbers, dots, underscores or hyphens.', [], 400);
-  if (typeof body.password !== 'string' || body.password.length < 8 || Buffer.byteLength(body.password) > 72 || body.password !== body.confirmPassword) return errorResponse(res, 'Passwords must match and contain at least 8 characters (maximum 72 bytes).', [], 400);
+  if (!isStrongPassword(body.password) || body.password !== body.confirmPassword) return errorResponse(res, `${PASSWORD_POLICY_MESSAGE} Passwords must match.`, [], 400);
   const identity = { $or: [{ email: details.email }, { username: details.username }] };
   if (await User.exists(identity) || await RegistrationRequest.exists({ ...identity, status: 'PENDING' })) return errorResponse(res, 'An account or pending request already uses this email or username.', [], 409);
   try {

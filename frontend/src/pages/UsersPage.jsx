@@ -12,6 +12,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import AccountNotificationToaster from '../components/AccountNotificationToaster';
 import { useAuth } from '../contexts/AuthContext';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_PATTERN } from '../utils/passwordPolicy';
 import './UsersPage.css';
 
 const emptyUser = () => ({ firstName: '', middleName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', position: '', role: 'user', permissions: ['canViewRIS'] });
@@ -257,7 +258,7 @@ export default function UsersPage() {
           </label>
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">Password</span>
-            <input id="user-password" aria-label="Password" type="password" autoComplete="new-password" minLength={8} required={!editingUser} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder={editingUser ? 'Leave blank to keep password' : 'Password'} />
+            <input id="user-password" aria-label="Password" type="password" autoComplete="new-password" minLength={8} maxLength={72} pattern={PASSWORD_POLICY_PATTERN} title={PASSWORD_POLICY_MESSAGE} required={!editingUser} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder={editingUser ? 'Leave blank to keep password' : 'Password'} />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">Office</span>

@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, KeyRound, LoaderCircle, Mail, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_PATTERN } from '../utils/passwordPolicy';
 
 export default function ForgotPasswordPage({ embedded = false, onBack }) {
   const [email, setEmail] = useState('');
@@ -65,8 +66,8 @@ export default function ForgotPasswordPage({ embedded = false, onBack }) {
       <div className="recovery-heading"><div className="recovery-icon" aria-hidden="true"><KeyRound size={24} /></div><p className="recovery-eyebrow">Account recovery</p><h1 id="recovery-title">{submitted ? codeVerified ? 'Choose a new password' : 'Verify your email' : 'Forgot your password?'}</h1><p id="recovery-description">{submitted ? codeVerified ? 'Your email is verified. Choose a new password to finish resetting your account.' : `Enter the six-digit code sent to ${email}. The code expires in 10 minutes.` : 'Enter the email address registered to your user or administrator account.'}</p></div>
       {submitted ? codeVerified ? <ValidatedForm onSubmit={resetPassword} className="recovery-form">
         <div className="recovery-verified-code" role="status"><ShieldCheck size={18} aria-hidden="true" />Verification code confirmed</div>
-        <AuthField className="block"><span className="recovery-label">New password</span><input className="login-input recovery-input" aria-label="New password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={event => setPassword(event.target.value)} disabled={loading} /></AuthField>
-        <AuthField className="block"><span className="recovery-label">Confirm new password</span><input className="login-input recovery-input" aria-label="Confirm new password" type="password" autoComplete="new-password" minLength={8} required value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={loading} /></AuthField>
+        <AuthField className="block"><span className="recovery-label">New password</span><input className="login-input recovery-input" aria-label="New password" type="password" autoComplete="new-password" minLength={8} maxLength={72} pattern={PASSWORD_POLICY_PATTERN} title={PASSWORD_POLICY_MESSAGE} required value={password} onChange={event => setPassword(event.target.value)} disabled={loading} /></AuthField>
+        <AuthField className="block"><span className="recovery-label">Confirm new password</span><input className="login-input recovery-input" aria-label="Confirm new password" type="password" autoComplete="new-password" minLength={8} maxLength={72} pattern={PASSWORD_POLICY_PATTERN} title={PASSWORD_POLICY_MESSAGE} required value={confirmation} onChange={event => setConfirmation(event.target.value)} disabled={loading} /></AuthField>
         <button type="submit" disabled={loading} aria-busy={loading} className="login-button recovery-submit">{loading ? <><LoaderCircle className="recovery-spinner" size={18} aria-hidden="true" /> Updating...</> : 'Update Password'}</button>
         <button type="button" disabled={loading} onClick={() => setCodeVerified(false)} className="recovery-back">Back to verification code</button>
         <button type="button" disabled={loading} onClick={() => { setSubmitted(false); setCodeVerified(false); setCode(''); setPassword(''); setConfirmation(''); }} className="recovery-back">Use a different email</button>

@@ -13,6 +13,7 @@ const { sendPasswordResetCode, sendEmailChangeCode } = require('../utils/mailer'
 const { authenticate } = require('../middlewares/auth');
 const { isSessionUserActive } = require('../utils/session');
 const { lockInactiveUsers } = require('../utils/inactivityLock');
+const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require('../utils/passwordPolicy');
 const router = express.Router();
 const { pictureUpload, pictureData } = require('../utils/pictureUpload');
 
@@ -223,10 +224,10 @@ router.post('/verify-password-reset-code', loginLimiter, [
 router.post('/reset-password-code', loginLimiter, [
   body('email').trim().isEmail(),
   body('code').isString().matches(/^\d{6}$/),
-  body('password').isString().isLength({ min: 8 }).custom(value => Buffer.byteLength(value) <= 72),
+  body('password').custom(isStrongPassword).withMessage(PASSWORD_POLICY_MESSAGE),
 ], async (req, res) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) return errorResponse(res, 'Enter your email, six-digit code, and a password of at least 8 characters (at most 72 bytes).', [], 400);
+  if (!errors.isEmpty()) return errorResponse(res, `Enter your email and six-digit code. ${PASSWORD_POLICY_MESSAGE}`, [], 400);
   try {
     const scope = { email: req.body.email.toLowerCase(), deleted: false, status: 'active', passwordResetCodeExpiry: { $gt: new Date() }, passwordResetCodeAttempts: { $lt: 5 } };
     // Each attempt is counted atomically, so parallel guesses cannot bypass the limit.
@@ -247,7 +248,7 @@ router.post('/reset-password-code', loginLimiter, [
 
 router.post('/reset-password', [
   body('token').notEmpty().withMessage('Reset token is required'),
-  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('password').custom(isStrongPassword).withMessage(PASSWORD_POLICY_MESSAGE),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);
@@ -303,7 +304,7 @@ router.put('/profile', authenticate, validateAdminForm('profile'), [
 
 router.post('/change-password', authenticate, [
   body('currentPassword').notEmpty().withMessage('Current password is required'),
-  body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
+  body('newPassword').custom(isStrongPassword).withMessage(PASSWORD_POLICY_MESSAGE),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return errorResponse(res, 'Validation failed', errors.array(), 400);

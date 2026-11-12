@@ -1,6 +1,7 @@
 import ValidatedForm from '../components/ValidatedForm';
 import Skeleton from '../components/Skeleton';
 import { useState } from 'react';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_PATTERN } from '../utils/passwordPolicy';
 import axios from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -59,6 +60,9 @@ export default function ResetPasswordPage() {
                 className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3"
                 placeholder="At least 8 characters"
                 minLength={8}
+                maxLength={72}
+                pattern={PASSWORD_POLICY_PATTERN}
+                title={PASSWORD_POLICY_MESSAGE}
                 required
               />
             </label>
@@ -72,6 +76,9 @@ export default function ResetPasswordPage() {
                 className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3"
                 placeholder="Re-enter new password"
                 minLength={8}
+                maxLength={72}
+                pattern={PASSWORD_POLICY_PATTERN}
+                title={PASSWORD_POLICY_MESSAGE}
                 required
               />
             </label>

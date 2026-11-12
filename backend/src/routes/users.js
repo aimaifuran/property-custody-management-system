@@ -11,6 +11,7 @@ const { authenticate, authorize, adminOnly } = require('../middlewares/auth');
 const router = express.Router();
 const { linkLegacyRequests } = require('../utils/accountLinks');
 const { lockInactiveUsers } = require('../utils/inactivityLock');
+const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require('../utils/passwordPolicy');
 router.post('/:id/profile-picture', authenticate, (req, res) => {
   return errorResponse(res, 'Profile photos can only be changed from your own account profile.', [], 403);
 });
@@ -250,6 +251,7 @@ router.get('/', authenticate, authorize('canManageUsers'), async (req, res) => {
 
 router.post('/', authenticate, validateAdminForm('users'), authorize('canManageUsers'), async (req, res) => {
   if (req.body.role !== undefined && !['admin', 'user'].includes(req.body.role)) return errorResponse(res, 'Select Admin or User as the account type', [], 400);
+  if (!isStrongPassword(req.body.password)) return errorResponse(res, PASSWORD_POLICY_MESSAGE, [], 400);
   const exists = await User.findOne({ $or: [{ email: req.body.email }, { username: req.body.username }] });
   if (exists) return errorResponse(res, 'User already exists', [], 409);
 
@@ -268,7 +270,7 @@ router.put('/:id', authenticate, validateAdminForm('users'), authorize('canManag
   const updates = Object.fromEntries(['firstName', 'middleName', 'lastName', 'email', 'username', 'office', 'division', 'position'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]]));
   if (req.body.email !== undefined && (typeof req.body.email !== 'string' || !require('validator').isEmail(req.body.email.trim()))) return errorResponse(res, 'Enter a valid email address', [], 400);
   const changedEmail = req.body.email && req.body.email.trim().toLowerCase() !== existing.email;
-  if (req.body.password && (typeof req.body.password !== 'string' || req.body.password.length < 8 || Buffer.byteLength(req.body.password) > 72)) return errorResponse(res, 'Password must be at least 8 characters and at most 72 bytes', [], 400);
+  if (req.body.password && !isStrongPassword(req.body.password)) return errorResponse(res, PASSWORD_POLICY_MESSAGE, [], 400);
   const unset = {};
   if (req.body.password) {
     updates.password = await bcrypt.hash(req.body.password, 10);
