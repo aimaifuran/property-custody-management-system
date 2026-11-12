@@ -16,7 +16,7 @@ module.exports = async function reassignAccountability({ row, receiver, report, 
   const receiptDate = acceptedAt || date;
   const receivedBy = {
     name: report.receivedBy?.name || receiverName,
-    position: report.receivedBy?.designation || receiver.office,
+    position: receiver.position || report.receivedBy?.designation || receiver.office,
     date: receiptDate,
   };
   const [form] = await Model.create([{

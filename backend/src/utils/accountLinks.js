@@ -24,12 +24,12 @@ async function resolveAccount(person, accounts) {
   } else {
     const name = normalize(value.name);
     if (!name) return value;
-    matches = (accounts || await User.find({ deleted: false, role: 'user' }).select('firstName middleName lastName username email office')).filter(user => aliases(user).includes(name));
+    matches = (accounts || await User.find({ deleted: false, role: 'user' }).select('firstName middleName lastName username email office position')).filter(user => aliases(user).includes(name));
     if (matches.length > 1) throw new Error('More than one account has this name. Select the user account explicitly.');
   }
   if (!matches.length) { delete value.user; return value; }
   const user = matches[0];
-  return { ...value, user: user._id, name: accountName(user), designation: value.designation || user.office };
+  return { ...value, user: user._id, name: accountName(user), designation: user.position || value.designation || user.office };
 }
 
 // Backfill only names that identify exactly one account; existing IDs survive renames.

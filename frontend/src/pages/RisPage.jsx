@@ -420,7 +420,7 @@ export default function RisPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isUser = user?.role !== 'admin';
-  const makeForm = () => isUser ? { ...newForm(), division: user?.division || '', office: user?.office || '', requestedBy: { name: [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '', designation: user?.office || '', date: todayManila() }, approvedBy: emptySignatory(), issuedBy: emptySignatory(), receivedBy: emptySignatory() } : newForm();
+  const makeForm = () => isUser ? { ...newForm(), division: user?.division || '', office: user?.office || '', requestedBy: { name: [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '', designation: user?.position || user?.office || '', date: todayManila() }, approvedBy: emptySignatory(), issuedBy: emptySignatory(), receivedBy: emptySignatory() } : newForm();
   const [decision, setDecision] = useState('save');
   const [rejectionReason, setRejectionReason] = useState('');
   const [pageLoading, setPageLoading] = useState(true);

@@ -41,7 +41,7 @@ module.exports = async function issueReturnedTransfer(report, actor, session) {
     const stock = await Item.findOneAndUpdate({ _id: inventory.item._id, deleted: false, quantityOnHand: { $gte: quantity } }, { $inc: { quantityOnHand: -quantity } }, { returnDocument: 'after', session });
     if (!stock) fail(`${report.ptrNumber}: insufficient returned stock to establish custody`);
     const date = report.date || report.createdAt || new Date();
-    const person = { user: receiver._id, name: accountName(receiver), designation: receiver.office, date };
+    const person = { user: receiver._id, name: accountName(receiver), designation: receiver.position || receiver.office, date };
     const [ris] = await RIS.create([{
       manualIssueKey: sourceKey, sourceInventory: inventory._id,
       risNumber: await reserveDocumentNumber(RIS, 'risNumber', date, session),

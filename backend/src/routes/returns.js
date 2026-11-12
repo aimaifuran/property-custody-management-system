@@ -107,7 +107,7 @@ router.post('/:id/confirm', authenticate, authorize('canManageInventory'), async
       pending.status = 'RETURNED'; pending.pendingKey = undefined;
       pending.returnedTo = returnedToSignatory(req.body.returnedTo, {
         name: pending.returnedTo?.name || name,
-        designation: pending.returnedTo?.designation || req.user.office,
+        designation: req.user.position || pending.returnedTo?.designation || req.user.office,
         date: pending.returnedTo?.date || new Date(),
       });
       await postPropertyReturn(pending, session, req.user);

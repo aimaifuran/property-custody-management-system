@@ -108,7 +108,7 @@ router.post('/my-requests', authenticate, async (req, res) => {
   let fundCluster, responsibilityCenterCode;
   try { ({ fundCluster, responsibilityCenterCode } = await require('../utils/resolveRisItemFunds')(requestedItems)); }
   catch (error) { return errorResponse(res, error.message, [], 400); }
-  const person = { user: req.user._id, name: getUserLabel(req.user), designation: req.user.office, date: new Date() };
+  const person = { user: req.user._id, name: getUserLabel(req.user), designation: req.user.position || req.user.office, date: new Date() };
   const risNumber = await reserveDocumentNumber(RequisitionIssueSlip, 'risNumber');
   const ris = await RequisitionIssueSlip.create({ risNumber, fundCluster, responsibilityCenterCode, entityName: require('../config/entityName'), division: req.user.division, office: req.user.office, purpose: String(purpose || '').trim(), requestedBy: person, receivedBy: person, items: requestedItems, status: 'PENDING_REVIEW' });
   await notifyAdmins('New supply/property request', `${getUserLabel(req.user)} submitted ${ris.risNumber}.`, '/ris');
@@ -197,7 +197,7 @@ router.post('/my-returns', authenticate, async (req, res) => {
       if (asset && (!asset.active || String(asset.user) !== String(req.user._id))) throw new Error('This property is no longer under your accountability');
       if (asset?.pendingMovement) throw Object.assign(new Error('This property already has a pending movement'), { code: 11000 });
       const prsNumber = await reserveDocumentNumber(PropertyReturnSlip, 'prsNumber', new Date(), session);
-      const [created] = await PropertyReturnSlip.create([{ prsNumber, lguName: ris.entityName || 'LGU Carigara', purpose: 'Returned To Stock', submittedBy: req.user._id, status: 'PENDING', pendingKey: `${ris._id}:${item._id}`, items: [{ ris: ris._id, risItem: item._id, quantity, unit: item.unit, description: item.description, propertyNumber: inventory?.propertyNumber || '', mrNumber: ris.risNumber, unitValue, totalValue: quantity * unitValue }], returnedBy: { user: req.user._id, name: getUserLabel(req.user), designation: req.user.office, date: new Date() } }], { session });
+      const [created] = await PropertyReturnSlip.create([{ prsNumber, lguName: ris.entityName || 'LGU Carigara', purpose: 'Returned To Stock', submittedBy: req.user._id, status: 'PENDING', pendingKey: `${ris._id}:${item._id}`, items: [{ ris: ris._id, risItem: item._id, quantity, unit: item.unit, description: item.description, propertyNumber: inventory?.propertyNumber || '', mrNumber: ris.risNumber, unitValue, totalValue: quantity * unitValue }], returnedBy: { user: req.user._id, name: getUserLabel(req.user), designation: req.user.position || req.user.office, date: new Date() } }], { session });
       if (asset) {
         created.items[0].accountability = asset._id;
         asset.pendingMovement = `PRS:${created._id}`;

@@ -337,7 +337,7 @@ export default function PtrPage() {
                 ...previous.receivedBy,
                 user: person._id,
                 name: person.name,
-                designation: person.office || '',
+                designation: person.position || person.office || '',
                 date: todayManila(),
             },
         }));
@@ -364,7 +364,7 @@ export default function PtrPage() {
         cancelNumberPreview();
         setSelectedFromAccountableUserId('');
         const adminName = [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '';
-        const adminSignatory = { name: adminName, designation: user?.office || '', date: todayManila() };
+        const adminSignatory = { name: adminName, designation: user?.position || user?.office || '', date: todayManila() };
         setEditorOpen(true);
         setEditingId(null);
         setReturnDraftItem(draft);
@@ -505,7 +505,7 @@ export default function PtrPage() {
             <span className="mb-1 block text-sm font-semibold text-slate-700">To New Accountable Officer</span>
             <SearchInput required aria-label="To New Accountable Officer" placeholder="Search To New Accountable Officer" value={form.toAccountableOfficer || ''} options={toAccountablePeople.map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={updateToAccountableOfficerSearch} onSelect={selectToAccountableOfficer} className="w-full rounded-xl border border-slate-200 px-3 py-2" />
         </FormField>
-    ) : key === 'toAccountableOfficer' && isUser && !editingId ? <FormField className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{toAccountablePeople.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></FormField> : key === 'entityName' && returnDraftItem ? <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} readOnly value={form.entityName} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></FormField> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
+    ) : key === 'toAccountableOfficer' && isUser && !editingId ? <FormField className="block"><span className="mb-1 block text-sm font-semibold">{label}</span><select required value={form.toUser || ''} onChange={event => { const person = people.find(row => row._id === event.target.value); setForm(previous => ({ ...previous, toUser: event.target.value, toAccountableOfficer: person?.name || '', receivedBy: { ...previous.receivedBy, user: person?._id, name: person?.name || '', designation: person?.position || person?.office || '' } })); }} className="w-full rounded-xl border p-2"><option value="">Select receiving custodian</option>{toAccountablePeople.map(person => <option key={person._id} value={person._id}>{person.name} - {person.office}</option>)}</select></FormField> : key === 'entityName' && returnDraftItem ? <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><input aria-label={label} readOnly value={form.entityName} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" /></FormField> : key === 'entityName' ? <EntityNameField value={form.entityName} onChange={value => update('entityName', value)} isNew={!editingId} /> : ['fromAccountableOfficer', 'toAccountableOfficer'].includes(key) && !isUser ? (
         <FormField className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
             <SearchInput aria-label={label} placeholder={`Enter ${label.toLowerCase()}`} value={form[key] || ''} options={(key === 'toAccountableOfficer' ? toAccountablePeople : people).map(person => ({ value: person._id, label: person.name, keywords: person.office }))} onChange={value => key === 'toAccountableOfficer' ? updateToAccountableOfficerSearch(value) : setForm(previous => ({ ...previous, [key]: value }))} onSelect={key === 'toAccountableOfficer' ? selectToAccountableOfficer : undefined} className="w-full rounded-xl border border-slate-200 px-3 py-2" />

@@ -23,7 +23,7 @@ export default function UserAccountSelect({ person, onChange }) {
       ...offline.map(record => ({ value: `offline:${record._id}`, label: record.name, keywords: record.office, record }))
     ]} onChange={name => onChange({ ...person, name, user: undefined, offlineRecipient: undefined })} onSelect={option => {
       if (option.record) { const record = option.record; onChange({ ...person, user: undefined, offlineRecipient: record._id, name: record.name, designation: record.designation || record.office, office: record.office, division: record.division }); }
-      else { const user = option.user; onChange({ ...person, offlineRecipient: undefined, user: user._id, name: option.label, designation: user.office, office: user.office, division: user.division }); }
+      else { const user = option.user; onChange({ ...person, offlineRecipient: undefined, user: user._id, name: option.label, designation: user.position || user.office, office: user.office, division: user.division }); }
     }} className="w-full rounded-lg border bg-white px-2 py-2" />
     {error && <span role="alert" className="text-xs text-rose-700">{error}</span>}
   </div>;

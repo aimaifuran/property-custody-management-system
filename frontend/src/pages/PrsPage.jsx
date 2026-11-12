@@ -144,7 +144,7 @@ export default function PrsPage() {
     const [form, setForm] = useState(() => {
         const draft = makeForm();
         if (returnFromRecords) {
-            draft.returnedBy = { user: returnFromRecords.user._id, name: returnFromRecords.user.name, designation: returnFromRecords.user.office || '', date: toDateInputValue(new Date()) };
+            draft.returnedBy = { user: returnFromRecords.user._id, name: returnFromRecords.user.name, designation: returnFromRecords.user.position || returnFromRecords.user.office || '', date: toDateInputValue(new Date()) };
             draft.returnedTo = { name: [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ') || user.username, designation: user.position || user.office || '', date: toDateInputValue(new Date()) };
             draft.purposeChoice = 'Returned To Stock';
         }
@@ -286,7 +286,7 @@ export default function PrsPage() {
             nextForm.returnedTo = {
                 ...nextForm.returnedTo,
                 name: nextForm.returnedTo.name || [user?.firstName, user?.middleName, user?.lastName].filter(Boolean).join(' ') || user?.username || '',
-                designation: nextForm.returnedTo.designation || user?.office || '',
+                designation: user?.position || nextForm.returnedTo.designation || user?.office || '',
                 date: nextForm.returnedTo.date || todayManila(),
             };
         }
