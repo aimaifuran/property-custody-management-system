@@ -106,12 +106,8 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
   }
   if (!linkedIars.length) return errorResponse(res, 'The source IAR for this property record could not be found', [], 404);
 
-  if (inventory) {
-    inventory.propertyNumber = nextPropertyNumber;
-    await inventory.save();
-  }
-  // PPE station groups use the accountability's property number for issued items,
-  // so keep it in sync with the edited Property Records value.
+  // The edited Property No. is the PPE list's assigned number. Keep it on the
+  // accountability only; Inventory.propertyNumber feeds the IAR Inventory Item No.
   if (ownedAsset && ownedAsset.propertyNumber !== nextPropertyNumber) {
     ownedAsset.propertyNumber = nextPropertyNumber;
     await ownedAsset.save();
@@ -139,7 +135,6 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
         || (!receiptItem.inventory && !(receiptItem.inventories || []).length && [receiptItem.stockNumber, receiptItem.stockPropertyNumber].some(number => String(number || '') === String(item.stockNumber || '')))
       );
       if (!matches) continue;
-      receiptItem.inventoryItemNo = nextPropertyNumber;
       receiptItem.description = nextDescription;
       receiptItem.item = nextDescription;
       linkedReceiptRows.push(receiptItemIndex);
@@ -171,8 +166,6 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
       const forms = await Model.find({ deleted: false, 'items.inventory': inventory._id });
       for (const form of forms) {
         for (const formItem of form.items) if (String(formItem.inventory || '') === String(inventory._id)) {
-          if ('inventoryItemNo' in formItem) formItem.inventoryItemNo = nextPropertyNumber;
-          if ('propertyNumber' in formItem) formItem.propertyNumber = nextPropertyNumber;
           formItem.description = nextDescription;
         }
         form.lastEditedAt = new Date();
@@ -182,11 +175,9 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
     const cards = await PropertyCard.find({ deleted: false, $or: [{ inventory: inventory._id }, { 'items.inventory': inventory._id }] });
     for (const card of cards) {
       if (String(card.inventory || '') === String(inventory._id)) {
-        card.propertyNumber = nextPropertyNumber;
         card.description = nextDescription;
       }
       for (const cardItem of card.items || []) if (String(cardItem.inventory || '') === String(inventory._id)) {
-        cardItem.propertyNumber = nextPropertyNumber;
         cardItem.description = nextDescription;
       }
       card.lastEditedAt = new Date();
@@ -195,7 +186,6 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
     const transfers = await PropertyTransferReport.find({ deleted: false, 'items.inventory': inventory._id });
     for (const report of transfers) {
       for (const line of report.items) if (String(line.inventory || '') === String(inventory._id)) {
-        line.propertyNumber = nextPropertyNumber;
         line.description = nextDescription;
       }
       report.lastEditedAt = new Date();
@@ -207,13 +197,12 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
     const linkedReturns = await PropertyReturnSlip.find({ deleted: false, 'items.accountability': ownedAsset._id });
     for (const slip of linkedReturns) {
       for (const line of slip.items) if (String(line.accountability || '') === String(ownedAsset._id)) {
-        line.propertyNumber = nextPropertyNumber;
         line.description = nextDescription;
       }
       await slip.save();
     }
   }
-  await ReturnedSupply.updateMany({ ris: ris._id, risItem: item._id }, { $set: { propertyNumber: nextPropertyNumber, description: nextDescription } });
+  await ReturnedSupply.updateMany({ ris: ris._id, risItem: item._id }, { $set: { description: nextDescription } });
   return successResponse(res, 'Property record updated', { risId: ris._id, itemId: item._id });
 });
 router.get('/password-reset-requests', authenticate, adminOnly, async (req, res) => {

@@ -1708,15 +1708,21 @@ body { font-size: var(--app-text-size); }
 .ics-editor .ics-items-table tbody input { padding: 8px; }
 .ics-editor .ics-items-table thead th { text-align: center; vertical-align: middle; }
 .ics-editor .ics-items-table tbody td { vertical-align: middle; }
+.ics-editor .ics-items-table tbody td,
+.ics-editor .ics-items-table tfoot td,
+.ics-editor .ics-items-table tfoot th { text-align: center; }
 .ics-editor .ics-items-table tbody td:nth-child(1) input,
 .ics-editor .ics-items-table tbody td:nth-child(2) input,
-.ics-editor .ics-items-table tbody td:nth-child(6) input,
-.ics-editor .ics-items-table tbody td:nth-child(7) input { text-align: center; }
 .ics-editor .ics-items-table tbody td:nth-child(3) input,
 .ics-editor .ics-items-table tbody td:nth-child(4) input,
-.ics-editor .ics-items-table tfoot td[colspan="2"] { text-align: right; font-variant-numeric: tabular-nums; }
 .ics-editor .ics-items-table tbody td:nth-child(5) input,
-.ics-editor .ics-items-table tfoot textarea { text-align: left; }
+.ics-editor .ics-items-table tbody td:nth-child(6) input,
+.ics-editor .ics-items-table tbody td:nth-child(7) input { text-align: center; }
+.ics-editor .ics-items-table tbody td:nth-child(3),
+.ics-editor .ics-items-table tbody td:nth-child(4),
+.ics-editor .ics-items-table tfoot td[colspan="2"] { font-variant-numeric: tabular-nums; }
+.ics-editor .ics-items-table tbody td:nth-child(5) input,
+.ics-editor .ics-items-table tfoot textarea { text-align: center; }
 .ics-editor .ics-items-table tfoot th { padding: 8px; white-space: nowrap; }
 .form-document.ics-editor .ics-plain-textarea {
   border: 0;
