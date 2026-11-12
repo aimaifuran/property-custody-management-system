@@ -28,7 +28,7 @@ export async function buildStationPpePdf(record, { onDraw } = {}) {
     layout.y = height - margin;
     layout.y -= paragraph('Republic of the Philippines', margin, layout.y, tableWidth);
     layout.y -= paragraph(record.governmentUnit || 'LOCAL GOVERNMENT UNIT OF CARIGARA', margin, layout.y, tableWidth, bold);
-    layout.y -= paragraph('List of PPEs Found at Station', margin, layout.y, tableWidth, titleRegular) + 8;
+    layout.y -= paragraph(record.reportTitle || 'List of PPEs Found at Station', margin, layout.y, tableWidth, titleRegular) + 8;
     layout.y -= paragraph(`PPE Account Group: ${record.accountGroup || ''}`, margin, layout.y, tableWidth, regular, 'left') + 8;
     if (withTable) drawReportGridHeader(layout, columns, bold);
     layout.rowCapacity = layout.y - layout.bottom;

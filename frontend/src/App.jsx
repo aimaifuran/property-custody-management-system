@@ -84,6 +84,8 @@ function AppRoutes() {
         </Route>
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/about" element={<Navigate to="/user-manual" replace />} />
+          <Route path="/reports/ppe-list/serviceable" element={<Navigate to="/reports/ppe-list" replace />} />
+          <Route path="/reports/ppe-list/unserviceable" element={<Navigate to="/reports/ppe-list" replace />} />
           <Route path="/my-ris" element={<Navigate to="/ris" replace />} />
           <Route path="/issued-items" element={<Navigate to="/ris?view=issued" replace />} />
           <Route path="/my-requests" element={<Navigate to="/ris" replace />} />

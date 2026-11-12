@@ -14,7 +14,7 @@ import AccountNotificationToaster from '../components/AccountNotificationToaster
 import { useAuth } from '../contexts/AuthContext';
 import './UsersPage.css';
 
-const emptyUser = () => ({ firstName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', position: '', role: 'user', permissions: ['canViewRIS'] });
+const emptyUser = () => ({ firstName: '', middleName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', position: '', role: 'user', permissions: ['canViewRIS'] });
 const avatarColors = ['sage', 'teal', 'olive', 'gold', 'mint', 'slate'];
 const avatarColor = user => avatarColors[Array.from(user.username || user._id || '').reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % avatarColors.length];
 const initials = user => `${user.firstName?.trim()[0] || ''}${user.lastName?.trim()[0] || ''}`.toUpperCase() || (user.username || 'U').slice(0, 2).toUpperCase();
@@ -143,6 +143,7 @@ export default function UsersPage() {
     setEditingUser(user);
     setForm({
       firstName: user.firstName || '',
+      middleName: user.middleName || '',
       lastName: user.lastName || '',
       email: user.email || '',
       username: user.username || '',
@@ -237,6 +238,10 @@ export default function UsersPage() {
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">First Name</span>
             <input id="user-first-name" aria-label="First Name" required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="First Name" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">Middle Name (optional)</span>
+            <input id="user-middle-name" aria-label="Middle Name (optional)" maxLength={100} value={form.middleName} onChange={event => setForm({ ...form, middleName: event.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Middle Name" />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">Last Name</span>

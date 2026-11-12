@@ -104,7 +104,7 @@ export default function UserManualPage() {
 
     <Section id="reports" title="Reports and downloads" icon={Printer}>
       <ul className="list-disc space-y-1 pl-5">
-        <li><strong>List of PPEs:</strong> view the PPE list for the selected reporting context and use the page’s available filters or download controls.</li>
+        <li><strong>List of PPEs:</strong> open the report from Reports to view and download the recorded PPE items.</li>
         <li><strong>Monthly Reports:</strong> choose the reporting month and review or export the month’s recorded items using the controls shown on the page.</li>
         <li><strong>Historical Records:</strong> administrators with access can search historical forms, open a record preview, inspect related transaction history, and download a PDF.</li>
         <li><strong>PDF and Print:</strong> if the output does not appear, allow pop-ups for the site, check browser downloads, or use the print dialog’s “Save as PDF” option.</li>

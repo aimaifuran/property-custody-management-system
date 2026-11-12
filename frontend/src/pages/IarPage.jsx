@@ -58,6 +58,31 @@ const emptyItem = () => ({
     totalCost: 0
 });
 
+const handleIarEnter = event => {
+    const current = event.target;
+    if (event.key !== 'Enter' || event.defaultPrevented || event.nativeEvent?.isComposing
+        || !(current instanceof HTMLElement)
+        || !current.matches('input:not([type="checkbox"]):not([type="submit"]):not([type="button"]), select, textarea')
+        || current instanceof HTMLTextAreaElement) return;
+    event.preventDefault();
+
+    const cell = current.closest('td');
+    const row = cell?.closest('tbody tr');
+    if (cell && row) {
+        let nextRow = row.nextElementSibling;
+        while (nextRow) {
+            const nextCell = nextRow.children[cell.cellIndex];
+            const nextField = nextCell?.querySelector('input:not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled])');
+            if (nextField) { nextField.focus(); return; }
+            nextRow = nextRow.nextElementSibling;
+        }
+    }
+
+    const fields = [...event.currentTarget.querySelectorAll('input:not([disabled]):not([readonly]):not([type="hidden"]):not([type="checkbox"]):not([type="submit"]):not([type="button"]), select:not([disabled]), textarea:not([disabled])')];
+    const next = fields[fields.indexOf(current) + 1];
+    next?.focus();
+};
+
 const capitalizeInitialLetter = value => typeof value === 'string'
     ? value.replace(/^(\s*)([a-z])/i, (_, prefix, letter) => `${prefix}${letter.toLocaleUpperCase()}`)
     : value;
@@ -495,7 +520,7 @@ export default function IarPage() {
           <ClientPagination showPageSize={false} page={page} pageCount={totalPages} perPage={perPage} onPageChange={setPage} onPerPageChange={updatePerPage} />
         </div>}
         <div className="space-y-6">
-          {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => { const message = `${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`; setSaveError(message); toast.error(message, { id: 'iar-save-validation' }); }} className="form-document form-frame scroll-mt-6 p-6">
+          {editorOpen && (<ValidatedForm ref={editorRef} onSubmit={save} onKeyDown={handleIarEnter} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => { const message = `${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`; setSaveError(message); toast.error(message, { id: 'iar-save-validation' }); }} className="form-document form-frame scroll-mt-6 p-6">
             <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock. Property Card history is created when an item is issued to a user.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}

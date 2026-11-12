@@ -15,7 +15,7 @@ function emailContent(event, record) {
     name: row.itemName || row.propertyPlantAndEquipment || 'Item',
     description: row.description || row.item || '?',
     quantity: `${(event === 'REQUESTED' ? row.quantityRequested : event === 'ISSUED' ? row.quantityIssued : row.quantity) ?? 0} ${row.unit || 'unit(s)'}`,
-    remarks: row.remarks || record.remarks || record.note || (event === 'RETURNED' ? row.condition || 'Serviceable' : '?'),
+    remarks: row.remarks || record.remarks || record.note || (event === 'RETURNED' ? row.condition || 'Serviceable' : ''),
   }));
   const page = event === 'RETURNED' ? '/my-returns' : '/my-issued-items';
   const base = String(process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://pais-v1.vercel.app' : 'http://localhost:5173')).replace(/\/$/, '');
