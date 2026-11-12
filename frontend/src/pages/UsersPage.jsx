@@ -14,7 +14,7 @@ import AccountNotificationToaster from '../components/AccountNotificationToaster
 import { useAuth } from '../contexts/AuthContext';
 import './UsersPage.css';
 
-const emptyUser = () => ({ firstName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', role: 'user', permissions: ['canViewRIS'] });
+const emptyUser = () => ({ firstName: '', lastName: '', email: '', username: '', password: '', office: '', division: '', position: '', role: 'user', permissions: ['canViewRIS'] });
 const avatarColors = ['sage', 'teal', 'olive', 'gold', 'mint', 'slate'];
 const avatarColor = user => avatarColors[Array.from(user.username || user._id || '').reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % avatarColors.length];
 const initials = user => `${user.firstName?.trim()[0] || ''}${user.lastName?.trim()[0] || ''}`.toUpperCase() || (user.username || 'U').slice(0, 2).toUpperCase();
@@ -149,6 +149,7 @@ export default function UsersPage() {
       password: '',
       office: user.office || '',
       division: user.division || '',
+      position: user.position || '',
       role: user.role || 'user',
       permissions: user.permissions || [],
     });
@@ -201,6 +202,7 @@ export default function UsersPage() {
             <h2>{[user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ') || user.username}</h2>
             <p className="user-card-email"><Mail size={14} aria-hidden="true" /><span>{user.email || 'Email not recorded'}</span></p>
             <p className="user-card-office"><Building2 size={14} aria-hidden="true" /><span title={user.office || 'Office not assigned'}>{user.office || 'Office not assigned'}</span></p>
+            {user.position && <p className="user-card-position">{user.position}</p>}
           </div>
           {currentUser?.role === 'admin' && <div className="user-card-actions" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(previous => previous === user._id ? null : previous); }}>
             <button type="button" className="user-card-menu-toggle relative" aria-label={`Actions for ${user.username}`} aria-expanded={openMenu === user._id} aria-controls={`user-actions-${user._id}`} onClick={event => { menuTriggerRef.current = event.currentTarget; setOpenMenu(previous => previous === user._id ? null : user._id); }}><MoreVertical size={18} aria-hidden="true" />{hasNew(user._id) && <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-red-600" role="status" aria-label="New record activity" />}</button>
@@ -259,6 +261,10 @@ export default function UsersPage() {
           <label className="block">
             <span className="mb-1 block text-sm font-semibold text-slate-700">Division</span>
             <input id="user-division" aria-label="Division" value={form.division} readOnly className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2" placeholder="Division" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-semibold text-slate-700">Designation</span>
+            <input id="user-designation" aria-label="Designation" type="text" maxLength={150} value={form.position} onChange={event => setForm({ ...form, position: event.target.value })} className="w-full rounded-xl border border-slate-200 px-3 py-2" placeholder="Designation" />
           </label>
         </div>
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">

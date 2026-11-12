@@ -60,12 +60,18 @@ router.put('/:id', authenticate, validateAdminForm('iar'), authorize('canManageI
   const existing = await InspectionAcceptanceReport.findOne({ _id: req.params.id, deleted: false });
   if (!existing) return errorResponse(res, 'IAR not found', [], 404);
   let changedNumber = false;
+  let clearNumber = false;
   if (Object.hasOwn(payload, 'iarNumber')) {
     payload.iarNumber = String(payload.iarNumber ?? '').trim();
-    changedNumber = payload.iarNumber !== existing.iarNumber;
-    if (changedNumber && !isValidIarNumber(payload.iarNumber)) return errorResponse(res, iarNumberError().message, [], 400);
-    // Older formatted numbers remain intact when correcting other details.
-    if (!changedNumber) delete payload.iarNumber;
+    if (!payload.iarNumber) {
+      clearNumber = Boolean(existing.iarNumber);
+      delete payload.iarNumber;
+    } else {
+      changedNumber = payload.iarNumber !== existing.iarNumber;
+      if (changedNumber && !isValidIarNumber(payload.iarNumber)) return errorResponse(res, iarNumberError().message, [], 400);
+      // Older formatted numbers remain intact when correcting other details.
+      if (!changedNumber) delete payload.iarNumber;
+    }
   }
   delete payload.autoNumber;
   if (existing.status === 'LOGGED_TO_STOCKS' && payload.items) {
@@ -80,7 +86,7 @@ router.put('/:id', authenticate, validateAdminForm('iar'), authorize('canManageI
   try {
     const update = session => InspectionAcceptanceReport.findOneAndUpdate(
       { _id: req.params.id, deleted: false },
-      payload,
+      clearNumber ? { $set: payload, $unset: { iarNumber: 1 } } : payload,
       { returnDocument: 'after', runValidators: true, ...(session ? { session } : {}) },
     );
     report = changedNumber ? await mongoose.connection.transaction(async session => {
