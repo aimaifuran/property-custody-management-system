@@ -110,6 +110,12 @@ router.patch('/:id/records/:risId/:itemId', authenticate, adminOnly, async (req,
     inventory.propertyNumber = nextPropertyNumber;
     await inventory.save();
   }
+  // PPE station groups use the accountability's property number for issued items,
+  // so keep it in sync with the edited Property Records value.
+  if (ownedAsset && ownedAsset.propertyNumber !== nextPropertyNumber) {
+    ownedAsset.propertyNumber = nextPropertyNumber;
+    await ownedAsset.save();
+  }
 
   item.description = nextDescription;
   ris.lastEditedAt = new Date();
