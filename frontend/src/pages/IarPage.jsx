@@ -194,7 +194,7 @@ export default function IarPage() {
         if (key === 'isPpe') {
           items[index] = {
             ...items[index],
-            ...(value ? { itemType: 'ASSET', quantity: 1, acceptedQuantity: 1 } : { inventoryItemNo: '' })
+            ...(value ? { itemType: 'ASSET', quantity: 1, acceptedQuantity: 1 } : { inventoryItemNo: '', serialNumber: '', serialNumbers: [] })
           };
         }
         if (['quantity', 'serialNumber'].includes(key)) {
@@ -538,7 +538,7 @@ export default function IarPage() {
                       {['inventoryItemNo', 'propertyPlantAndEquipment', 'description', 'serialNumber', 'unit'].map((key) =>
                         <td className="p-1.5" key={key}>
                           {issueMode ? formNumberValue(key, item[key]) ?? '' : key === 'propertyPlantAndEquipment' ? <SearchInput aria-label="Property, Plant and Equipment" placeholder="Search or enter new item" value={formNumberValue(key, item[key]) ?? ''} options={stockItemNames([...stockItems, ...form.items.map(row => ({ name: row.propertyPlantAndEquipment }))]).map(name => ({ value: name, label: name }))} onChange={value => updateItem(index, key, value)} onSelect={option => selectStock(index, option.label)} className="w-full rounded-xl border border-slate-200 px-2 py-2" /> :
-                            <input disabled={issueMode || (key === 'inventoryItemNo' && !item.isPpe) || (key === 'serialNumber' && Number(item.quantity) > 1)} required={key === 'inventoryItemNo' ? Boolean(item.isPpe) : !['serialNumber'].includes(key) && hasRowData(item, emptyItem())} aria-label={key === 'inventoryItemNo' ? 'Inventory Item No.' : key === 'serialNumber' ? 'Serial Number' : key} value={formNumberValue(key, item[key]) ?? ''} onChange={event => updateItem(index, key, event.target.value)} className={`w-full rounded-lg border border-slate-200 px-2 py-1.5 disabled:bg-slate-100 disabled:text-slate-600 ${(key === 'inventoryItemNo' && !item.isPpe) || (key === 'serialNumber' && Number(item.quantity) > 1) ? 'pointer-events-none' : ''}`} />}
+                            <input disabled={issueMode || (key === 'inventoryItemNo' && !item.isPpe) || (key === 'serialNumber' && (!item.isPpe || Number(item.quantity) > 1))} required={key === 'inventoryItemNo' ? Boolean(item.isPpe) : !['serialNumber'].includes(key) && hasRowData(item, emptyItem())} aria-label={key === 'inventoryItemNo' ? 'Inventory Item No.' : key === 'serialNumber' ? 'Serial Number' : key} value={formNumberValue(key, item[key]) ?? ''} onChange={event => updateItem(index, key, event.target.value)} className={`w-full rounded-lg border border-slate-200 px-2 py-1.5 disabled:bg-slate-100 disabled:text-slate-600 ${(key === 'inventoryItemNo' && !item.isPpe) || (key === 'serialNumber' && (!item.isPpe || Number(item.quantity) > 1)) ? 'pointer-events-none' : ''}`} />}
                         </td>
                       )}
                       <td className="p-1.5">
