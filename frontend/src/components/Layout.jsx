@@ -20,7 +20,8 @@ const issueItems = [
 ];
 
 const reportItems = [
-  { to: '/reports/ppe-list', label: 'List of PPEs', icon: ClipboardList, permissions: ['canViewDashboard'] },
+  { to: '/reports/ppe-list/serviceable', label: 'List of PPEs - Serviceable', icon: ClipboardList, permissions: ['canViewDashboard'] },
+  { to: '/reports/ppe-list/unserviceable', label: 'List of PPEs - Unserviceable', icon: ClipboardList, permissions: ['canViewDashboard'] },
   { to: '/reports/monthly', label: 'Monthly Reports', icon: CalendarDays, permissions: ['canViewDashboard'] },
   { to: '/historical-records', label: 'Historical Records', icon: History, permissions: [], adminOnly: true },
 ];
@@ -129,7 +130,7 @@ export default function Layout() {
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('registration-updated', refresh); };
   }, [user?._id, user?.role]);
   const [issueOpen, setIssueOpen] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(() => reportItems.some(item => location.pathname === item.to));
+  const [reportsOpen, setReportsOpen] = useState(() => reportItems.some(item => location.pathname === item.to) || location.pathname === '/reports/ppe-list');
   const sidebarNavRef = useRef(null);
   const reportsGroupRef = useRef(null);
   const revealReportButtons = () => {

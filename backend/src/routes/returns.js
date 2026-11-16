@@ -104,6 +104,7 @@ router.post('/:id/confirm', authenticate, authorize('canManageInventory'), async
         if (!['Serviceable', 'Unserviceable'].includes(condition)) throw new Error('Select Serviceable or Unserviceable');
         entry.condition = condition;
       }
+      if (pending.items.some(entry => entry.condition === 'Unserviceable')) pending.purpose = 'Disposal';
       pending.status = 'RETURNED'; pending.pendingKey = undefined;
       pending.returnedTo = returnedToSignatory(req.body.returnedTo, {
         name: pending.returnedTo?.name || name,

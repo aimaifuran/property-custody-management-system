@@ -54,6 +54,8 @@ const permissionRoutes = {
   '/dashboard': 'canViewDashboard',
   '/reports/monthly': 'canViewDashboard',
   '/reports/ppe-list': 'canViewDashboard',
+  '/reports/ppe-list/serviceable': 'canViewDashboard',
+  '/reports/ppe-list/unserviceable': 'canViewDashboard',
   '/historical-records': 'adminOnly',
   '/suppliers': ['canViewSuppliers', 'canManageSuppliers'],
   '/ris': 'adminOnly',
@@ -84,8 +86,6 @@ function AppRoutes() {
         </Route>
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/about" element={<Navigate to="/user-manual" replace />} />
-          <Route path="/reports/ppe-list/serviceable" element={<Navigate to="/reports/ppe-list" replace />} />
-          <Route path="/reports/ppe-list/unserviceable" element={<Navigate to="/reports/ppe-list" replace />} />
           <Route path="/my-ris" element={<Navigate to="/ris" replace />} />
           <Route path="/issued-items" element={<Navigate to="/ris?view=issued" replace />} />
           <Route path="/my-requests" element={<Navigate to="/ris" replace />} />
@@ -96,6 +96,8 @@ function AppRoutes() {
               '/dashboard': DashboardPage,
               '/reports/monthly': MonthlyItemsReportPage,
               '/reports/ppe-list': PpeStationReportPage,
+              '/reports/ppe-list/serviceable': PpeStationReportPage,
+              '/reports/ppe-list/unserviceable': PpeStationReportPage,
               '/historical-records': HistoricalRecordsPage,
               '/suppliers': SuppliersPage,
               '/ris': RisPage,

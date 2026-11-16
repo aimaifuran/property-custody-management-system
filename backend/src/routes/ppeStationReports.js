@@ -9,15 +9,17 @@ const { SAVED_REPORT_SORT } = require('../utils/savedReportOrder');
 const router = express.Router();
 const signatoryFields = ['preparedBy', 'preparedDesignation', 'reviewedBy', 'reviewedDesignation'];
 const defaults = { preparedBy: 'RALPH M. SAVERET JR.', preparedDesignation: 'Property Personnel', reviewedBy: 'ATTY. LEO L. PRUEL', reviewedDesignation: 'Head Property Unit' };
-const fields = ['accountGroup', 'governmentUnit', 'date', 'rows', ...signatoryFields];
+const fields = ['condition', 'accountGroup', 'governmentUnit', 'date', 'rows', ...signatoryFields];
 router.use(authenticate, adminOnly);
 router.get('/item-groups', async (req, res) => {
-  const [inventories, accounts, issuedGroups] = await Promise.all([
+  const [inventories, accounts, issuedGroups, returnedSlips] = await Promise.all([
     require('../models/Inventory').find({ deleted: false }).populate('item').populate('property', 'condition').sort({ createdAt: 1, _id: 1 }).lean(),
     require('../models/PropertyAccountability').find({ deleted: false, active: true }).populate('user', 'firstName middleName lastName username').populate('offlineRecipient', 'name').lean(),
     require('../utils/issuedItems')(),
+    require('../models/PropertyReturnSlip').find({ deleted: false, status: 'RETURNED' })
+      .populate({ path: 'items.accountability', populate: [{ path: 'inventory', populate: { path: 'item' } }, { path: 'user', select: 'firstName middleName lastName username' }, { path: 'offlineRecipient', select: 'name' }] }).lean(),
   ]);
-  return successResponse(res, 'PPE item groups retrieved', require('../utils/stationPpeGroups')(inventories, accounts, issuedGroups));
+  return successResponse(res, 'PPE item groups retrieved', require('../utils/stationPpeGroups')(inventories, accounts, issuedGroups, returnedSlips));
 });
 router.get('/', async (req, res) => {
   const [records, settings] = await Promise.all([Report.find().sort(SAVED_REPORT_SORT).lean(), Setting.findOne().sort({ createdAt: 1 }).lean()]);

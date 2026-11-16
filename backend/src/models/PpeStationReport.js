@@ -9,6 +9,7 @@ const row = new mongoose.Schema({
   remarks: { type: String, maxlength: 300 },
 }, { _id: false });
 const schema = new mongoose.Schema({
+  condition: { type: String, enum: ['Serviceable', 'Unserviceable'], default: 'Serviceable' },
   accountGroup: { type: String, required: true, trim: true, maxlength: 200 },
   governmentUnit: { type: String, required: true, maxlength: 300 },
   date: { type: String, required: true },

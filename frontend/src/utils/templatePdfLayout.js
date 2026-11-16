@@ -283,7 +283,7 @@ function drawSignaturePanels(page, fonts, layout, options) {
   panels.forEach((panel, index) => {
     const statement = `${index ? 'I HEREBY CERTIFY THAT I RETURNED THIS UNIT/ITEM ON' : 'I HEREBY CERTIFY THAT I HAVE RECEIVED THE ITEM/UNIT THIS'} ${options.certificationDates?.[index] || '____________'}`;
     tableLines(page, fonts.regular, wrapTemplateText(statement, fonts.regular, panel.width - 12), { x: panel.x, y: layout.bottom - 50, width: panel.width, height: 50 }, { ...options, section: 'certification statement' }, 'center');
-    drawValue(page, fonts.regular, index ? 'RECEIVED FROM:' : 'RETURNED TO:', { x: panel.x + 10, y: layout.bottom - 65, width: panel.width - 20, height: 12 }, { ...options, section: 'certification caption' }, 'center');
+    drawValue(page, fonts.regular, index ? 'RECEIVED FROM:' : 'RECEIVED TO:', { x: panel.x + 10, y: layout.bottom - 65, width: panel.width - 20, height: 12 }, { ...options, section: 'certification caption' }, 'center');
     if (index) drawValue(page, fonts.regular, 'RETURNED BY:', { x: panel.x + 10, y: layout.bottom - 108, width: panel.width - 20, height: 12 }, { ...options, section: 'certification caption' }, 'center');
     drawValue(page, fonts.regular, 'THE ITEMS/ARTICLES DESCRIBED ABOVE', { x: panel.x + 10, y: layout.bottom - 124, width: panel.width - 20, height: 12 }, { ...options, section: 'certification caption' }, 'center');
   });

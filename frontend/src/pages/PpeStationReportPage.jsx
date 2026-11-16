@@ -12,6 +12,7 @@ import Skeleton from '../components/Skeleton';
 import { PageSkeleton } from '../components/Skeleton';
 import TableScroll from '../components/TableScroll';
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Eye, Save, X } from 'lucide-react';
@@ -27,13 +28,17 @@ const signatoryFields = ['preparedBy', 'preparedDesignation', 'reviewedBy', 'rev
 const inputColumnWidths = { article: 11, description: 24, propertyNumber: 14, accountablePerson: 17, unitCost: 10, totalCost: 10, remarks: 14 };
 const getStationPpePdf = createFormPdfCache(({ details }) => buildStationPpePdf(details));
 const blankRow = () => ({ article: '', description: '', propertyNumber: '', accountablePerson: '', unitCost: '', totalCost: '', remarks: '' });
-const blankForm = defaults => ({ accountGroup: '', governmentUnit: 'LOCAL GOVERNMENT UNIT OF CARIGARA', date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }), preparedBy: '', preparedDesignation: '', reviewedBy: '', reviewedDesignation: '', ...defaults, rows: [] });
+const blankForm = defaults => ({ condition: 'Serviceable', accountGroup: '', governmentUnit: 'LOCAL GOVERNMENT UNIT OF CARIGARA', date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }), preparedBy: '', preparedDesignation: '', reviewedBy: '', reviewedDesignation: '', ...defaults, rows: [] });
+const matchesCondition = (row, condition) => condition === 'Unserviceable'
+  ? String(row.remarks || '').trim().toLowerCase() === 'unserviceable'
+  : String(row.remarks || '').trim().toLowerCase() !== 'unserviceable';
 
 export default function PpeStationReportPage() {
-  const reportTitle = 'List of PPEs';
+  const location = useLocation();
   const { user } = useAuth();
   const canEdit = user?.role === 'admin';
   const [form, setForm] = useState(() => blankForm({}));
+  const reportTitle = `List of PPEs - ${form.condition}`;
   const defaults = useRef({});
   const [records, setRecords] = useState([]);
   const [itemGroups, setItemGroups] = useState([]);
@@ -50,15 +55,21 @@ export default function PpeStationReportPage() {
   const [perPage, setPerPage] = useState(5);
   const [search, setSearch] = useState('');
   const [recentlySavedId, setRecentlySavedId] = useState(null);
-  const filteredReports = sortSavedReports(filterReportsByPoAndItem(records, search));
+  const routeCondition = location.pathname.endsWith('/unserviceable') ? 'Unserviceable' : 'Serviceable';
+  const filteredReports = sortSavedReports(filterReportsByPoAndItem(records.filter(record => (record.condition || 'Serviceable') === routeCondition), search));
   useSavedReportPage(filteredReports, recentlySavedId, perPage, setPage);
+  useEffect(() => {
+    setPage(1);
+    setEditingId(null);
+    setForm(previous => ({ ...previous, condition: routeCondition, accountGroup: '', rows: [] }));
+  }, [routeCondition]);
   const dirtySignatories = useRef({});
   const rememberQueue = useRef(Promise.resolve());
   const editor = useRef(null);
   useEffect(() => {
     const controller = new AbortController();
     axios.get('/ppe-station-reports', { signal: controller.signal }).then(({ data }) => {
-      defaults.current = data.data.defaults; setForm(blankForm(data.data.defaults)); setRecords(data.data.records); setLoading(false);
+      defaults.current = data.data.defaults; setForm({ ...blankForm(data.data.defaults), condition: routeCondition }); setRecords(data.data.records); setLoading(false);
     }).catch(err => { if (!controller.signal.aborted) { setError(err.response?.data?.message || 'Unable to load PPE reports.'); setLoading(false); } });
     return () => controller.abort();
   }, []);
@@ -72,9 +83,10 @@ export default function PpeStationReportPage() {
   }, []);
   const selectAccountGroup = value => {
     const query = value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
-    const exact = itemGroups.find(group => group.key === query);
-    const matches = query ? exact ? [exact] : itemGroups.filter(group => group.key.includes(query)) : [];
-    setForm(previous => ({ ...previous, accountGroup: value, rows: matches.flatMap(group => group.rows.map(row => ({ ...row }))) }));
+    const groupsForCondition = itemGroups.map(group => ({ ...group, rows: group.rows.filter(row => matchesCondition(row, routeCondition)) })).filter(group => group.rows.length);
+    const exact = groupsForCondition.find(group => group.key === query);
+    const matches = query ? exact ? [exact] : groupsForCondition.filter(group => group.key.includes(query)) : [];
+    setForm(previous => ({ ...previous, condition: routeCondition, accountGroup: value, rows: matches.flatMap(group => group.rows.map(row => ({ ...row }))) }));
   };
   const update = (key, value) => {
     if (signatoryFields.includes(key)) dirtySignatories.current[key] = value;
@@ -103,7 +115,7 @@ export default function PpeStationReportPage() {
       setRecords(previous => [data.data, ...previous.filter(record => record._id !== data.data._id)]);
       setRecentlySavedId(data.data._id);
       setSearch('');
-      setEditingId(null); setForm(blankForm(defaults.current));
+      setEditingId(null); setForm({ ...blankForm(defaults.current), condition: routeCondition });
       setEditorOpen(false);
       toast.success('List of PPEs saved');
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to save PPE report.'); }
@@ -114,7 +126,7 @@ export default function PpeStationReportPage() {
     if (mode === 'print' && !printWindow) return toast.error('Allow pop-ups to open the printable report.');
     setExporting(true);
     try {
-      const exportRecordData = { ...record, reportTitle };
+      const exportRecordData = { ...record, reportTitle: `List of PPEs - ${record.condition || 'Serviceable'}` };
       const url = URL.createObjectURL(new Blob([await getStationPpePdf({ type: 'PPE STATION', details: exportRecordData })], { type: 'application/pdf' }));
       if (mode === 'preview') setPreview(url);
       else if (mode === 'print') {
@@ -124,7 +136,7 @@ export default function PpeStationReportPage() {
         frame.onload = () => { try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch { /* The PDF viewer also includes a print control. */ } };
         printWindow.document.body.appendChild(frame); printWindow.addEventListener('beforeunload', () => URL.revokeObjectURL(url), { once: true });
       } else {
-        const link = document.createElement('a'); link.href = url; link.download = `List-of-PPEs-${record.accountGroup.replace(/[^a-zA-Z0-9_-]/g, '-')}-${record.date}.pdf`; link.click();
+        const link = document.createElement('a'); link.href = url; link.download = `List-of-PPEs-${record.condition || 'Serviceable'}-${record.accountGroup.replace(/[^a-zA-Z0-9_-]/g, '-')}-${record.date}.pdf`; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       }
     } catch (err) { printWindow?.close(); toast.error(err.message || 'Unable to generate PPE report.'); }
@@ -136,11 +148,12 @@ export default function PpeStationReportPage() {
  return <div className="space-y-6">
     <FormRecordTabs label={reportTitle} recordsLabel="Saved Reports" showForm={editorOpen} onForm={() => setEditorOpen(true)} onRecords={() => setEditorOpen(false)} />
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    {!editorOpen && (<section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader title={reportTitle} searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-4 space-y-3">{!loading && filteredReports.length === 0 && <p className="text-sm text-slate-500">No PPE lists saved yet.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><NewFormBadge record={record} /><div><div className="font-semibold">{record.accountGroup}</div><div className="text-xs text-slate-600">{stationDate(record.date)} | {record.rows.length} PPE rows</div></div><div className="flex gap-2">{canEdit && <RecordActionButton action="edit" onClick={() => edit(record)} />}<RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>)}
+    {!editorOpen && (<section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader title={`List of PPEs - ${routeCondition}`} searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-4 space-y-3">{!loading && filteredReports.length === 0 && <p className="text-sm text-slate-500">No {routeCondition.toLowerCase()} PPE lists saved yet.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><NewFormBadge record={record} /><div><div className="font-semibold">{record.accountGroup}</div><div className="text-xs text-slate-600">{stationDate(record.date)} | {record.rows.length} PPE rows</div></div><div className="flex gap-2">{canEdit && <RecordActionButton action="edit" onClick={() => edit(record)} />}<RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /><RecordActionButton action="print" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'print')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} /></div></section>)}
     {loading ? <Skeleton className="h-4 w-20" /> : canEdit && editorOpen && !error && <ValidatedForm ref={editor} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ppe-station-form">
       <FormEditorHeader title={reportTitle} description="Record office equipment and the person accountable for each item." onClose={() => setEditorOpen(false)} />
       <p className="text-center text-sm">Republic of the Philippines</p><div className="my-2">{field('governmentUnit', 'Local Government Unit', 'text', true)}</div>
-      <div className="grid gap-3 sm:grid-cols-2"><FormField className="block text-sm"><span className="mb-1 block font-semibold">PPE Account Group <span className="text-red-600" aria-hidden="true">*</span></span><SearchInput aria-label="PPE Account Group" required disabled={groupsLoading || !!groupsError} maxLength={200} value={form.accountGroup} options={itemGroups.map(group => ({ value: group.key, label: group.name }))} onChange={selectAccountGroup} placeholder={groupsLoading ? 'Loading item groups…' : 'Search an item, e.g. Printer'} className="w-full border px-2 py-1" /></FormField>{field('date', 'Date', 'date', true)}</div>
+      <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">List of PPEs - {routeCondition}</p>
+      <div className="grid gap-3 sm:grid-cols-2"><FormField className="block text-sm"><span className="mb-1 block font-semibold">PPE Account Group <span className="text-red-600" aria-hidden="true">*</span></span><SearchInput aria-label="PPE Account Group" required disabled={groupsLoading || !!groupsError} maxLength={200} value={form.accountGroup} options={itemGroups.filter(group => group.rows.some(row => matchesCondition(row, routeCondition))).map(group => ({ value: group.key, label: group.name }))} onChange={selectAccountGroup} placeholder={groupsLoading ? 'Loading item groups…' : 'Search an item, e.g. Printer'} className="w-full border px-2 py-1" /></FormField>{field('date', 'Date', 'date', true)}</div>
       {groupsError && <p role="alert" className="mt-2 text-sm text-rose-700">{groupsError}</p>}
       {form.accountGroup.trim() && <p role="status" className="mt-2 text-sm text-slate-600">{form.rows.length ? `${form.rows.length} records in this PPE group.` : 'No matching equipment records found.'}</p>}
       <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{STATION_PPE_COLUMNS.map(([key]) => <col key={key} style={{ width: `${inputColumnWidths[key] * 0.95}%` }} />)}</colgroup><thead><tr>{STATION_PPE_COLUMNS.map(([key, label]) => <th key={key}>{label} {!['remarks', 'unitCost', 'totalCost'].includes(key) && <span className="required-marker text-red-600" aria-hidden="true">*</span>}</th>)}</tr></thead><tbody>{form.rows.map((row, index) => <tr key={index}>{STATION_PPE_COLUMNS.map(([key, label]) => <td key={key}><div aria-label={`${label}, row ${index + 1}`} className={`min-h-9 whitespace-pre-wrap break-words px-2 py-2 ${['unitCost', 'totalCost'].includes(key) ? 'text-center tabular-nums' : ''}`}>{['unitCost', 'totalCost'].includes(key) ? stationMoney(row[key]) : formNumberValue(key, row[key]) || ''}</div></td>)}</tr>)}</tbody></table></TableScroll>

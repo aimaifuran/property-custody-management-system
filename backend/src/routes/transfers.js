@@ -18,7 +18,7 @@ const Inventory = require('../models/Inventory');
 const { accountName } = require('../utils/accountLinks');
 const { notifyUsers, notifyAdmins } = require('../utils/workflowNotifications');
 const reassignAccountability = require('../utils/reassignAccountability');
-const { isDisposalReturn } = require('../utils/returnPurpose');
+const { isDisposalReturn, isRepairReturn } = require('../utils/returnPurpose');
 const visiblePropertyNumber = value => {
   const number = String(value || '').trim();
   return /^P-[a-f0-9]{24}$/i.test(number) ? '' : number.replace(/~[a-f0-9]{24}$/i, '');
@@ -34,7 +34,7 @@ const resolveReturnSlipItem = async (returnSlipId, returnSlipItemId, session = n
   }).session(session);
   const line = slip?.items.id(returnSlipItemId);
   if (!slip || !line) throw Object.assign(new Error('The saved PRS item is unavailable'), { status: 404 });
-  if (isDisposalReturn(slip)) throw Object.assign(new Error('PRS items marked for disposal cannot be transferred'), { status: 409, code: 'TRANSFER_SOURCE_UNAVAILABLE' });
+  if (isDisposalReturn(slip) || isRepairReturn(slip)) throw Object.assign(new Error('PRS items marked for disposal or repair cannot be transferred'), { status: 409, code: 'TRANSFER_SOURCE_UNAVAILABLE' });
 
   const [accountability, ris, returnedBy] = await Promise.all([
     line.accountability ? Accountability.findById(line.accountability).populate('inventory').session(session) : null,
@@ -186,7 +186,7 @@ router.get('/return-item-drafts', authenticate, authorize('canManageInventory'),
   const alreadyDrafted = new Set(savedReports.flatMap(report => report.items.map(item => `${item.returnSlip}:${item.returnSlipItem}`)));
   const drafts = [];
   for (const slip of slips) {
-    if (isDisposalReturn(slip)) continue;
+    if (isDisposalReturn(slip) || isRepairReturn(slip)) continue;
     for (const line of slip.items) {
       const key = `${slip._id}:${line._id}`;
       if (alreadyDrafted.has(key)) continue;
