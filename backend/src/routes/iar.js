@@ -65,6 +65,12 @@ router.put('/:id', authenticate, validateAdminForm('iar'), authorize('canManageI
   if (payload.items && !Array.isArray(payload.items)) return errorResponse(res, 'Enter at least one received item', [], 400);
   const existing = await InspectionAcceptanceReport.findOne({ _id: req.params.id, deleted: false });
   if (!existing) return errorResponse(res, 'IAR not found', [], 404);
+  if (payload.issueIar) {
+    const requiredHeaderFields = ['poDate', 'iarNumber', 'iarDate', 'invoiceNumber', 'invoiceDate'];
+    const missingHeaderFields = requiredHeaderFields.filter(field => !String(payload[field] ?? existing[field] ?? '').trim());
+    if (missingHeaderFields.length) return errorResponse(res, `Complete the required IAR fields: ${missingHeaderFields.join(', ')}.`, [], 400);
+  }
+  delete payload.issueIar;
   let changedNumber = false;
   let clearNumber = false;
   if (Object.hasOwn(payload, 'iarNumber')) {

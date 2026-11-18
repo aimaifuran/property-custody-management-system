@@ -15,6 +15,13 @@ module.exports = function stationPpeGroups(inventories, accounts, issuedGroups =
     byInventory.set(key, rows);
   }
   for (const inventory of inventories) {
+    const iar = inventory.inspectionAcceptanceReport;
+    if (iar && typeof iar === 'object' && Array.isArray(iar.items)) {
+      const inventoryId = String(inventory._id);
+      const receiptLine = iar.items.find(entry => String(entry.inventory?._id || entry.inventory || '') === inventoryId
+        || (entry.inventories || []).some(id => String(id?._id || id) === inventoryId));
+      if (!receiptLine || !(receiptLine.isPpe ?? Boolean(String(receiptLine.inventoryItemNo || '').trim()))) continue;
+    }
     const item = inventory.item;
     if (!item || item.deleted) continue;
     const name = item.name?.trim() || (normalize(item.category) !== 'general' && item.category?.trim()) || item.description;

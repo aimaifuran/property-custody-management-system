@@ -305,6 +305,7 @@ export default function IarPage() {
         if (saving) return;
         const payload = {
             ...form,
+            ...(issueMode ? { issueIar: true } : {}),
             iarNumber: form.iarNumber.trim(),
             ...(form.acceptanceStatus === 'Partial' ? { acceptanceQuantity: form.items.reduce((sum, item) => sum + Number(item.acceptedQuantity || 0), 0) } : {}),
             items: form.items.filter(item => hasRowData(item, emptyItem())).map((item) => {
@@ -381,8 +382,8 @@ export default function IarPage() {
             title: 'Enter a 3 or 4 digit IAR number',
             autoComplete: 'off'
         } : {};
-        const optional = ['poDate', 'iarNumber', 'iarDate', 'invoiceNumber', 'invoiceDate'].includes(key);
-        return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput disabled={disabled} required={!optional && (key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial')} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR No.' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 disabled:bg-slate-100 disabled:text-slate-600" /></FormField>;
+        const required = issueMode && ['poDate', 'iarNumber', 'iarDate', 'invoiceNumber', 'invoiceDate'].includes(key);
+        return <FormField className="block"><span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span><DateInput disabled={disabled} required={required || (key !== 'acceptanceQuantity' || form.acceptanceStatus === 'Partial')} aria-label={label} type={type} {...numberProps} placeholder={key === 'iarNumber' ? 'Enter IAR No.' : `Enter ${label.toLowerCase()}`} value={form[key] || ''} onChange={(e) => update(key, e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 disabled:bg-slate-100 disabled:text-slate-600" /></FormField>;
     };
 
     function formatDate(date) {
@@ -525,6 +526,7 @@ export default function IarPage() {
             save(event);
           }} onKeyDown={handleIarEnter} aria-busy={saving} inert={saving ? true : undefined} onInvalidCapture={event => { const message = `${event.target.getAttribute('aria-label') || 'Required field'}: ${event.target.validationMessage}`; setSaveError(message); toast.error(message, { id: 'iar-save-validation' }); }} className="form-document form-frame scroll-mt-6 p-6">
             <FormEditorHeader title="Inspection and Acceptance Report" description={editingId ? 'Editing an existing IAR. Its linked Property Card, RIS, and ICS/PAR records are not recalculated.' : 'Saving an IAR records received stock. Property Card history is created when an item is issued to a user.'} onClose={() => { cancelEdit(); setEditorOpen(false); scrollToRecords(); }} />
+            {issueMode && <p className="mb-2 text-sm text-slate-600"><span className="required-marker mr-1 text-red-600" aria-hidden="true">*</span>Required when issuing the IAR.</p>}
             <div className="grid gap-3 md:grid-cols-3">
               {field('Entity Name', 'entityName')}
               <FundClusterField disabled={issueMode} value={form.fundCluster} onChange={(value) => update('fundCluster', value)} />

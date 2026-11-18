@@ -29,15 +29,19 @@ export default function MonthlyItemsReportPage() {
   const [form, setForm] = useState(() => withCurrentDates(emptyReport));
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
+  const manualRefreshPending = useRef(false);
   const dirty = useRef(false);
   const editor = useRef(null);
   useEffect(() => {
     const controller = new AbortController();
     let busy = false;
     const load = async () => {
-      if (busy || document.hidden) return;
+      const manual = manualRefreshPending.current;
+      manualRefreshPending.current = false;
+      if (busy || (!manual && document.hidden)) return;
       busy = true;
       try {
         const { data } = await axios.get('/monthly-item-reports', { params: { month }, signal: controller.signal });
@@ -56,7 +60,10 @@ export default function MonthlyItemsReportPage() {
         setError(''); setLoading(false);
       } catch (err) {
         if (!controller.signal.aborted) { setError(err.response?.data?.message || 'Unable to load recorded items.'); setLoading(false); }
-      } finally { busy = false; }
+      } finally {
+        busy = false;
+        if (manual) setRefreshing(false);
+      }
     };
     load();
     const interval = setInterval(load, 30000);
@@ -64,7 +71,18 @@ export default function MonthlyItemsReportPage() {
     document.addEventListener('visibilitychange', load);
     return () => { controller.abort(); clearInterval(interval); window.removeEventListener('focus', load); document.removeEventListener('visibilitychange', load); };
   }, [month, refresh]);
-  const selectMonth = value => { dirty.current = false; setLoading(true); if (value === month) setRefresh(previous => previous + 1); else setMonth(value); };
+  const selectMonth = value => {
+    dirty.current = false;
+    setLoading(true);
+    if (value === month) { manualRefreshPending.current = true; setRefreshing(true); setRefresh(previous => previous + 1); }
+    else setMonth(value);
+  };
+  const refreshReport = () => {
+    if (refreshing) return;
+    manualRefreshPending.current = true;
+    setRefreshing(true);
+    setRefresh(previous => previous + 1);
+  };
   const update = (key, value) => { if (['custodian', 'accountingStaff'].includes(key)) saveStickySignatory(key, { name: value }, 'name'); dirty.current = true; setForm(previous => ({ ...previous, [key]: value })); };
   const exportRecord = async (record, mode) => {
     const printWindow = mode === 'print' ? window.open('', '_blank') : null;
@@ -96,7 +114,7 @@ export default function MonthlyItemsReportPage() {
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
     {loading ? <Skeleton className="h-4 w-20" /> : !error && <ValidatedForm ref={editor} onSubmit={event => event.preventDefault()} className="form-document form-frame ppe-list-form">
       <FormEditorHeader title="Monthly Items Report" description={`${PPE_TITLE} · ${ppePeriod(form)}`} />
-      <div className="monthly-report-month-controls"><FormField className="text-sm font-semibold"><span>Month</span><input type="month" min="2000-01" max="2100-12" value={month} onChange={event => { if (event.target.value) selectMonth(event.target.value); }} className="mt-1 block rounded-lg border bg-white px-3 py-2" /></FormField><button type="button" disabled={loading} onClick={() => setRefresh(value => value + 1)} className="rounded-lg border bg-white p-2" aria-label="Refresh recorded items"><RefreshCw size={18} /></button></div>
+      <div className="monthly-report-month-controls"><FormField className="text-sm font-semibold"><span>Month</span><input type="month" min="2000-01" max="2100-12" value={month} onChange={event => { if (event.target.value) selectMonth(event.target.value); }} className="mt-1 block rounded-lg border bg-white px-3 py-2" /></FormField><button type="button" disabled={loading || refreshing} onClick={refreshReport} className="rounded-lg border bg-white p-2 disabled:cursor-wait disabled:opacity-60" aria-label="Refresh recorded items" aria-busy={refreshing}><RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} /></button></div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{field('lgu', 'LGU', 'text', true)}{field('fund', 'Fund', 'text', false)}{field('serialNumber', 'Serial No.', 'text', true)}{field('reportDate', 'Date', 'date', true)}</div>
       <TableScroll className="mt-4 overflow-x-auto"><table className="ppe-input-table w-full min-w-[900px] table-fixed border-collapse text-xs"><colgroup>{PPE_COLUMNS.map(([key, , width]) => <col key={key} style={{ width: `${width}%` }} />)}</colgroup><thead><tr><th colSpan={6}>To be filled up by the Supply and/or Property Division/Unit</th><th colSpan={2}>To be filled up by the Accounting Division/Unit</th></tr><tr>{PPE_COLUMNS.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead><tbody>{form.rows.length === 0 ? <tr><td colSpan={8} className="py-6">No recorded items for the selected month.</td></tr> : form.rows.map((row, index) => <tr key={`${row.source}-${row.sourceId}-${row.sourceRow ?? index}`}>{PPE_COLUMNS.map(([key]) => <td key={key} className={`break-words ${['unitCost', 'amount'].includes(key) ? 'text-right tabular-nums' : ''}`} title={key === 'item' ? `${row.source}: ${row.sourceNumber || 'Recorded item'}` : undefined}>{['unitCost', 'amount'].includes(key) ? row[key === 'amount' ? 'totalCost' : key] ?? '' : key === 'responsibilityCenter' && ['-', '—'].includes(String(row[key] || '').trim()) ? '' : formNumberValue(key, row[key])}</td>)}</tr>)}</tbody><tfoot><tr><td colSpan={5} /><th>TOTAL</th><td /><td>{form.rows.length ? ppeTotal(form.rows) : ''}</td></tr></tfoot></table></TableScroll>
