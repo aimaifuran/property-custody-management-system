@@ -16,7 +16,7 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { PDFDocument } from 'pdf-lib';
-import { Eye, RefreshCw, Save, X } from 'lucide-react';
+import { Eye, Save, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import RecordActionButton from '../components/RecordActionButton';
 import Pagination from '../components/Pagination';
@@ -57,7 +57,6 @@ export default function PpeStationReportPage() {
   const [search, setSearch] = useState('');
   const [recentlySavedId, setRecentlySavedId] = useState(null);
   const [selectedReportIds, setSelectedReportIds] = useState([]);
-  const [refreshingReports, setRefreshingReports] = useState(false);
   const routeCondition = location.pathname.endsWith('/unserviceable') ? 'Unserviceable' : 'Serviceable';
   const filteredReports = sortSavedReports(filterReportsByPoAndItem(records.filter(record => (record.condition || 'Serviceable') === routeCondition), search));
   const selectedReports = filteredReports.filter(record => selectedReportIds.includes(record._id));
@@ -127,17 +126,6 @@ export default function PpeStationReportPage() {
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to save PPE report.'); }
     finally { setSaving(false); }
   };
-  const refreshReports = async () => {
-    if (refreshingReports) return;
-    setRefreshingReports(true);
-    try {
-      const { data } = await axios.get('/ppe-station-reports');
-      setRecords(data.data.records || []);
-      toast.success('Saved PPE reports refreshed');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Unable to refresh saved PPE reports.');
-    } finally { setRefreshingReports(false); }
-  };
   const printReports = async selected => {
     if (!selected.length) return;
     const printWindow = window.open('', '_blank');
@@ -183,7 +171,7 @@ export default function PpeStationReportPage() {
  return <div className="space-y-6">
     <FormRecordTabs label={reportTitle} recordsLabel="Saved Reports" showForm={editorOpen} onForm={() => setEditorOpen(true)} onRecords={() => setEditorOpen(false)} />
     {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-    {!editorOpen && (<section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader title={`List of PPEs - ${routeCondition}`} searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-3 flex justify-end"><button type="button" onClick={refreshReports} disabled={refreshingReports} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50"><RefreshCw size={15} className={refreshingReports ? 'animate-spin' : ''} />{refreshingReports ? 'Refreshing…' : 'Refresh reports'}</button></div><div className="mt-4 space-y-3">{!loading && filteredReports.length === 0 && <p className="text-sm text-slate-500">No {routeCondition.toLowerCase()} PPE lists saved yet.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" aria-label={`Select ${record.accountGroup} PPE report for printing`} checked={selectedReportIds.includes(record._id)} disabled={exporting} onChange={event => setSelectedReportIds(previous => event.target.checked ? [...new Set([...previous, record._id])] : previous.filter(id => id !== record._id))} /><span>Select</span></label><div><div className="font-semibold">{record.accountGroup}</div><div className="text-xs text-slate-600">{stationDate(record.date)} | {record.rows.length} PPE rows</div></div></div><NewFormBadge record={record} /><div className="flex gap-2">{canEdit && <RecordActionButton action="edit" onClick={() => edit(record)} />}<RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} rightContent={<><label className="flex items-center gap-1 whitespace-nowrap"><input type="checkbox" aria-label="Select all printable PPE reports" checked={allSelectableReportsSelected} disabled={!selectableReportIds.length || exporting} onChange={event => setSelectedReportIds(previous => event.target.checked ? [...new Set([...previous, ...selectableReportIds])] : previous.filter(id => !selectableReportIds.includes(id)))} /><span>Select all</span></label><button type="button" disabled={exporting || !selectedReports.length} onClick={() => printReports(selectedReports)} className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{exporting ? 'Preparing…' : `Print selected (${selectedReports.length})`}</button></>} /></div></section>)}
+    {!editorOpen && (<section className="saved-records rounded-2xl border bg-white p-5"><SavedReportsHeader title={`List of PPEs - ${routeCondition}`} searchPlaceholder="Search PO/JO No. or item name" search={search} onSearch={value => { setSearch(value); setPage(1); }} perPage={perPage} onPerPage={value => { setPerPage(value); setPage(1); }}></SavedReportsHeader><div className="mt-4 space-y-3">{!loading && filteredReports.length === 0 && <p className="text-sm text-slate-500">No {routeCondition.toLowerCase()} PPE lists saved yet.</p>}{filteredReports.slice((page - 1) * perPage, page * perPage).map(record => <div key={record._id} className="saved-record flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" aria-label={`Select ${record.accountGroup} PPE report for printing`} checked={selectedReportIds.includes(record._id)} disabled={exporting} onChange={event => setSelectedReportIds(previous => event.target.checked ? [...new Set([...previous, record._id])] : previous.filter(id => id !== record._id))} /><span>Select</span></label><div><div className="font-semibold">{record.accountGroup}</div><div className="text-xs text-slate-600">{stationDate(record.date)} | {record.rows.length} PPE rows</div></div></div><NewFormBadge record={record} /><div className="flex gap-2">{canEdit && <RecordActionButton action="edit" onClick={() => edit(record)} />}<RecordActionButton action="pdf" busy={exporting} disabled={exporting} onClick={() => exportRecord(record, 'download')} /></div></div>)}<Pagination showPageSize={false} page={page} pageCount={pageCount} perPage={perPage} onPageChange={setPage} onPerPageChange={value => { setPerPage(value); setPage(1); }} rightContent={<><label className="flex items-center gap-1 whitespace-nowrap"><input type="checkbox" aria-label="Select all printable PPE reports" checked={allSelectableReportsSelected} disabled={!selectableReportIds.length || exporting} onChange={event => setSelectedReportIds(previous => event.target.checked ? [...new Set([...previous, ...selectableReportIds])] : previous.filter(id => !selectableReportIds.includes(id)))} /><span>Select all</span></label><button type="button" disabled={exporting || !selectedReports.length} onClick={() => printReports(selectedReports)} className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{exporting ? 'Preparing…' : `Print selected (${selectedReports.length})`}</button></>} /></div></section>)}
     {loading ? <Skeleton className="h-4 w-20" /> : canEdit && editorOpen && !error && <ValidatedForm ref={editor} onSubmit={save} aria-busy={saving} inert={saving ? true : undefined} className="form-document form-frame ppe-station-form">
       <FormEditorHeader title={reportTitle} description="Record office equipment and the person accountable for each item." onClose={() => setEditorOpen(false)} />
       <p className="text-center text-sm">Republic of the Philippines</p><div className="my-2">{field('governmentUnit', 'Local Government Unit', 'text', true)}</div>
