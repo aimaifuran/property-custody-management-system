@@ -28,6 +28,7 @@ export default function PropertyRecordsPage() {
   const scrolledUserId = useRef('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const [printingAllRows, setPrintingAllRows] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -88,6 +89,11 @@ export default function PropertyRecordsPage() {
   useEffect(() => { setCurrentPage(1); }, [selectedUser]);
   useEffect(() => { if (currentPage > pageCount) setCurrentPage(pageCount); }, [currentPage, pageCount]);
   useEffect(() => {
+    const resetPrintRows = () => setPrintingAllRows(false);
+    window.addEventListener('afterprint', resetPrintRows);
+    return () => window.removeEventListener('afterprint', resetPrintRows);
+  }, []);
+  useEffect(() => {
     if (!selectedUser || loading || !records || scrolledUserId.current === String(selectedUser._id)) return;
     scrolledUserId.current = String(selectedUser._id);
     requestAnimationFrame(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -117,6 +123,10 @@ export default function PropertyRecordsPage() {
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to update this property record.');
     } finally { setSaving(false); }
+  };
+  const printAllRecords = () => {
+    setPrintingAllRows(true);
+    requestAnimationFrame(() => window.print());
   };
 
   return <div className="property-records-page space-y-5">
@@ -149,7 +159,7 @@ export default function PropertyRecordsPage() {
         {selectedUser && !loading && !error && records && <>
           <div ref={tableRef} className="scroll-mt-4">{rows.length ? <div style={{ minHeight: `${pageSize * 49 + 46}px` }}><TableScroll preserveTable className="overflow-x-auto"><table className="property-records-table w-full min-w-[760px] border-collapse text-sm">
             <thead><tr className="bg-slate-50 text-left text-slate-700"><th className="border border-slate-200 px-3 py-3">Property No.</th><th className="border border-slate-200 px-3 py-3">Item Name</th><th className="border border-slate-200 px-3 py-3">Description</th><th className="border border-slate-200 px-3 py-3">Date Requested</th><th className="border border-slate-200 px-3 py-3 text-right">Amount</th><th className="border border-slate-200 px-3 py-3 text-center">Action</th></tr></thead>
-            <tbody>{visibleRows.map((row, index) => <tr key={row.rowKey || `${row.risId}:${row.itemId}:${index}`} className="even:bg-slate-50/60">
+            <tbody>{(printingAllRows ? rows : visibleRows).map((row, index) => <tr key={row.rowKey || `${row.risId}:${row.itemId}:${index}`} className="even:bg-slate-50/60">
               <td className="border border-slate-200 px-3 py-2.5">{shownPropertyNumber(row) || '—'}</td>
               <td className="border border-slate-200 px-3 py-2.5">{row.itemName || row.description || '—'}</td>
               <td className="border border-slate-200 px-3 py-2.5">{row.description || '—'}</td>
@@ -170,7 +180,7 @@ export default function PropertyRecordsPage() {
           </>}
         </div>
         <div className="flex gap-2">
-        <button type="button" disabled={!selectedUser || loading || !rows.length} onClick={() => window.print()} className="property-records-print-button inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16} aria-hidden="true" />Print</button>
+        <button type="button" disabled={!selectedUser || loading || !rows.length} onClick={printAllRecords} className="property-records-print-button inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"><Printer size={16} aria-hidden="true" />Print</button>
         </div>
       </footer>}
     </section>
